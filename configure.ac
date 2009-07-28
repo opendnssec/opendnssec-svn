@@ -7,10 +7,36 @@ AM_INIT_AUTOMAKE
 AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE(foreign)
 
+AC_PROG_CC
+AC_PROG_INSTALL
+AC_PROG_LIBTOOL
+
+ACX_ARG_RPATH
+ACX_RUNTIME_PATH_ADD
+
+ACX_PEDANTIC
+ACX_STRICT
+
 # Checks for programs
+
+# xml
 AC_PATH_PROG(XMLLINT, xmllint)
 AC_PATH_PROG(JAVA, java)
 ACX_TRANG
+
+# libhsm
+ACX_LIBXML2
+ACX_LDNS
+ACX_DLOPEN
+
+# check for functions
+AC_FUNC_MALLOC
+AC_FUNC_REALLOC
+AC_FUNC_VPRINTF
+AC_CHECK_FUNCS([getpass getpassphrase memset])
+AC_REPLACE_FUNCS(strlcpy)
+AC_REPLACE_FUNCS(strlcat)
+
 
 # Check for explicit PKCS11 modules
 ACX_PKCS11_MODULES
@@ -35,6 +61,15 @@ AC_CONFIG_FILES([
 	xml/kasp.xml
 	xml/signconf.xml
 	xml/zonelist.xml
+	libhsm/Makefile
+	libhsm/src/Makefile
+	libhsm/checks/Makefile
 ])
 
-AC_OUTPUT
+AC_OUTPUT([
+	libhsm/checks/conf-softhsm.xml
+	libhsm/checks/conf-sca6000.xml
+	libhsm/checks/conf-etoken.xml
+	libhsm/checks/conf-multi.xml
+	libhsm/checks/conf-opensc.xml
+])
