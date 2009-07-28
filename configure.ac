@@ -39,6 +39,11 @@ fi
 ACX_CUNIT
 ACX_SQLITE3
 
+# signer
+AC_CHECK_LIB(socket, socket)
+AC_CHECK_LIB(nsl, inet_pton)
+AM_PATH_PYTHON
+
 #
 # check for functions
 #
@@ -63,7 +68,7 @@ AC_TYPE_UINT16_T
 
 # Checks for header files.
 AC_HEADER_STDC
-AC_CHECK_HEADERS([fcntl.h inttypes.h limits.h stdint.h stdio.h])
+AC_CHECK_HEADERS([fcntl.h getopt.h inttypes.h limits.h stdint.h stdio.h])
 AC_CHECK_HEADERS([stdlib.h string.h strings.h sys/socket.h syslog.h])
 AC_CHECK_HEADERS([unistd.h])
 
@@ -74,12 +79,15 @@ ACX_PKCS11_MODULES
 # Expand some variables
 full_localstatedir=`eval eval eval eval eval echo "${localstatedir}" | sed "s#NONE#${prefix}#" | sed "s#NONE#${ac_default_prefix}#"`
 full_sysconfdir=`eval eval eval eval eval echo "${sysconfdir}" | sed "s#NONE#${prefix}#" | sed "s#NONE#${ac_default_prefix}#"`
+full_libexecdir=`eval eval eval eval eval echo "${libexecdir}" | sed "s#NONE#${prefix}#" | sed "s#NONE#${ac_default_prefix}#"`
 
 opendnsseclocalstatedir=$full_localstatedir/opendnssec
 opendnssecsysconfdir=$full_sysconfdir/opendnssec
+opendnsseclibexecdir=$full_libexecdir/opendnssec
 
 AC_SUBST([opendnsseclocalstatedir])
 AC_SUBST([opendnssecsysconfdir])
+AC_SUBST([opendnsseclibexecdir])
 
 #
 # module specifics
@@ -139,6 +147,25 @@ AC_DEFINE_UNQUOTED(COM_PID, ["`eval echo $com_pid_file | sed s,NONE,$ac_default_
 keygen_pid_file=$localstatedir/run/opendnssec/keygend.pid
 AC_DEFINE_UNQUOTED(KEYGEN_PID, ["`eval echo $keygen_pid_file | sed s,NONE,$ac_default_prefix,g`"], [Path to the OpenDNSSEC keygend pid file])
 
+# signer
+CHECK_COMPILER_FLAG(std=c99, [C99FLAG="-std=c99"])
+CHECK_COMPILER_FLAG(xc99, [C99FLAG="-xc99"])
+CHECK_COMPILER_FLAG_NEEDED($C99FLAG, [#include <stdbool.h>], [CFLAGS="$CFLAGS $C99FLAG"])
+
+CHECK_COMPILER_FLAG_NEEDED(-D__EXTENSIONS__,
+[
+#include "confdefs.h"
+#include <stdlib.h>
+#include <unistd.h>
+
+int test() {
+	int a;
+	char **opts = NULL;
+	a = getopt(2, opts, "a");
+	return a;
+}
+], [CFLAGS="-D__EXTENSIONS__ $CFLAGS"])
+
 
 
 # shared
@@ -170,8 +197,8 @@ size_t strlcat(char *dst, const char *src, size_t siz);
 
 AC_CONFIG_SRCDIR([enforcer/common/daemon.h])
 AC_CONFIG_HEADER([libksm/src/include/ksm/config.h])
-dnl file missing, stmt from enforcer/configure.ac
-dnl AC_CONFIG_HEADER([enforcer/config.h])
+AC_CONFIG_HEADER([signer/tools/config.h])
+AC_CONFIG_HEADER([enforcer/config.h])
 
 AC_CONFIG_FILES([
 	Makefile
@@ -198,6 +225,12 @@ AC_CONFIG_FILES([
 	enforcer/common/Makefile
 	enforcer/communicated/Makefile
 	enforcer/keygend/Makefile
+	signer/Makefile
+	signer/tools/Makefile
+	signer/signer_engine/Makefile
+	signer/signer_engine/signer_engine
+	signer/signer_engine/EngineConfig.py
+	signer/signer_engine/signer_engine_cli
 ])
 
 AC_OUTPUT
