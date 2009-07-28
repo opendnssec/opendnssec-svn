@@ -1,13 +1,6 @@
 # $Id$
 
-MAINTAINERCLEANFILES = \
-	config.log config.status \
-	$(srcdir)/Makefile.in \
-	$(srcdir)/config.h.in $(srcdir)/config.h.in~ \
-	$(srcdir)/configure \
-	$(srcdir)/install-sh $(srcdir)/ltmain.sh $(srcdir)/missing \
-	$(srcdir)/depcomp $(srcdir)/aclocal.m4 $(srcdir)/compile \
-	$(srcdir)/config.guess $(srcdir)/config.sub
+MAINTAINERCLEANFILES = $(srcdir)/Makefile.in
 
 RNC =	conf.rnc kasp.rnc zonelist.rnc signconf.rnc
 RNG =	conf.rng kasp.rng zonelist.rng signconf.rng
