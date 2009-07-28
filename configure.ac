@@ -233,9 +233,7 @@ AC_DEFINE_UNQUOTED(SIGNER_CLI, ["`eval echo $signer_cli | sed s,NONE,$ac_default
 
 
 
-
-
-dnl AC_CONFIG_SUBDIRS([softHSM])
+AC_CONFIG_SUBDIRS([softHSM])
 
 AH_BOTTOM([
 #ifndef HAVE_STRLCPY
