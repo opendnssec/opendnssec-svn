@@ -44,6 +44,10 @@ AC_CHECK_LIB(socket, socket)
 AC_CHECK_LIB(nsl, inet_pton)
 AM_PATH_PYTHON
 
+# auditor
+AM_PATH_RUBY([], [], [])
+
+
 #
 # check for functions
 #
@@ -79,14 +83,17 @@ ACX_PKCS11_MODULES
 # Expand some variables
 full_localstatedir=`eval eval eval eval eval echo "${localstatedir}" | sed "s#NONE#${prefix}#" | sed "s#NONE#${ac_default_prefix}#"`
 full_sysconfdir=`eval eval eval eval eval echo "${sysconfdir}" | sed "s#NONE#${prefix}#" | sed "s#NONE#${ac_default_prefix}#"`
+full_libdir=`eval eval eval eval eval echo "${libdir}" | sed "s#NONE#${prefix}#" | sed "s#NONE#${ac_default_prefix}#"`
 full_libexecdir=`eval eval eval eval eval echo "${libexecdir}" | sed "s#NONE#${prefix}#" | sed "s#NONE#${ac_default_prefix}#"`
 
 opendnsseclocalstatedir=$full_localstatedir/opendnssec
 opendnssecsysconfdir=$full_sysconfdir/opendnssec
+opendnsseclibdir=$full_libdir/opendnssec
 opendnsseclibexecdir=$full_libexecdir/opendnssec
 
 AC_SUBST([opendnsseclocalstatedir])
 AC_SUBST([opendnssecsysconfdir])
+AC_SUBST([opendnsseclibdir])
 AC_SUBST([opendnsseclibexecdir])
 
 #
@@ -167,6 +174,50 @@ int test() {
 ], [CFLAGS="-D__EXTENSIONS__ $CFLAGS"])
 
 
+# auditor
+AC_MSG_CHECKING([for ruby library rubygems])
+have_ruby_rubygems=`$RUBY -e 'require "rubygems"; print "yes"'`
+if test "x$have_ruby_rubygems" = "x"; then
+    AC_MSG_ERROR([Missing ruby library rubygems])
+fi
+AC_MSG_RESULT([yes])
+
+AC_MSG_CHECKING([for ruby library syslog])
+have_ruby_syslog=`$RUBY -e 'require "syslog"; print "yes"'`
+if test "x$have_ruby_syslog" = "x"; then
+    AC_MSG_ERROR([Missing ruby library syslog])
+fi
+AC_MSG_RESULT([yes])
+
+AC_MSG_CHECKING([for ruby library openssl])
+have_ruby_openssl=`$RUBY -e 'require "openssl"; print "yes"'`
+if test "x$have_ruby_openssl" = "x"; then
+    AC_MSG_ERROR([Missing ruby library openssl])
+fi
+AC_MSG_RESULT([yes])
+
+AC_MSG_CHECKING([for ruby library dnsruby])
+have_ruby_dnsruby=`$RUBY -e 'require "rubygems"; require "dnsruby"; print "yes"'`
+if test "x$have_ruby_dnsruby" = "x"; then
+    AC_MSG_ERROR([Missing ruby library dnsruby])
+fi
+AC_MSG_RESULT([yes])
+
+AC_MSG_CHECKING([for ruby library xsd/datatypes])
+have_ruby_xsd_datatypes=`$RUBY -e 'require "xsd/datatypes"; print "yes"'`
+if test "x$have_ruby_xsd_datatypes" = "x"; then
+    AC_MSG_ERROR([Missing ruby library xsd/datatypes])
+fi
+AC_MSG_RESULT([yes])
+
+AC_MSG_CHECKING([for ruby library rexml/document])
+have_ruby_rexml_document=`$RUBY -e 'require "rexml/document"; print "yes"'`
+if test "x$have_ruby_rexml_document" = "x"; then
+    AC_MSG_ERROR([Missing ruby library rexml/document])
+fi
+AC_MSG_RESULT([yes])
+
+
 
 # shared
 
@@ -231,6 +282,8 @@ AC_CONFIG_FILES([
 	signer/signer_engine/signer_engine
 	signer/signer_engine/EngineConfig.py
 	signer/signer_engine/signer_engine_cli
+	auditor/Makefile
+	auditor/kasp_auditor
 ])
 
 AC_OUTPUT
