@@ -43,20 +43,29 @@ ACX_SQLITE3
 # check for functions
 #
 AC_C_CONST
-AC_CHECK_FUNCS([getpass getpassphrase memset])
+AC_CHECK_FUNCS([dup2 endpwent memset getpass getpassphrase select strerror strtol])
+AC_FUNC_CHOWN
+AC_FUNC_FORK
 AC_FUNC_MALLOC
 AC_FUNC_MEMCMP
 AC_FUNC_MKTIME
 AC_FUNC_REALLOC
+AC_FUNC_SELECT_ARGTYPES
 AC_FUNC_VPRINTF
+AC_HEADER_STDBOOL
 AC_REPLACE_FUNCS(strlcpy)
 AC_REPLACE_FUNCS(strlcat)
 AC_STRUCT_TM
+AC_TYPE_PID_T
 AC_TYPE_SIZE_T
+AC_TYPE_UID_T
+AC_TYPE_UINT16_T
 
 # Checks for header files.
 AC_HEADER_STDC
-AC_CHECK_HEADERS([limits.h stdint.h stdlib.h string.h strings.h sys/socket.h unistd.h])
+AC_CHECK_HEADERS([fcntl.h inttypes.h limits.h stdint.h stdio.h])
+AC_CHECK_HEADERS([stdlib.h string.h strings.h sys/socket.h syslog.h])
+AC_CHECK_HEADERS([unistd.h])
 
 
 # Check for explicit PKCS11 modules
@@ -120,6 +129,20 @@ AC_SUBST([opendnssecsysconf])
 AC_SUBST([ksmdatadir])
 AC_SUBST([ksmincludedir])
 
+# enforcer
+keygend_conf_file=$sysconfdir/opendnssec/conf.xml
+AC_DEFINE_UNQUOTED(CONFIGFILE, ["`eval echo $keygend_conf_file | sed s,NONE,$ac_default_prefix,g`"], [Path to the OpenDNSSEC configuration file])
+keygend_conf_schema=$sysconfdir/opendnssec/conf.rng
+AC_DEFINE_UNQUOTED(CONFIGRNG, ["`eval echo $keygend_conf_schema  | sed s,NONE,$ac_default_prefix,g`"], [Path to the OpenDNSSEC configuration schema file])
+com_pid_file=$localstatedir/run/opendnssec/communicated.pid
+AC_DEFINE_UNQUOTED(COM_PID, ["`eval echo $com_pid_file | sed s,NONE,$ac_default_prefix,g`"], [Path to the OpenDNSSEC communicated pid file])
+keygen_pid_file=$localstatedir/run/opendnssec/keygend.pid
+AC_DEFINE_UNQUOTED(KEYGEN_PID, ["`eval echo $keygen_pid_file | sed s,NONE,$ac_default_prefix,g`"], [Path to the OpenDNSSEC keygend pid file])
+
+
+
+# shared
+
 # Set up the default configuration file location
 conf_file_dir=$sysconfdir/opendnssec
 AC_DEFINE_UNQUOTED(CONFIGDIR, ["`eval echo $conf_file_dir | sed s,NONE,$ac_default_prefix,g`"], [Path to the OpenDNSSEC configuration files])
@@ -129,6 +152,7 @@ AC_DEFINE_UNQUOTED(VAR_DIR, ["`eval echo $open_var_dir | sed s,NONE,$ac_default_
 
 signer_cli="$prefix/bin/signer_engine_cli update"
 AC_DEFINE_UNQUOTED(SIGNER_CLI, ["`eval echo $signer_cli | sed s,NONE,$ac_default_prefix,g`"], [Path to the OpenDNSSEC signer engine cli])
+
 
 
 
@@ -144,7 +168,10 @@ size_t strlcat(char *dst, const char *src, size_t siz);
 #endif
 ])
 
+AC_CONFIG_SRCDIR([enforcer/common/daemon.h])
 AC_CONFIG_HEADER([libksm/src/include/ksm/config.h])
+dnl file missing, stmt from enforcer/configure.ac
+dnl AC_CONFIG_HEADER([enforcer/config.h])
 
 AC_CONFIG_FILES([
 	Makefile
@@ -167,6 +194,10 @@ AC_CONFIG_FILES([
 	libksm/src/include/ksm/Makefile
 	libksm/utils/Makefile
 	libksm/test/Makefile
+	enforcer/Makefile
+	enforcer/common/Makefile
+	enforcer/communicated/Makefile
+	enforcer/keygend/Makefile
 ])
 
 AC_OUTPUT
