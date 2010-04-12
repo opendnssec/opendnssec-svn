@@ -58,6 +58,7 @@ ACX_LIBXML2
 ACX_LIBHSM
 
 AM_INIT_AUTOMAKE
+AC_CONFIG_SRCDIR([src/ods-signerd.c])
 AC_CONFIG_HEADERS([src/config.h])
 AC_PROG_INSTALL
 AC_PROG_LIBTOOL
@@ -72,6 +73,7 @@ AC_CHECK_HEADERS([getopt.h stdio.h stdlib.h])
 
 AC_CONFIG_FILES([
 	Makefile
+	src/Makefile
 ])
 
 AC_OUTPUT

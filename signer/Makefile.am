@@ -13,21 +13,7 @@ MAINTAINERCLEANFILES = \
 	$(srcdir)/depcomp $(srcdir)/aclocal.m4 $(srcdir)/compile \
 	$(srcdir)/config.guess $(srcdir)/config.sub
 
-signerdir =     @libdir@/opendnssec/signer
-
-signer_PROGRAMS = \
-	ods_signerd
-
-# man8_MANS =     man/ods-signer.8 man/ods-signerd.8
-
-ods_signerd_SOURCES=		src/ods-signerd.c
-ods_signerd_LDADD=		@LDNS_LIBS@ @XML2_LIBS@ @LIBHSM_LIBS@
-ods_signerd_DEPENDENCIES=	@BUILD_LIBHSM@
-
-EXTRA_DIST = $(srcdir)/*.h
-
-../libhsm/src/libhsm.la:
-	(cd ../libhsm/src; ${MAKE} libhsm.la)
+SUBDIRS = src
 
 # TODO: move this to general opendnssec install
 install-data-hook:
