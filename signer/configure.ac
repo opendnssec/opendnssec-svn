@@ -1,9 +1,11 @@
 # $Id$
+#                                               -*- Autoconf -*-
+# Process this file with autoconf to produce a configure script.
 
 m4_sinclude([version.m4])
 
-AC_PREREQ(2.61)
-AC_INIT([opendnssec-signer], OPENDNSSEC_VERSION)
+AC_PREREQ([2.61])
+AC_INIT([ods-signer], OPENDNSSEC_VERSION)
 
 AM_INIT_AUTOMAKE
 AC_CONFIG_MACRO_DIR([m4])
@@ -32,50 +34,14 @@ int test() {
 }
 ], [CFLAGS="-D__EXTENSIONS__ $CFLAGS"])
 
-
 # check if setreuid en setregid fail, on MacOSX10.4(darwin8).
 if echo $build_os | grep darwin8 > /dev/null; then
     AC_DEFINE(DARWIN_BROKEN_SETREUID, 1, [Define this if on macOSX10.4-darwin8 and setreuid and setregid do not work])
 fi
 
-AC_CHECK_LIB(socket, socket)
-AC_CHECK_LIB(nsl, inet_pton)
-
 ACX_PEDANTIC
 ACX_STRICT
-
-ACX_LDNS(1,6,4)
-ACX_LIBXML2
-ACX_LIBHSM
-
-AM_PATH_PYTHON
-ACX_PYTHON_MODULE([getopt os sys socket time traceback threading syslog signal errno grp pwd re Ft.Xml.XPath xml.dom xml.parsers.expat subprocess optparse datetime getpass shutil commands])
-
-AC_DEFINE_UNQUOTED(SIGNER_PIDFILE, ["$OPENDNSSEC_SIGNER_PIDFILE"], [Path to the OpenDNSSEC signer engine pid file])
-AC_DEFINE_UNQUOTED(FETCH_PIDFILE, ["$OPENDNSSEC_ENFORCER_PIDFILE"], [Path to the OpenDNSSEC zone fetcher pid file])
-AC_DEFINE_UNQUOTED(SIGNER_CLI_SIGN, ["$OPENDNSSEC_SIGNER_CLI sign"], [Path to the OpenDNSSEC signer engine cli])
-
-AM_INIT_AUTOMAKE
-AC_CONFIG_HEADERS([tools/config.h])
-AC_PROG_INSTALL
-AC_PROG_LIBTOOL
-
-# Checks for library functions.
-AC_CHECK_FUNCS([arc4random arc4random_uniform])
-
 ACX_BROKEN_SETRES
-
-AC_CONFIG_FILES([
-	Makefile
-	tools/Makefile
-	signer_engine/Makefile
-	signer_engine/Engine.py
-	signer_engine/EngineConfig.py
-	signer_engine/ods-signer
-	signer_engine/ods-signer.8
-	signer_engine/ods-signerd
-	signer_engine/ods-signerd.8	
-])
 
 # Check for some target-specific stuff
 case "$host" in
@@ -86,5 +52,26 @@ case "$host" in
     AC_DEFINE(BROKEN_SETREGID, 1, [Define if your setregid() is broken])
     ;;
 esac
+
+ACX_LDNS(1,6,4)
+ACX_LIBXML2
+ACX_LIBHSM
+
+AM_INIT_AUTOMAKE
+AC_CONFIG_HEADERS([src/config.h])
+AC_PROG_INSTALL
+AC_PROG_LIBTOOL
+
+AC_DEFINE_UNQUOTED(ODS_SE_PIDFILE, ["$OPENDNSSEC_SIGNER_PIDFILE"], [Path to the OpenDNSSEC signer engine pid file])
+AC_DEFINE_UNQUOTED(ODS_SE_CFGFILE, ["$OPENDNSSEC_CONFIG_FILE"], [Path to the OpenDNSSEC config file])
+
+AC_CHECK_FUNCS([arc4random arc4random_uniform])
+
+# Checks for header files.
+AC_CHECK_HEADERS([getopt.h stdio.h stdlib.h])
+
+AC_CONFIG_FILES([
+	Makefile
+])
 
 AC_OUTPUT
