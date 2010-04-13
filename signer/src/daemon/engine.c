@@ -92,6 +92,10 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
         return;
     }
 
+    /* open log */
+    se_log_init(engine->config->log_filename, engine->config->use_syslog,
+       engine->config->verbosity);
+
     /* setup */
     tzset(); /* for portability */
 
@@ -104,6 +108,7 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
     se_log_verbose("shutdown signer engine");
 
     engine_cleanup(engine);
+    se_log_close();
     xmlCleanupParser();
     xmlCleanupThreads();
     return;
