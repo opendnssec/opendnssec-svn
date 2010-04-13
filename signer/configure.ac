@@ -63,11 +63,14 @@ AC_CONFIG_HEADERS([src/config.h])
 AC_PROG_INSTALL
 AC_PROG_LIBTOOL
 
-AC_DEFINE_UNQUOTED(ODS_SE_PIDFILE, ["$OPENDNSSEC_SIGNER_PIDFILE"], [Path to the OpenDNSSEC signer engine pid file])
-AC_DEFINE_UNQUOTED(ODS_SE_CFGFILE, ["$OPENDNSSEC_CONFIG_FILE"], [Path to the OpenDNSSEC config file])
+AC_DEFINE_UNQUOTED(ODS_SE_PIDFILE,  ["$OPENDNSSEC_SIGNER_PIDFILE"],    [Path to the OpenDNSSEC signer engine pid file])
+AC_DEFINE_UNQUOTED(ODS_SE_SOCKFILE, ["$OPENDNSSEC_SIGNER_SOCKET"],     [Path to the OpenDNSSEC signer engine socket file])
+AC_DEFINE_UNQUOTED(ODS_SE_WORKDIR,  ["$OPENDNSSEC_SIGNER_WORKINGDIR"], [Path to the OpenDNSSEC signer engine working directory])
+AC_DEFINE_UNQUOTED(ODS_SE_CFGFILE,  ["$OPENDNSSEC_CONFIG_FILE"],       [Path to the OpenDNSSEC config file])
+AC_DEFINE_UNQUOTED(ODS_SE_RNGDIR,   ["$OPENDNSSEC_SCHEMA_DIR"],        [Path to the OpenDNSSEC data files])
 
 AC_CHECK_FUNCS([arc4random arc4random_uniform])
-AC_CHECK_FUNCS([chown stat exit time])
+AC_CHECK_FUNCS([chown stat exit time atoi])
 AC_CHECK_FUNCS([malloc calloc realloc free])
 AC_CHECK_FUNCS([strlen strncmp strncat strncpy strerror strncasecmp strdup])
 AC_CHECK_FUNCS([fgetc fopen fclose ferror fprintf vsnprintf fflush])
@@ -77,11 +80,13 @@ AC_CHECK_FUNCS([xmlInitParser xmlCleanupParser xmlCleanupThreads])
 
 # Checks for header files.
 AC_CHECK_HEADERS([errno.h getopt.h stdarg.h stdint.h stdio.h stdlib.h string.h strings.h sys/stat.h syslog.h time.h unistd.h])
-AC_CHECK_HEADERS([libxml/parser.h])
+AC_CHECK_HEADERS([libxml/parser.h libxml/relaxng.h libxml/xmlreader.h libxml/xpath.h])
 
 AH_BOTTOM([
 
-#define SE_MAX_LINE 1024
+#define ODS_SE_MAXLINE 1024
+#define ODS_SE_SIGNERTHREADS 1
+#define ODS_SE_WORKERTHREADS 8
 
 ])
 
