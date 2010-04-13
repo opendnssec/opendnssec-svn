@@ -128,6 +128,10 @@ se_log_close(void)
 int
 se_log_get_facility(const char* facility)
 {
+    if (!filename) {
+        return LOG_DAEMON;
+    }
+
     if (strncasecmp(facility, "KERN", 4) && strlen(facility) == 4)
         return LOG_KERN;
     else if (strncasecmp(facility, "USER", 4) && strlen(facility) == 4)
