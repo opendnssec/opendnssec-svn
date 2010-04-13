@@ -38,6 +38,7 @@
 #include <libxml/xpath.h> /* xmlXPath*() */
 #include <libxml/relaxng.h> /* xmlRelaxNG*() */
 #include <libxml/xmlreader.h> /* xmlParseFile(), xmlFreeDoc() */
+#include <string.h> /* strlen() */
 #include <stdlib.h> /* atoi() */
 
 
