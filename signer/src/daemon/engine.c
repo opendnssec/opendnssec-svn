@@ -32,10 +32,10 @@
  */
 
 #include "daemon/engine.h"
+#include "util/log.h"
+#include "util/se_malloc.h"
 
-#include <malloc.h>
-#include <time.h>
-#include <stdio.h>
+#include <time.h> /* tzset */
 
 /**
  * Create engine.
@@ -44,7 +44,7 @@
 engine_type*
 engine_create(void)
 {
-    engine_type* engine = (engine_type*) malloc(sizeof(engine_type));
+    engine_type* engine = (engine_type*) se_malloc(sizeof(engine_type));
 
     engine->daemonize = 0;
     engine->need_to_exit = 0;
@@ -63,8 +63,10 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
     int info)
 {
     engine_type* engine = NULL;
+    int use_syslog = 1;
 
-    fprintf(stdout, "start engine");
+    se_log_init(NULL, use_syslog, cmdline_verbosity);
+    se_log_verbose("start signer engine");
 
     /* initialize */
     engine = engine_create();
@@ -86,11 +88,12 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
     }
     /* shutdown */
 
-    fprintf(stdout, "shutdown engine");
+    se_log_verbose("shutdown signer engine");
 
     engine_cleanup(engine);
     return;
 }
+
 
 /**
  * Clean up engine.
@@ -100,7 +103,7 @@ void
 engine_cleanup(engine_type* engine)
 {
     if (engine) {
-        free((void*) engine);
+        se_free((void*) engine);
     }
     return;
 }

@@ -9,7 +9,9 @@ signerdir =     @libdir@/opendnssec/signer
 sbin_PROGRAMS = ods-signerd
 # man8_MANS =     man/ods-signer.8 man/ods-signerd.8
 
-ods_signerd_SOURCES=		ods-signerd.c daemon/engine.c daemon/engine.h
+ods_signerd_SOURCES=		ods-signerd.c \
+							daemon/engine.c daemon/engine.h \
+							util/file.c util/file.h util/log.c util/log.h util/se_malloc.c util/se_malloc.h
 ods_signerd_LDADD=		@LDNS_LIBS@ @XML2_LIBS@ @LIBHSM_LIBS@
 ods_signerd_DEPENDENCIES=	@BUILD_LIBHSM@
 
