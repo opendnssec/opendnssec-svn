@@ -67,9 +67,23 @@ AC_DEFINE_UNQUOTED(ODS_SE_PIDFILE, ["$OPENDNSSEC_SIGNER_PIDFILE"], [Path to the 
 AC_DEFINE_UNQUOTED(ODS_SE_CFGFILE, ["$OPENDNSSEC_CONFIG_FILE"], [Path to the OpenDNSSEC config file])
 
 AC_CHECK_FUNCS([arc4random arc4random_uniform])
+AC_CHECK_FUNCS([chown stat exit time])
+AC_CHECK_FUNCS([malloc calloc realloc free])
+AC_CHECK_FUNCS([strlen strncmp strncat strncpy strerror strncasecmp strdup])
+AC_CHECK_FUNCS([fgetc fopen fclose ferror fprintf vsnprintf fflush])
+AC_CHECK_FUNCS([openlog closelog syslog])
+AC_CHECK_FUNCS([va_start va_end])
+AC_CHECK_FUNCS([xmlInitParser xmlCleanupParser xmlCleanupThreads])
 
 # Checks for header files.
-AC_CHECK_HEADERS([getopt.h stdio.h stdlib.h])
+AC_CHECK_HEADERS([errno.h getopt.h stdarg.h stdint.h stdio.h stdlib.h string.h strings.h sys/stat.h syslog.h time.h unistd.h])
+AC_CHECK_HEADERS([libxml/parser.h])
+
+AH_BOTTOM([
+
+#define SE_MAX_LINE 1024
+
+])
 
 AC_CONFIG_FILES([
 	Makefile

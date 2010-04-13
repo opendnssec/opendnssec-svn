@@ -35,6 +35,7 @@
 #include "util/log.h"
 #include "util/se_malloc.h"
 
+#include <libxml/parser.h> /* xmlInitParser(), xmlCleanupParser(), xmlCleanupThreads() */
 #include <time.h> /* tzset */
 
 /**
@@ -65,10 +66,12 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
     engine_type* engine = NULL;
     int use_syslog = 1;
 
+    se_log_assert(cfgfile);
     se_log_init(NULL, use_syslog, cmdline_verbosity);
     se_log_verbose("start signer engine");
 
     /* initialize */
+    xmlInitParser();
     engine = engine_create();
     engine->daemonize = daemonize;
 
@@ -91,6 +94,8 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
     se_log_verbose("shutdown signer engine");
 
     engine_cleanup(engine);
+    xmlCleanupParser();
+    xmlCleanupThreads();
     return;
 }
 
