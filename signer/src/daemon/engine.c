@@ -58,6 +58,33 @@ engine_create(void)
 
 
 /**
+ * Set up engine.
+ *
+ */
+static int
+engine_setup(engine_type* engine)
+{
+    se_log_assert(engine);
+    se_log_assert(engine->config);
+    se_log_debug("perform setup");
+
+    /* start command handler (before chowning socket file) */
+
+    /* privdrop */
+
+    /* daemonize */
+
+    /* catch signals */
+
+    /* set up hsm */
+
+    /* set up the work floor */
+
+    return 0;
+}
+
+
+/**
  * Start engine.
  *
  */
@@ -98,6 +125,10 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
 
     /* setup */
     tzset(); /* for portability */
+    if (engine_setup(engine) != 0) {
+        se_log_error("signer engine setup failed");
+        engine->need_to_exit = 1;
+    }
 
     /* run */
     while (engine->need_to_exit == 0) {
