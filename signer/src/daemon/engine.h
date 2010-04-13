@@ -35,6 +35,7 @@
 #define DAEMON_ENGINE_H
 
 #include "config.h"
+#include "daemon/cmdhandler.h"
 #include "daemon/config.h"
 
 
@@ -45,7 +46,8 @@
 typedef struct engine_struct engine_type;
 struct engine_struct {
     engineconfig_type* config;
-
+    cmdhandler_type* cmdhandler;
+    int cmdhandler_done;
     int daemonize;
     int need_to_exit;
     int need_to_reload;

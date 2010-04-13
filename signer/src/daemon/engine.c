@@ -32,8 +32,10 @@
  */
 
 #include "config.h"
+#include "daemon/cmdhandler.h"
 #include "daemon/config.h"
 #include "daemon/engine.h"
+#include "scheduler/locks.h"
 #include "util/log.h"
 #include "util/se_malloc.h"
 
@@ -49,11 +51,55 @@ engine_create(void)
 {
     engine_type* engine = (engine_type*) se_malloc(sizeof(engine_type));
 
+    se_log_debug("create signer engine");
+    engine->config = NULL;
     engine->daemonize = 0;
+    engine->cmdhandler = NULL;
+    engine->cmdhandler_done = 0;
+
     engine->need_to_exit = 0;
     engine->need_to_reload = 0;
 
     return engine;
+}
+
+
+/**
+ * Start command handler thread.
+ *
+ */
+static void*
+cmdhandler_thread_start(void* arg)
+{
+    cmdhandler_type* cmd = (cmdhandler_type*) arg;
+
+    se_thread_blocksigs();
+    cmdhandler_start(cmd);
+    return NULL;
+}
+
+
+/**
+ * Start command handler.
+ *
+ */
+static int
+engine_start_cmdhandler(engine_type* engine)
+{
+    se_log_assert(engine);
+    se_log_assert(engine->config);
+    se_log_debug("start command handler");
+
+    engine->cmdhandler = cmdhandler_create(engine->config->clisock_filename);
+    if (!engine->cmdhandler) {
+        return 1;
+    }
+    engine->cmdhandler->engine = engine;
+
+    se_thread_create(&engine->cmdhandler->thread_id,
+        cmdhandler_thread_start, engine->cmdhandler);
+
+    return 0;
 }
 
 
@@ -69,6 +115,10 @@ engine_setup(engine_type* engine)
     se_log_debug("perform setup");
 
     /* start command handler (before chowning socket file) */
+    if (engine_start_cmdhandler(engine) != 0) {
+        se_log_error("setup failed: unable to start command handler");
+        return 1;
+    }
 
     /* privdrop */
 
