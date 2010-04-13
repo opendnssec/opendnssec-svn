@@ -31,6 +31,8 @@
  *
  */
 
+#include "config.h"
+#include "daemon/config.h"
 #include "daemon/engine.h"
 #include "util/log.h"
 #include "util/se_malloc.h"
@@ -76,9 +78,17 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
     engine->daemonize = daemonize;
 
     /* configure */
-
+    engine->config = engine_config(cfgfile, cmdline_verbosity);
+    if (engine_check_config(engine->config) != 0) {
+        se_log_error("cfgfile %s has errors", cfgfile);
+        engine->need_to_exit = 1;
+        return;
+    }
     if (info) {
-        /* print info */
+        engine_config_print(stdout, engine->config);
+        xmlCleanupParser();
+        xmlCleanupThreads();
+        engine_cleanup(engine);
         return;
     }
 
@@ -108,7 +118,12 @@ void
 engine_cleanup(engine_type* engine)
 {
     if (engine) {
+        if (engine->config) {
+            engine_config_cleanup(engine->config);
+        }
         se_free((void*) engine);
+    } else {
+        se_log_warning("cleanup empty engine");
     }
     return;
 }

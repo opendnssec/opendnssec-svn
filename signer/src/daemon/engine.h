@@ -34,12 +34,18 @@
 #ifndef DAEMON_ENGINE_H
 #define DAEMON_ENGINE_H
 
+#include "config.h"
+#include "daemon/config.h"
+
+
 /**
  * Engine stuff.
  *
  */
 typedef struct engine_struct engine_type;
 struct engine_struct {
+    engineconfig_type* config;
+
     int daemonize;
     int need_to_exit;
     int need_to_reload;

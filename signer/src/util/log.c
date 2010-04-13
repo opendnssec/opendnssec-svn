@@ -181,7 +181,7 @@ se_log_get_facility(const char* facility)
 static void
 se_log_vmsg(int priority, const char* t, const char* s, va_list args)
 {
-    char message[SE_MAX_LINE];
+    char message[ODS_SE_MAXLINE];
     time_t now = time(NULL);
     char* strtime = NULL;
 

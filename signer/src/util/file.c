@@ -31,6 +31,7 @@
  * File access.
  */
 
+#include "config.h"
 #include "util/file.h"
 #include "util/log.h"
 #include "util/se_malloc.h"

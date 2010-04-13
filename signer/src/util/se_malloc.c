@@ -31,6 +31,7 @@
  *
  */
 
+#include "config.h"
 #include "util/se_malloc.h"
 #include "util/log.h"
 
