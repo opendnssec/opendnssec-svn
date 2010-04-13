@@ -128,7 +128,7 @@ se_log_close(void)
 int
 se_log_get_facility(const char* facility)
 {
-    if (!filename) {
+    if (!facility) {
         return LOG_DAEMON;
     }
 
