@@ -41,6 +41,7 @@
 #include "util/log.h"
 #include "util/se_malloc.h"
 
+#include <libhsm.h> /* hsm_open(), hsm_close() */
 #include <libxml/parser.h> /* xmlInitParser(), xmlCleanupParser(), xmlCleanupThreads() */
 #include <signal.h> /* sigfillset(), sigaction() */
 #include <stdio.h> /* snprintf() */
@@ -49,6 +50,7 @@
 #include <sys/types.h> /* getpid() */
 #include <time.h> /* tzset() */
 #include <unistd.h> /* fork(), setsid(), getpid() */
+
 
 /**
  * Create engine.
@@ -64,7 +66,7 @@ engine_create(void)
     engine->daemonize = 0;
     engine->cmdhandler = NULL;
     engine->cmdhandler_done = 0;
-
+    engine->pid = -1;
     engine->need_to_exit = 0;
     engine->need_to_reload = 0;
 
@@ -180,6 +182,7 @@ static int
 engine_setup(engine_type* engine)
 {
     struct sigaction action;
+    int result = 0;
 
     se_log_assert(engine);
     se_log_assert(engine->config);
@@ -230,6 +233,11 @@ engine_setup(engine_type* engine)
     sigaction(SIGTERM, &action, NULL);
 
     /* set up hsm */
+    result = hsm_open(engine->config->cfg_filename, hsm_prompt_pin, NULL);
+    if (result != HSM_OK) {
+        se_log_error("Error initializing libhsm");
+        return 1;
+    }
 
     /* set up the work floor */
 
@@ -287,7 +295,7 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
     int info)
 {
     engine_type* engine = NULL;
-    int use_syslog = 1;
+    int use_syslog = 0;
 
     se_log_assert(cfgfile);
     se_log_init(NULL, use_syslog, cmdline_verbosity);
@@ -303,13 +311,13 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
     if (engine_check_config(engine->config) != 0) {
         se_log_error("cfgfile %s has errors", cfgfile);
         engine->need_to_exit = 1;
-        return;
     }
     if (info) {
         engine_config_print(stdout, engine->config);
         xmlCleanupParser();
         xmlCleanupThreads();
         engine_cleanup(engine);
+        engine = NULL;
         return;
     }
 
@@ -335,13 +343,14 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
 
         engine_run(engine);
     }
+
     /* shutdown */
-
     se_log_verbose("shutdown signer engine");
-
+    hsm_close();
     (void)unlink(engine->config->pid_filename);
     (void)unlink(engine->config->clisock_filename);
     engine_cleanup(engine);
+    engine = NULL;
     se_log_close();
     xmlCleanupParser();
     xmlCleanupThreads();
@@ -357,8 +366,13 @@ void
 engine_cleanup(engine_type* engine)
 {
     if (engine) {
+        if (engine->cmdhandler) {
+            cmdhandler_cleanup(engine->cmdhandler);
+            engine->cmdhandler = NULL;
+        }
         if (engine->config) {
             engine_config_cleanup(engine->config);
+            engine->config = NULL;
         }
         lock_basic_destroy(&engine->signal_lock);
         lock_basic_off(&engine->signal_cond);
