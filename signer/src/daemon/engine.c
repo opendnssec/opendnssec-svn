@@ -69,7 +69,7 @@ engine_create(void)
     engine->pid = -1;
     engine->need_to_exit = 0;
     engine->need_to_reload = 0;
-
+    engine->signal = SIGNAL_INIT;
     lock_basic_init(&engine->signal_lock);
     lock_basic_set(&engine->signal_cond);
     return engine;
