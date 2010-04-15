@@ -48,6 +48,8 @@ struct engine_struct {
     engineconfig_type* config;
     cmdhandler_type* cmdhandler;
     int cmdhandler_done;
+
+    pid_t pid;
     int daemonize;
     int need_to_exit;
     int need_to_reload;

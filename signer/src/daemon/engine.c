@@ -40,7 +40,11 @@
 #include "util/se_malloc.h"
 
 #include <libxml/parser.h> /* xmlInitParser(), xmlCleanupParser(), xmlCleanupThreads() */
-#include <time.h> /* tzset */
+#include <stdlib.h> /* exit() */
+#include <sys/types.h> /* getpid() */
+#include <time.h> /* tzset() */
+#include <unistd.h> /* fork(), setsid(), getpid() */
+
 
 /**
  * Create engine.
@@ -104,6 +108,22 @@ engine_start_cmdhandler(engine_type* engine)
 
 
 /**
+ * Stop parent process.
+ *
+ */
+static void
+parent_cleanup(engine_type* engine)
+{
+    if (engine) {
+        engine_config_cleanup(engine->config);
+        se_free((void*) engine);
+    } else {
+        se_log_warning("cleanup empty parent");
+    }
+}
+
+
+/**
  * Set up engine.
  *
  */
@@ -123,6 +143,28 @@ engine_setup(engine_type* engine)
     /* privdrop */
 
     /* daemonize */
+    if (engine->daemonize) {
+        switch ((engine->pid = fork())) {
+            case -1: /* error */
+                se_log_error("setup failed: unable to fork daemon: %s",
+                    strerror(errno));
+                return 1;
+            case 0: /* child */
+                break;
+            default: /* parent */
+                parent_cleanup(engine);
+                xmlCleanupParser();
+                xmlCleanupThreads();
+                exit(0);
+        }
+        if (setsid() == -1) {
+            se_log_error("setup failed: unable to setsid daemon (%s)",
+                strerror(errno));
+            return 1;
+        }
+    }
+    engine->pid = getpid();
+    se_log_verbose("running as pid %lu", (unsigned long) engine->pid);
 
     /* catch signals */
 
