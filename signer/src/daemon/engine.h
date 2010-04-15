@@ -38,6 +38,7 @@
 #include "daemon/cmdhandler.h"
 #include "daemon/config.h"
 
+#include <signal.h>
 
 /**
  * Engine stuff.
@@ -50,6 +51,7 @@ struct engine_struct {
     int cmdhandler_done;
 
     pid_t pid;
+    sig_atomic_t signal;
     int daemonize;
     int need_to_exit;
     int need_to_reload;

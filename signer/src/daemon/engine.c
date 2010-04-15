@@ -35,12 +35,14 @@
 #include "daemon/cmdhandler.h"
 #include "daemon/config.h"
 #include "daemon/engine.h"
+#include "daemon/signal.h"
 #include "scheduler/locks.h"
 #include "util/file.h"
 #include "util/log.h"
 #include "util/se_malloc.h"
 
 #include <libxml/parser.h> /* xmlInitParser(), xmlCleanupParser(), xmlCleanupThreads() */
+#include <signal.h> /* sigfillset(), sigaction() */
 #include <stdio.h> /* snprintf() */
 #include <stdlib.h> /* exit(), fwrite() */
 #include <string.h> /* strlen() */
@@ -175,6 +177,8 @@ write_pidfile(const char* pidfile, pid_t pid)
 static int
 engine_setup(engine_type* engine)
 {
+    struct sigaction action;
+
     se_log_assert(engine);
     se_log_assert(engine->config);
     se_log_debug("perform setup");
@@ -216,12 +220,60 @@ engine_setup(engine_type* engine)
     se_log_verbose("running as pid %lu", (unsigned long) engine->pid);
 
     /* catch signals */
+    action.sa_handler = signal_handler;
+    sigfillset(&action.sa_mask);
+    action.sa_flags = 0;
+    sigaction(SIGHUP, &action, NULL);
+    sigaction(SIGTERM, &action, NULL);
 
     /* set up hsm */
 
     /* set up the work floor */
 
     return 0;
+}
+
+
+/**
+ * Engine running.
+ *
+ */
+static void
+engine_run(engine_type* engine)
+{
+    se_log_assert(engine);
+
+    engine->signal = SIGNAL_RUN;
+    while (engine->need_to_exit == 0 && engine->need_to_reload == 0) {
+/*        lock_basic_lock(&engine->engine_lock); */
+        engine->signal = signal_capture(engine->signal);
+        switch (engine->signal) {
+            case SIGNAL_RUN:
+                se_log_assert(1);
+                break;
+            case SIGNAL_RELOAD:
+                engine->need_to_reload = 1;
+                break;
+            case SIGNAL_SHUTDOWN:
+                engine->need_to_exit = 1;
+                break;
+            default:
+                se_log_warning("invalid signal captured: %d, keep running",
+                    engine->signal);
+                engine->signal = SIGNAL_RUN;
+                break;
+        }
+
+/*
+        if (engine->signal == SIGNAL_RUN) {
+           se_log_debug("engine taking a break");
+           lock_basic_sleep(&engine->engine_cond, &engine->engine_lock, 3600);
+        }
+        lock_basic_unlock(&engine->engine_lock);
+*/
+    }
+    se_log_debug("engine halt");
+    return;
 }
 
 
@@ -273,20 +325,21 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
 
     /* run */
     while (engine->need_to_exit == 0) {
-        ;
+        if (engine->need_to_reload) {
+            se_log_verbose("reload engine");
+            engine->need_to_reload = 0;
+        } else {
+            se_log_debug("signer engine started");
+        }
+
+        engine_run(engine);
     }
     /* shutdown */
 
     se_log_verbose("shutdown signer engine");
 
-    if (unlink(engine->config->pid_filename) == -1) {
-        se_log_warning("failed to unlink pid file %s: %s",
-            engine->config->pid_filename, strerror(errno));
-    }
-    if (unlink(engine->config->clisock_filename) == -1) {
-        se_log_warning("failed to unlink socket %s: %s",
-            engine->config->clisock_filename, strerror(errno));
-    }
+    (void)unlink(engine->config->pid_filename);
+    (void)unlink(engine->config->clisock_filename);
     engine_cleanup(engine);
     se_log_close();
     xmlCleanupParser();
