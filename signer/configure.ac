@@ -56,6 +56,11 @@ esac
 ACX_LDNS(1,6,4)
 ACX_LIBXML2
 ACX_LIBHSM
+ACX_PTHREAD
+
+LIBS="$PTHREAD_LIBS $LIBS"
+CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
+CC="$PTHREAD_CC"
 
 AM_INIT_AUTOMAKE
 AC_CONFIG_SRCDIR([src/ods-signerd.c])
@@ -70,17 +75,22 @@ AC_DEFINE_UNQUOTED(ODS_SE_CFGFILE,  ["$OPENDNSSEC_CONFIG_FILE"],       [Path to 
 AC_DEFINE_UNQUOTED(ODS_SE_RNGDIR,   ["$OPENDNSSEC_SCHEMA_DIR"],        [Path to the OpenDNSSEC data files])
 
 AC_CHECK_FUNCS([arc4random arc4random_uniform])
-AC_CHECK_FUNCS([chown stat exit time atoi])
+AC_CHECK_FUNCS([chown stat exit time atoi getpid waitpid clock_gettime sigfillset])
 AC_CHECK_FUNCS([malloc calloc realloc free])
 AC_CHECK_FUNCS([strlen strncmp strncat strncpy strerror strncasecmp strdup])
 AC_CHECK_FUNCS([fgetc fopen fclose ferror fprintf vsnprintf fflush])
 AC_CHECK_FUNCS([openlog closelog syslog])
+AC_CHECK_FUNCS([close unlink fcntl socket listen bzero])
 AC_CHECK_FUNCS([va_start va_end])
 AC_CHECK_FUNCS([xmlInitParser xmlCleanupParser xmlCleanupThreads])
+AC_CHECK_FUNCS([pthread_mutex_init pthread_mutex_destroy pthread_mutex_lock pthread_mutex_unlock])
+AC_CHECK_FUNCS([pthread_cond_init pthread_cond_signal pthread_cond_destroy pthread_cond_wait pthread_cond_timedwait])
+AC_CHECK_FUNCS([pthread_create pthread_detach pthread_self pthread_join pthread_sigmask])
 
 # Checks for header files.
-AC_CHECK_HEADERS([errno.h getopt.h stdarg.h stdint.h stdio.h stdlib.h string.h strings.h sys/stat.h syslog.h time.h unistd.h])
+AC_CHECK_HEADERS([errno.h getopt.h pthread.h signal.h stdarg.h stdint.h stdio.h stdlib.h string.h strings.h syslog.h time.h unistd.h])
 AC_CHECK_HEADERS([libxml/parser.h libxml/relaxng.h libxml/xmlreader.h libxml/xpath.h])
+AC_CHECK_HEADERS([sys/select.h sys/socket.h sys/stat.h sys/time.h sys/types.h sys/wait.h])
 
 AH_BOTTOM([
 
