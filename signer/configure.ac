@@ -41,6 +41,7 @@ fi
 
 ACX_PEDANTIC
 ACX_STRICT
+ACX_RT
 ACX_BROKEN_SETRES
 
 # Check for some target-specific stuff
