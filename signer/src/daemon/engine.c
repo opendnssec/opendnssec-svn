@@ -36,15 +36,17 @@
 #include "daemon/config.h"
 #include "daemon/engine.h"
 #include "scheduler/locks.h"
+#include "util/file.h"
 #include "util/log.h"
 #include "util/se_malloc.h"
 
 #include <libxml/parser.h> /* xmlInitParser(), xmlCleanupParser(), xmlCleanupThreads() */
-#include <stdlib.h> /* exit() */
+#include <stdio.h> /* snprintf() */
+#include <stdlib.h> /* exit(), fwrite() */
+#include <string.h> /* strlen() */
 #include <sys/types.h> /* getpid() */
 #include <time.h> /* tzset() */
 #include <unistd.h> /* fork(), setsid(), getpid() */
-
 
 /**
  * Create engine.
@@ -124,6 +126,49 @@ parent_cleanup(engine_type* engine)
 
 
 /**
+ * Write process id to file.
+ *
+ */
+static int
+write_pidfile(const char* pidfile, pid_t pid)
+{
+    FILE* fd;
+    char pidbuf[32];
+    size_t result = 0, size = 0;
+
+    se_log_assert(pidfile);
+    se_log_assert(pid);
+    se_log_debug("writing pid %lu to pidfile %s", (unsigned long) pid,
+        pidfile);
+    snprintf(pidbuf, sizeof(pidbuf), "%lu\n", (unsigned long) pid);
+    fd = se_fopen(pidfile, NULL, "w");
+    if (!fd) {
+        return -1;
+    }
+    size = strlen(pidbuf);
+    if (size == 0) {
+        result = 1;
+    } else {
+        result = fwrite((const void*) pidbuf, 1, size, fd);
+    }
+    if (result == 0) {
+        se_log_error("write to pidfile %s failed: %s", pidfile,
+            strerror(errno));
+    } else if (result < size) {
+        se_log_error("short write to pidfile %s: disk full?", pidfile);
+        result = 0;
+    } else {
+        result = 1;
+    }
+    se_fclose(fd);
+    if (!result) {
+        return -1;
+    }
+    return 0;
+}
+
+
+/**
  * Set up engine.
  *
  */
@@ -164,6 +209,10 @@ engine_setup(engine_type* engine)
         }
     }
     engine->pid = getpid();
+    if (write_pidfile(engine->config->pid_filename, engine->pid) == -1) {
+        se_log_error("setup failed: unable to write pid file");
+        return 1;
+    }
     se_log_verbose("running as pid %lu", (unsigned long) engine->pid);
 
     /* catch signals */
@@ -224,12 +273,20 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
 
     /* run */
     while (engine->need_to_exit == 0) {
-        engine->need_to_exit = 1;
+        ;
     }
     /* shutdown */
 
     se_log_verbose("shutdown signer engine");
 
+    if (unlink(engine->config->pid_filename) == -1) {
+        se_log_warning("failed to unlink pid file %s: %s",
+            engine->config->pid_filename, strerror(errno));
+    }
+    if (unlink(engine->config->clisock_filename) == -1) {
+        se_log_warning("failed to unlink socket %s: %s",
+            engine->config->clisock_filename, strerror(errno));
+    }
     engine_cleanup(engine);
     se_log_close();
     xmlCleanupParser();
