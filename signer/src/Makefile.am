@@ -13,6 +13,7 @@ ods_signerd_SOURCES=		ods-signerd.c \
 				daemon/cmdhandler.c daemon/cmdhandler.h \
 				daemon/config.c daemon/config.h \
 				daemon/engine.c daemon/engine.h \
+				daemon/signal.c daemon/signal.h \
 				parser/confparser.c parser/confparser.h \
 				scheduler/locks.c scheduler/locks.h \
 				util/file.c util/file.h \

@@ -1,3 +1,9 @@
+15 April 2010: Matthijs
+- Daemonize
+
+14 April 2010: Matthijs
+- Command handler
+
 13 April 2010: Matthijs
 - Parse conf.xml
 - Import utilities
