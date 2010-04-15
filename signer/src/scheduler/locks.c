@@ -40,7 +40,7 @@
 #include <string.h> /* strerror() */
 #include <time.h> /* clock_gettime() */
 
-#if defined(HAVE_PTHREAD)
+#if !defined(HAVE_PTHREAD)
 #include <sys/wait.h> /* waitpid() */
 #include <sys/types.h> /* getpid(), waitpid() */
 #include <unistd.h> /* fork(), getpid() */
@@ -89,7 +89,7 @@ void se_thr_fork_wait(se_thread_type thread)
 			(int)thread, status);
 }
 
-#else /* !PTHREADS_DISABLED */
+#else /* defined(HAVE_PTHREAD) */
 
 
 int
@@ -116,7 +116,7 @@ se_thread_wait(cond_basic_type* cond, lock_basic_type* lock, time_t wait)
     return ret;
 }
 
-#endif /* HAVE_PTHREAD */
+#endif /* defined(HAVE_PTHREAD) */
 
 
 void

@@ -68,6 +68,8 @@ engine_create(void)
     engine->need_to_exit = 0;
     engine->need_to_reload = 0;
 
+    lock_basic_init(&engine->signal_lock);
+    lock_basic_set(&engine->signal_cond);
     return engine;
 }
 
@@ -220,6 +222,7 @@ engine_setup(engine_type* engine)
     se_log_verbose("running as pid %lu", (unsigned long) engine->pid);
 
     /* catch signals */
+    signal_set_engine(engine);
     action.sa_handler = signal_handler;
     sigfillset(&action.sa_mask);
     action.sa_flags = 0;
@@ -245,7 +248,7 @@ engine_run(engine_type* engine)
 
     engine->signal = SIGNAL_RUN;
     while (engine->need_to_exit == 0 && engine->need_to_reload == 0) {
-/*        lock_basic_lock(&engine->engine_lock); */
+        lock_basic_lock(&engine->signal_lock);
         engine->signal = signal_capture(engine->signal);
         switch (engine->signal) {
             case SIGNAL_RUN:
@@ -264,13 +267,11 @@ engine_run(engine_type* engine)
                 break;
         }
 
-/*
         if (engine->signal == SIGNAL_RUN) {
            se_log_debug("engine taking a break");
-           lock_basic_sleep(&engine->engine_cond, &engine->engine_lock, 3600);
+           lock_basic_sleep(&engine->signal_cond, &engine->signal_lock, 3600);
         }
-        lock_basic_unlock(&engine->engine_lock);
-*/
+        lock_basic_unlock(&engine->signal_lock);
     }
     se_log_debug("engine halt");
     return;
@@ -359,6 +360,8 @@ engine_cleanup(engine_type* engine)
         if (engine->config) {
             engine_config_cleanup(engine->config);
         }
+        lock_basic_destroy(&engine->signal_lock);
+        lock_basic_off(&engine->signal_cond);
         se_free((void*) engine);
     } else {
         se_log_warning("cleanup empty engine");

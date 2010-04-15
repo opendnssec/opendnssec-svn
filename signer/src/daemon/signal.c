@@ -65,24 +65,20 @@ signal_handler(sig_atomic_t sig)
         case SIGHUP:
             se_log_debug("reload signal received");
             signal_hup_recvd++;
-/*
             if (signal_engine) {
-                lock_basic_lock(&sig_engine->engine_lock);
-                lock_basic_alarm(&sig_engine->engine_cond);
-                lock_basic_unlock(&sig_engine->engine_lock);
+                lock_basic_lock(&signal_engine->signal_lock);
+                lock_basic_alarm(&signal_engine->signal_cond);
+                lock_basic_unlock(&signal_engine->signal_lock);
             }
-*/
             break;
         case SIGTERM:
             se_log_debug("shutdown signal received");
             signal_term_recvd++;
-/*
             if (signal_engine) {
-                lock_basic_lock(&sig_engine->engine_lock);
-                lock_basic_alarm(&sig_engine->engine_cond);
-                lock_basic_unlock(&sig_engine->engine_lock);
+                lock_basic_lock(&signal_engine->signal_lock);
+                lock_basic_alarm(&signal_engine->signal_cond);
+                lock_basic_unlock(&signal_engine->signal_lock);
             }
-*/
             break;
         default:
             break;

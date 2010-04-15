@@ -50,8 +50,11 @@ struct engine_struct {
     cmdhandler_type* cmdhandler;
     int cmdhandler_done;
 
-    pid_t pid;
     sig_atomic_t signal;
+    cond_basic_type signal_cond;
+    lock_basic_type signal_lock;
+
+    pid_t pid;
     int daemonize;
     int need_to_exit;
     int need_to_reload;
