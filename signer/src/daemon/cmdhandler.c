@@ -57,6 +57,40 @@ static int count = 0;
 
 
 /**
+ * Handle the 'help' command.
+ *
+ */
+static void
+cmdhandler_handle_cmd_help(int sockfd)
+{
+    char buf[ODS_SE_MAXLINE];
+
+    (void) snprintf(buf, ODS_SE_MAXLINE,
+        "Commands:\n"
+        "zones           show the currently known zones\n"
+        "sign <zone>     schedule zone for immediate (re-)signing\n"
+        "sign --all      schedule all zones for immediate (re-)signing.\n"
+        "clear <zone>    delete the internal storage of this zone.\n"
+        "                All signatures will be regenerated on the next re-sign.\n"
+        "queue           show the current task queue.\n"
+    );
+    se_writen(sockfd, buf, strlen(buf));
+
+    (void) snprintf(buf, ODS_SE_MAXLINE,
+        "flush           execute all scheduled tasks immediately.\n"
+        "update <zone>   update this zone signer configurations.\n"
+        "update [--all]  update zone list and all signer configurations.\n"
+        "start           start the engine.\n"
+        "reload          reload the engine (notimpl).\n"
+        "stop            stop the engine.\n"
+        "verbosity <nr>  set verbosity.\n"
+    );
+    se_writen(sockfd, buf, strlen(buf));
+    return;
+}
+
+
+/**
  * Handle erroneous command.
  *
  */
@@ -124,7 +158,7 @@ again:
 
         if (n == 4 && strncmp(buf, "help", n) == 0) {
             se_log_debug("help command");
-            cmdhandler_handle_cmd_notimpl(sockfd, buf);
+            cmdhandler_handle_cmd_help(sockfd);
         } else if (n == 5 && strncmp(buf, "zones", n) == 0) {
             se_log_debug("list zones command");
             cmdhandler_handle_cmd_notimpl(sockfd, buf);
