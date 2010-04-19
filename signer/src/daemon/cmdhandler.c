@@ -51,6 +51,8 @@
 #include <sys/time.h>
 #include <sys/types.h>
 
+#define SE_CMDH_CMDLEN 7
+
 static int count = 0;
 
 
@@ -95,7 +97,7 @@ again:
         cmdhandler_handle_cmd_unknown(buf, sockfd);
 
         se_log_debug("done handling command: %s[%i]", buf, n);
-        (void)snprintf(buf, 6, "\ncmd> ");
+        (void)snprintf(buf, SE_CMDH_CMDLEN, "\ncmd> ");
         se_writen(sockfd, buf, strlen(buf));
     }
 

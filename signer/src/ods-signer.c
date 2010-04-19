@@ -50,6 +50,7 @@
 #include <sys/types.h>
 #include <sys/time.h>
 
+#define SE_CLI_CMDLEN 6
 
 /**
  * Prints usage.
@@ -112,7 +113,7 @@ interface_run(FILE* fp, int sockfd, char* cmd)
             ret = select(maxfdp1, &rset, NULL, NULL, NULL);
             if (ret < 0) {
                 if (errno != EINTR && errno != EWOULDBLOCK) {
-                    se_log_warning("interace select error: %s",
+                    se_log_warning("interface select error: %s",
                         strerror(errno));
                 }
                 continue;
@@ -149,10 +150,10 @@ interface_run(FILE* fp, int sockfd, char* cmd)
                 }
             }
 
-            if (cmd && strncmp(buf+n-6, "\ncmd> ", 6) == 0) {
+            if (cmd && strncmp(buf+n-SE_CLI_CMDLEN, "\ncmd> ", SE_CLI_CMDLEN) == 0) {
                 /* we have the full response */
-                if (n > 6) {
-                    ret = (int) write(fileno(stdout), buf, n-6);
+                if (n > SE_CLI_CMDLEN) {
+                    ret = (int) write(fileno(stdout), buf, n-SE_CLI_CMDLEN);
                 }
                 cmd_response = 1;
                 ret = 1;
@@ -251,12 +252,6 @@ interface_start(char* cmd)
             usage(stdout);
 /*            ret = system(SE_SIGNER_DAEMON); */
             return;
-        } else if (cmd && se_strcmp(cmd, "-h\n") == 0) {
-            usage(stdout);
-            return;
-        } else if (cmd && se_strcmp(cmd, "--help\n") == 0) {
-            usage(stdout);
-            return;
         }
 
         fprintf(stderr, "Unable to connect to engine: "
@@ -334,6 +329,14 @@ main(int argc, char* argv[])
     }
 
     /* main stuff */
+    if (cmd && se_strcmp(cmd, "-h\n") == 0) {
+        usage(stdout);
+        return 0;
+    } else if (cmd && se_strcmp(cmd, "--help\n") == 0) {
+        usage(stdout);
+        return 0;
+    }
+
     interface_start(cmd);
 
     /* done */
