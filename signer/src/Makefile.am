@@ -6,7 +6,7 @@ AM_CPPFLAGS = @LIBHSM_INCLUDES@ @LDNS_INCLUDES@ @XML2_INCLUDES@
 
 signerdir =     @libdir@/opendnssec/signer
 
-sbin_PROGRAMS = ods-signerd
+sbin_PROGRAMS = ods-signerd ods-signer
 # man8_MANS =     man/ods-signer.8 man/ods-signerd.8
 
 ods_signerd_SOURCES=		ods-signerd.c \
@@ -22,6 +22,14 @@ ods_signerd_SOURCES=		ods-signerd.c \
 
 ods_signerd_LDADD=		@LDNS_LIBS@ @XML2_LIBS@ @LIBHSM_LIBS@ @PTHREAD_LIBS@
 ods_signerd_DEPENDENCIES=	@BUILD_LIBHSM@
+
+ods_signer_SOURCES=		ods-signer.c \
+				util/file.c util/file.h \
+				util/log.c util/log.h \
+				util/se_malloc.c util/se_malloc.h
+
+ods_signer_LDADD=		@LDNS_LIBS@ @XML2_LIBS@ @LIBHSM_LIBS@
+ods_signer_DEPENDENCIES=
 
 EXTRA_DIST = $(srcdir)/*.h
 
