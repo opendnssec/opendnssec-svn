@@ -195,6 +195,7 @@ se_fclose(FILE* fd)
     if (fd) {
         fclose(fd);
     }
+    return;
 }
 
 
@@ -350,7 +351,6 @@ se_dir_name(const char* file) {
         dir = strncpy(dir, file, l);
         return dir;
     }
-
     return NULL;
 }
 
@@ -361,7 +361,8 @@ se_dir_name(const char* file) {
 void
 se_chown(const char* file, uid_t uid, gid_t gid, int getdir)
 {
-    char* dir;
+    char* dir = NULL;
+
     if (!getdir) {
         se_log_debug("create and chown directory '%s', user %ld, group %ld",
            file, (signed long) uid, (signed long) gid);
@@ -376,8 +377,9 @@ se_chown(const char* file, uid_t uid, gid_t gid, int getdir)
         }
         se_free((void*) dir);
     } else {
-        se_log_warning("use of relative path: '%s'", file);
+        se_log_warning("use of relative path: %s", file);
     }
+    return;
 }
 
 
@@ -416,4 +418,5 @@ se_str_trim(char* str)
         str++;
     }
     *str = '\0';
+    return;
 }
