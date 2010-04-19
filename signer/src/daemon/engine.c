@@ -39,6 +39,7 @@
 #include "scheduler/locks.h"
 #include "util/file.h"
 #include "util/log.h"
+#include "util/privdrop.h"
 #include "util/se_malloc.h"
 
 #include <libhsm.h> /* hsm_open(), hsm_close() */
@@ -49,7 +50,7 @@
 #include <string.h> /* strlen() */
 #include <sys/types.h> /* getpid() */
 #include <time.h> /* tzset() */
-#include <unistd.h> /* fork(), setsid(), getpid() */
+#include <unistd.h> /* fork(), setsid(), getpid(), chdir() */
 
 
 /**
@@ -67,6 +68,8 @@ engine_create(void)
     engine->cmdhandler = NULL;
     engine->cmdhandler_done = 0;
     engine->pid = -1;
+    engine->uid = -1;
+    engine->gid = -1;
     engine->need_to_exit = 0;
     engine->need_to_reload = 0;
     engine->signal = SIGNAL_INIT;
@@ -195,6 +198,24 @@ engine_setup(engine_type* engine)
     }
 
     /* privdrop */
+    engine->uid = privuid(engine->config->username);
+    engine->gid = privgid(engine->config->group);
+    se_chown(engine->config->pid_filename, engine->uid, engine->gid, 1); /* chown pidfile directory */
+    se_chown(engine->config->clisock_filename, engine->uid, engine->gid, 0); /* chown sockfile */
+    se_chown(engine->config->working_dir, engine->uid, engine->gid, 0); /* chown workdir */
+    if (engine->config->log_filename && !engine->config->use_syslog) {
+        se_chown(engine->config->log_filename, engine->uid, engine->gid, 0); /* chown logfile */
+    }
+    if (chdir(engine->config->working_dir) != 0) {
+        se_log_error("setup failed: chdir to %s failed: %s", engine->config->working_dir,
+            strerror(errno));
+        return 1;
+    }
+
+    if (engine_privdrop(engine) != 0) {
+        se_log_error("setup failed: unable to drop privileges");
+        return 1;
+    }
 
     /* daemonize */
     if (engine->daemonize) {

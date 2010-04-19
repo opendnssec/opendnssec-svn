@@ -18,6 +18,7 @@ ods_signerd_SOURCES=		ods-signerd.c \
 				scheduler/locks.c scheduler/locks.h \
 				util/file.c util/file.h \
 				util/log.c util/log.h \
+				util/privdrop.c util/privdrop.h \
 				util/se_malloc.c util/se_malloc.h
 
 ods_signerd_LDADD=		@LDNS_LIBS@ @XML2_LIBS@ @LIBHSM_LIBS@ @PTHREAD_LIBS@
