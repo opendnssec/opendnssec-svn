@@ -41,6 +41,7 @@
 #include <errno.h>
 #include <fcntl.h> /* fcntl() */
 #include <stdio.h> /* snprintf() */
+#include <stdlib.h> /* atoi() */
 #include <string.h> /* strncpy(), strerror(), strlen(), strncmp() */
 #include <strings.h> /* bzero() */
 #include <sys/select.h> /* select(), FD_ZERO(), FD_SET(), FD_ISSET() */
@@ -122,6 +123,29 @@ cmdhandler_handle_cmd_start(int sockfd)
     char buf[ODS_SE_MAXLINE];
 
     (void)snprintf(buf, ODS_SE_MAXLINE, "Engine already running.\n");
+    se_writen(sockfd, buf, strlen(buf));
+}
+
+
+/**
+ * Handle the 'verbosity' command.
+ *
+ */
+static void
+cmdhandler_handle_cmd_verbosity(int sockfd, cmdhandler_type* cmdc, int val)
+{
+    char buf[ODS_SE_MAXLINE];
+
+    se_log_assert(cmdc);
+    se_log_assert(cmdc->engine);
+    se_log_assert(cmdc->engine->config);
+
+    lock_basic_lock(&cmdc->engine->signal_lock);
+    se_log_init(cmdc->engine->config->log_filename,
+        cmdc->engine->config->use_syslog, val);
+    lock_basic_unlock(&cmdc->engine->signal_lock);
+
+    (void)snprintf(buf, ODS_SE_MAXLINE, "Verbosity level set to %i.\n", val);
     se_writen(sockfd, buf, strlen(buf));
 }
 
@@ -251,7 +275,7 @@ again:
             } else if (buf[9] != ' ') {
                 cmdhandler_handle_cmd_unknown(sockfd, buf);
             } else {
-                cmdhandler_handle_cmd_notimpl(sockfd, buf);
+                cmdhandler_handle_cmd_verbosity(sockfd, cmdc, atoi(&buf[10]));
             }
         } else {
             se_log_debug("unknown command");
