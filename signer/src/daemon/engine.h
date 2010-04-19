@@ -55,6 +55,9 @@ struct engine_struct {
     lock_basic_type signal_lock;
 
     pid_t pid;
+    uid_t uid;
+    gid_t gid;
+
     int daemonize;
     int need_to_exit;
     int need_to_reload;

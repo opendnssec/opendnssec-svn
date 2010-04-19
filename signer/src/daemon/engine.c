@@ -119,6 +119,36 @@ engine_start_cmdhandler(engine_type* engine)
 
 
 /**
+ * Drop privileges.
+ *
+ */
+static int
+engine_privdrop(engine_type* engine)
+{
+    se_log_assert(engine);
+    se_log_assert(engine->config);
+    se_log_debug("drop privileges");
+
+    if (engine->config->username && engine->config->group) {
+        se_log_verbose("drop privileges to user %s, group %s",
+           engine->config->username, engine->config->group);
+    } else if (engine->config->username) {
+        se_log_verbose("drop privileges to user %s",
+           engine->config->username);
+    } else if (engine->config->group) {
+        se_log_verbose("drop privileges to group %s",
+           engine->config->group);
+    }
+    if (engine->config->chroot) {
+        se_log_verbose("chroot to %s", engine->config->chroot);
+    }
+
+    return privdrop(engine->config->username, engine->config->group,
+        engine->config->chroot);
+}
+
+
+/**
  * Stop parent process.
  *
  */

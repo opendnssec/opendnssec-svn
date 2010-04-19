@@ -33,12 +33,15 @@
  * Privileges.
  */
 
+#define _GNU_SOURCE /* defines for setres{g|u}id */
+
 #include "config.h"
 #include "util/log.h"
 #include "util/privdrop.h"
 #include "util/se_malloc.h"
 
 #include <errno.h>
+#include <string.h> /* strerror() */
 #include <grp.h> /* getgrnam_r(), endgrent(), initgroups() */
 #include <pwd.h> /* getpwnam_r(), endpwent() */
 #include <sys/types.h> /* geteuid(), getegid(), getpwnam_r(), endpwent(), initgroups(),
@@ -47,8 +50,6 @@
 #include <unistd.h> /* sysconf(), geteuid(), getegid(), chroot(), chdir(),
                        getgroups(), setgroups(), setuid(), seteuid(), setreuid(), setresuid(),
                        setgid(), setegid(), setregid(), setresgid() */
-
-#define _GNU_SOURCE /* defines for setres{g|u}id */
 
 #ifndef _SC_GETPW_R_SIZE_MAX
 #define _SC_GETPW_R_SIZE_MAX 16384
@@ -143,10 +144,6 @@ int
 privdrop(const char *username, const char *groupname, const char *newroot)
 {
     int status;
-    struct passwd pwd;
-    struct group  grp;
-    struct passwd *pwd_result;
-    struct group  *grp_result;
     uid_t uid, olduid;
     gid_t gid, oldgid;
     long ngroups_max;
