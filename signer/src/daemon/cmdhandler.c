@@ -91,6 +91,42 @@ cmdhandler_handle_cmd_help(int sockfd)
 
 
 /**
+ * Handle the 'stop' command.
+ *
+ */
+static void
+cmdhandler_handle_cmd_stop(int sockfd, cmdhandler_type* cmdc)
+{
+    char buf[ODS_SE_MAXLINE];
+
+    se_log_assert(cmdc);
+    se_log_assert(cmdc->engine);
+
+    lock_basic_lock(&cmdc->engine->signal_lock);
+    cmdc->engine->need_to_exit = 1;
+    lock_basic_alarm(&cmdc->engine->signal_cond);
+    lock_basic_unlock(&cmdc->engine->signal_lock);
+
+    (void)snprintf(buf, ODS_SE_MAXLINE, ODS_SE_STOP_RESPONSE);
+    se_writen(sockfd, buf, strlen(buf));
+}
+
+
+/**
+ * Handle the 'start' command.
+ *
+ */
+static void
+cmdhandler_handle_cmd_start(int sockfd)
+{
+    char buf[ODS_SE_MAXLINE];
+
+    (void)snprintf(buf, ODS_SE_MAXLINE, "Engine already running.\n");
+    se_writen(sockfd, buf, strlen(buf));
+}
+
+
+/**
  * Handle erroneous command.
  *
  */
@@ -199,11 +235,11 @@ again:
             }
         } else if (n == 4 && strncmp(buf, "stop", n) == 0) {
             se_log_debug("shutdown command");
-            cmdhandler_handle_cmd_notimpl(sockfd, buf);
-            /* return; */
+            cmdhandler_handle_cmd_stop(sockfd, cmdc);
+            return;
         } else if (n == 5 && strncmp(buf, "start", n) == 0) {
             se_log_debug("start command");
-            cmdhandler_handle_cmd_notimpl(sockfd, buf);
+            cmdhandler_handle_cmd_start(sockfd);
         } else if (n == 7 && strncmp(buf, "reload", n) == 0) {
             se_log_debug("reload command");
             cmdhandler_handle_cmd_notimpl(sockfd, buf);
