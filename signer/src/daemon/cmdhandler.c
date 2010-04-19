@@ -41,7 +41,7 @@
 #include <errno.h>
 #include <fcntl.h> /* fcntl() */
 #include <stdio.h> /* snprintf() */
-#include <string.h> /* strncpy(), strerror(), strlen() */
+#include <string.h> /* strncpy(), strerror(), strlen(), strncmp() */
 #include <strings.h> /* bzero() */
 #include <sys/select.h> /* select(), FD_ZERO(), FD_SET(), FD_ISSET() */
 #include <sys/socket.h> /* socket(), listen(), bind(), accept() */
@@ -57,16 +57,44 @@ static int count = 0;
 
 
 /**
+ * Handle erroneous command.
+ *
+ */
+static void
+cmdhandler_handle_cmd_error(int sockfd, const char* str)
+{
+    char buf[ODS_SE_MAXLINE];
+    (void)snprintf(buf, ODS_SE_MAXLINE, "Error: %s.\n", str);
+    se_writen(sockfd, buf, strlen(buf));
+    return;
+}
+
+
+/**
  * Handle unknown command.
  *
  */
 static void
-cmdhandler_handle_cmd_unknown(const char* str, int sockfd)
+cmdhandler_handle_cmd_unknown(int sockfd, const char* str)
 {
     char buf[ODS_SE_MAXLINE];
-
-    (void)snprintf(buf, ODS_SE_MAXLINE, "Unknown command %s\n", str);
+    (void)snprintf(buf, ODS_SE_MAXLINE, "Unknown command %s.\n", str);
     se_writen(sockfd, buf, strlen(buf));
+    return;
+}
+
+
+/**
+ * Handle not implemented.
+ *
+ */
+static void
+cmdhandler_handle_cmd_notimpl(int sockfd, const char* str)
+{
+    char buf[ODS_SE_MAXLINE];
+    (void)snprintf(buf, ODS_SE_MAXLINE, "Command %s not implemented.\n", str);
+    se_writen(sockfd, buf, strlen(buf));
+    return;
 }
 
 
@@ -92,11 +120,75 @@ again:
         if (n <= 0) {
             return;
         }
-        se_log_verbose("received command: %s[%i]", buf, n);
+        se_log_verbose("received command %s[%i]", buf, n);
 
-        cmdhandler_handle_cmd_unknown(buf, sockfd);
+        if (n == 4 && strncmp(buf, "help", n) == 0) {
+            se_log_debug("help command");
+            cmdhandler_handle_cmd_notimpl(sockfd, buf);
+        } else if (n == 5 && strncmp(buf, "zones", n) == 0) {
+            se_log_debug("list zones command");
+            cmdhandler_handle_cmd_notimpl(sockfd, buf);
+        } else if (n >= 4 && strncmp(buf, "sign", 4) == 0) {
+            se_log_debug("sign zone command");
+            if (buf[4] == '\0') {
+                cmdhandler_handle_cmd_error(sockfd, "sign command needs "
+                    "an argument (either '--all' or a zone name)");
+            } else if (buf[4] != ' ') {
+                cmdhandler_handle_cmd_unknown(sockfd, buf);
+            } else {
+                cmdhandler_handle_cmd_notimpl(sockfd, buf);
+            }
+        } else if (n >= 5 && strncmp(buf, "clear", 5) == 0) {
+            se_log_debug("clear zone command");
+            if (buf[5] == '\0') {
+                cmdhandler_handle_cmd_error(sockfd, "clear command needs "
+                    "a zone name");
+            } else if (buf[5] != ' ') {
+                cmdhandler_handle_cmd_unknown(sockfd, buf);
+            } else {
+                cmdhandler_handle_cmd_notimpl(sockfd, buf);
+            }
+        } else if (n == 5 && strncmp(buf, "queue", n) == 0) {
+            se_log_debug("list tasks command");
+            cmdhandler_handle_cmd_notimpl(sockfd, buf);
+        } else if (n == 5 && strncmp(buf, "flush", n) == 0) {
+            se_log_debug("flush tasks command");
+            cmdhandler_handle_cmd_notimpl(sockfd, buf);
+        } else if (n >= 6 && strncmp(buf, "update", 6) == 0) {
+            se_log_debug("update command");
+            if (buf[6] == '\0') {
+                cmdhandler_handle_cmd_notimpl(sockfd, buf);
+            } else if (buf[6] != ' ') {
+                cmdhandler_handle_cmd_unknown(sockfd, buf);
+            } else {
+                cmdhandler_handle_cmd_notimpl(sockfd, buf);
+            }
+        } else if (n == 4 && strncmp(buf, "stop", n) == 0) {
+            se_log_debug("shutdown command");
+            cmdhandler_handle_cmd_notimpl(sockfd, buf);
+            /* return; */
+        } else if (n == 5 && strncmp(buf, "start", n) == 0) {
+            se_log_debug("start command");
+            cmdhandler_handle_cmd_notimpl(sockfd, buf);
+        } else if (n == 7 && strncmp(buf, "reload", n) == 0) {
+            se_log_debug("reload command");
+            cmdhandler_handle_cmd_notimpl(sockfd, buf);
+        } else if (n >= 9 && strncmp(buf, "verbosity", 9) == 0) {
+            se_log_debug("verbosity command");
+            if (buf[9] == '\0') {
+                cmdhandler_handle_cmd_error(sockfd, "verbosity command "
+                    "an argument (verbosity level)");
+            } else if (buf[9] != ' ') {
+                cmdhandler_handle_cmd_unknown(sockfd, buf);
+            } else {
+                cmdhandler_handle_cmd_notimpl(sockfd, buf);
+            }
+        } else {
+            se_log_debug("unknown command");
+            cmdhandler_handle_cmd_unknown(sockfd, buf);
+        }
 
-        se_log_debug("done handling command: %s[%i]", buf, n);
+        se_log_debug("done handling command %s[%i]", buf, n);
         (void)snprintf(buf, SE_CMDH_CMDLEN, "\ncmd> ");
         se_writen(sockfd, buf, strlen(buf));
     }
@@ -108,6 +200,8 @@ again:
     } else if (n < 0 ) {
         se_log_error("command handler read error: %s", strerror(errno));
     }
+
+    return;
 }
 
 
@@ -264,6 +358,7 @@ cmdhandler_start(cmdhandler_type* cmdhandler)
     engine = cmdhandler->engine;
     cmdhandler_cleanup(cmdhandler);
     engine->cmdhandler_done = 1;
+    return;
 }
 
 
