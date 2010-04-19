@@ -5,7 +5,7 @@
 m4_sinclude([version.m4])
 
 AC_PREREQ([2.61])
-AC_INIT([ods-signer], OPENDNSSEC_VERSION)
+AC_INIT([ods-signer], OPENDNSSEC_VERSION, [http://trac.opendnssec.org/newticket])
 
 AM_INIT_AUTOMAKE
 AC_CONFIG_MACRO_DIR([m4])
@@ -98,6 +98,7 @@ AH_BOTTOM([
 #define ODS_SE_MAXLINE 1024
 #define ODS_SE_SIGNERTHREADS 1
 #define ODS_SE_WORKERTHREADS 8
+#define ODS_SE_STOP_RESPONSE "Engine shut down."
 
 ])
 
