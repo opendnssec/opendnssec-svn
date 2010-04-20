@@ -99,7 +99,6 @@ engine_config(const char* cfgfile, int cmdline_verbosity)
 int
 engine_check_config(engineconfig_type* config)
 {
-    FILE* fd;
     int ret = 0;
 
     se_log_debug("check config");

@@ -37,6 +37,7 @@
 #include "daemon/engine.h"
 #include "daemon/signal.h"
 #include "scheduler/locks.h"
+#include "signer/zonelist.h"
 #include "util/file.h"
 #include "util/log.h"
 #include "util/privdrop.h"
@@ -65,6 +66,7 @@ engine_create(void)
     se_log_debug("create signer engine");
     engine->config = NULL;
     engine->daemonize = 0;
+    engine->zonelist = NULL;
     engine->cmdhandler = NULL;
     engine->cmdhandler_done = 0;
     engine->pid = -1;
@@ -153,11 +155,24 @@ engine_privdrop(engine_type* engine)
  *
  */
 static void
-parent_cleanup(engine_type* engine)
+parent_cleanup(engine_type* engine, int keep_pointer)
 {
     if (engine) {
-        engine_config_cleanup(engine->config);
-        se_free((void*) engine);
+        if (engine->cmdhandler) {
+            cmdhandler_cleanup(engine->cmdhandler);
+            engine->cmdhandler = NULL;
+        }
+        if (engine->zonelist) {
+            zonelist_cleanup(engine->zonelist);
+            engine->zonelist = NULL;
+        }
+        if (engine->config) {
+            engine_config_cleanup(engine->config);
+            engine->config = NULL;
+        }
+        if (!keep_pointer) {
+            se_free((void*) engine);
+        }
     } else {
         se_log_warning("cleanup empty parent");
     }
@@ -257,7 +272,7 @@ engine_setup(engine_type* engine)
             case 0: /* child */
                 break;
             default: /* parent */
-                parent_cleanup(engine);
+                parent_cleanup(engine, 0);
                 xmlCleanupParser();
                 xmlCleanupThreads();
                 exit(0);
@@ -289,6 +304,9 @@ engine_setup(engine_type* engine)
         se_log_error("Error initializing libhsm");
         return 1;
     }
+
+    /* zones */
+    engine->zonelist = zonelist_create();
 
     /* set up the work floor */
 
@@ -392,6 +410,12 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
             se_log_debug("signer engine started");
         }
 
+/*
+        if (engine_update_zonelist(engine, NULL) == 0) {
+            engine_update_zones(engine, NULL, NULL);
+        }
+*/
+
         engine_run(engine);
     }
 
@@ -417,14 +441,7 @@ void
 engine_cleanup(engine_type* engine)
 {
     if (engine) {
-        if (engine->cmdhandler) {
-            cmdhandler_cleanup(engine->cmdhandler);
-            engine->cmdhandler = NULL;
-        }
-        if (engine->config) {
-            engine_config_cleanup(engine->config);
-            engine->config = NULL;
-        }
+        parent_cleanup(engine, 1);
         lock_basic_destroy(&engine->signal_lock);
         lock_basic_off(&engine->signal_cond);
         se_free((void*) engine);

@@ -37,6 +37,7 @@
 #include "config.h"
 #include "daemon/cmdhandler.h"
 #include "daemon/config.h"
+#include "signer/zonelist.h"
 
 #include <signal.h>
 
@@ -48,6 +49,7 @@ typedef struct engine_struct engine_type;
 struct engine_struct {
     engineconfig_type* config;
     cmdhandler_type* cmdhandler;
+    zonelist_type* zonelist;
     int cmdhandler_done;
 
     sig_atomic_t signal;
