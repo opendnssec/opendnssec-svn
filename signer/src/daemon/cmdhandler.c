@@ -92,6 +92,47 @@ cmdhandler_handle_cmd_help(int sockfd)
 
 
 /**
+ * Handle the 'zones' command.
+ *
+ */
+static void
+cmdhandler_handle_cmd_zones(int sockfd, cmdhandler_type* cmdc)
+{
+    char buf[ODS_SE_MAXLINE];
+    size_t i;
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+    zone_type* zone = NULL;
+
+    se_log_assert(cmdc);
+    se_log_assert(cmdc->engine);
+    se_log_assert(cmdc->engine->zonelist);
+
+    zonelist_lock(cmdc->engine->zonelist);
+
+    (void)snprintf(buf, ODS_SE_MAXLINE, "I have %i zones configured\n",
+        cmdc->engine->zonelist->zones->count);
+    se_writen(sockfd, buf, strlen(buf));
+
+    node = ldns_rbtree_first(cmdc->engine->zonelist->zones);
+    while (node && node != LDNS_RBTREE_NULL) {
+        zone = (zone_type*) node->key;
+
+        /* clear buffer */
+        for (i=0; i < ODS_SE_MAXLINE; i++) {
+            buf[i] = 0;
+        }
+
+        (void)snprintf(buf, ODS_SE_MAXLINE, "- %s\n", zone->name);
+        se_writen(sockfd, buf, strlen(buf));
+        node = ldns_rbtree_next(node);
+    }
+
+    zonelist_unlock(cmdc->engine->zonelist);
+    return;
+}
+
+
+/**
  * Handle the 'stop' command.
  *
  */
@@ -221,7 +262,7 @@ again:
             cmdhandler_handle_cmd_help(sockfd);
         } else if (n == 5 && strncmp(buf, "zones", n) == 0) {
             se_log_debug("list zones command");
-            cmdhandler_handle_cmd_notimpl(sockfd, buf);
+            cmdhandler_handle_cmd_zones(sockfd, cmdc);
         } else if (n >= 4 && strncmp(buf, "sign", 4) == 0) {
             se_log_debug("sign zone command");
             if (buf[4] == '\0') {
