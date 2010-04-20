@@ -40,6 +40,8 @@
 #include <stdio.h>
 #include <time.h>
 
+struct tasklist_struct;
+
 /**
  * Zone list
  *
@@ -55,6 +57,55 @@ struct zonelist_struct {
  * \return zonelist_type* created zone list
  */
 zonelist_type* zonelist_create(void);
+
+/**
+ * Read zonelist file.
+ * \param[in] zonelistfile zonelist configuration file
+ * \param[in] last_modified last modified
+ * \return zonelist_type* zone list if reading was succesful, NULL otherwise
+ */
+zonelist_type* zonelist_read(const char* zonelistfile, time_t last_modified);
+
+/**
+ * Lock all zones in zone list.
+ * \param[in] zonelist zone list
+ *
+ */
+void zonelist_lock(zonelist_type* zonelist);
+
+/**
+ * Unlock all zones in zone list.
+ * \param[in] zonelist zone list
+ *
+ */
+void zonelist_unlock(zonelist_type* zonelist);
+
+/**
+ * Add zone to zone list.
+ * \param[in] zonelist zone list
+ * \param[in] zone zone to add
+ * \return zone_type* added zone
+ *
+ */
+zone_type* zonelist_add_zone(zonelist_type* zonelist, zone_type* zone);
+
+/**
+ * Update zone list.
+ * /param[in] zl zone list
+ * /param[in] tl task list
+ * /param[in] buf feedback message
+ *
+ */
+void zonelist_update(zonelist_type* zl, struct tasklist_struct* tl,
+    char* buf);
+
+/**
+ * Merge zone lists.
+ * /param[in] zl1 base zone list
+ * /param[in] zl2 additional zone list
+ *
+ */
+void zonelist_merge(zonelist_type* zl1, zonelist_type* zl2);
 
 /**
  * Clean up a zonelist.
