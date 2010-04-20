@@ -174,8 +174,8 @@ parse_zonelist_zones(const char* zlfile)
     ret = xmlTextReaderRead(reader);
     while (ret == XML_READER_TYPE_ELEMENT) {
         tag_name = (char*) xmlTextReaderLocalName(reader);
-        if (se_strncmp(tag_name, "Zone") == 0 &&
-            se_strncmp(tag_name, "ZoneList") != 0 &&
+        if (se_strcmp(tag_name, "Zone") == 0 &&
+            se_strcmp(tag_name, "ZoneList") != 0 &&
             xmlTextReaderNodeType(reader) == XML_READER_TYPE_ELEMENT) {
             /* Found a zone */
             zone_name = (char*) xmlTextReaderGetAttribute(reader,
