@@ -31,7 +31,7 @@
  *
  */
 
-#include "adapter/adapter.h" *
+#include "adapter/adapter.h"
 #include "scheduler/locks.h"
 #include "signer/zone.h"
 #include "signer/zonedata.h"
@@ -73,12 +73,76 @@ zone_create(const char* name, ldns_rr_class klass)
     zone->task = NULL;
     zone->backoff = 0;
     zone->worker = NULL;
+    zone->just_added = 0;
+    zone->just_updated = 0;
+    zone->tobe_removed = 0;
     /* zone data */
     zone->zonedata = zonedata_create();
 
     lock_basic_init(&zone->zone_lock);
     lock_basic_init(&zone->slhelper_lock);
     return zone;
+}
+
+
+/**
+ * Update zone configuration settings from zone list.
+ *
+ */
+void
+zone_update_zonelist(zone_type* z1, zone_type* z2)
+{
+    se_log_assert(z1);
+    se_log_assert(z2);
+
+    if (se_strcmp(z2->policy_name, z1->policy_name) != 0) {
+        se_free((void*)z1->policy_name);
+        if (z2->policy_name) {
+            z1->policy_name = se_strdup(z2->policy_name);
+        } else {
+            z1->policy_name = NULL;
+        }
+        z1->just_updated = 1;
+    }
+
+    if (se_strcmp(z2->signconf_filename, z1->signconf_filename) != 0) {
+        se_free((void*)z1->signconf_filename);
+        if (z2->signconf_filename) {
+            z1->signconf_filename = se_strdup(z2->signconf_filename);
+        } else {
+            z1->signconf_filename = NULL;
+        }
+        z1->just_updated = 1;
+    }
+
+    if (adapter_compare(z1->inbound_adapter, z2->inbound_adapter) != 0) {
+        adapter_cleanup(z1->inbound_adapter);
+        if (z2->inbound_adapter) {
+            z1->inbound_adapter = adapter_create(
+                z2->inbound_adapter->filename,
+                z2->inbound_adapter->type,
+                z2->inbound_adapter->inbound);
+        } else {
+            z1->inbound_adapter = NULL;
+        }
+        z1->just_updated = 1;
+    }
+
+    if (adapter_compare(z1->outbound_adapter, z2->outbound_adapter) != 0) {
+        adapter_cleanup(z1->outbound_adapter);
+        if (z2->outbound_adapter) {
+            z1->outbound_adapter = adapter_create(
+                z2->outbound_adapter->filename,
+                z2->outbound_adapter->type,
+                z2->outbound_adapter->inbound);
+        } else {
+            z1->outbound_adapter = NULL;
+        }
+        z1->just_updated = 1;
+    }
+
+    zone_cleanup(z2);
+    return;
 }
 
 

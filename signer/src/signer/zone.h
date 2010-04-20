@@ -65,6 +65,9 @@ struct zone_struct {
     struct worker_struct* worker; /* current active worker */
     time_t backoff; /* backoff value if there is something failing with this zone */
     zonedata_type* zonedata; /* zone data */
+    int just_added;
+    int just_updated;
+    int tobe_removed;
 
     lock_basic_type zone_lock;
     lock_basic_type slhelper_lock;
@@ -78,6 +81,14 @@ struct zone_struct {
  *
  */
 zone_type* zone_create(const char* name, ldns_rr_class klass);
+
+/**
+ * Update zone configuration settings from zone list.
+ * \param[in] z1 zone to be updated
+ * \param[in] z2 update
+ *
+ */
+void zone_update_zonelist(zone_type* z1, zone_type* z2);
 
 /**
  * Clean up a zone.
