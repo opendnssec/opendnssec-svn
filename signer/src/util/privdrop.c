@@ -157,7 +157,7 @@ privdrop(const char *username, const char *groupname, const char *newroot)
     /* Check if we're going to drop uid */
     if (username) {
         uid = privuid(username);
-        if (uid == -1) {
+        if (uid == (uid_t)-1) {
             se_log_error("user %s does not exist", username);
             return -1;
         }
@@ -166,7 +166,7 @@ privdrop(const char *username, const char *groupname, const char *newroot)
     /* Check if we're going to drop gid */
     if (groupname) {
         gid = privgid(groupname);
-        if (gid == -1) {
+        if (gid == (gid_t)-1) {
             se_log_error("group %s does not exist", groupname);
             return -1;
         }
