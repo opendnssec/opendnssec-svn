@@ -88,7 +88,7 @@ zonelist_type*
 zonelist_read(const char* zonelistfile, time_t last_modified)
 {
     zonelist_type* zlist = NULL;
-    const char* rngfile = ODS_SE_RNGDIR "/zonefile.rng";
+    const char* rngfile = ODS_SE_RNGDIR "/zonelist.rng";
     time_t st_mtime = 0;
 
     se_log_assert(zonelistfile);
