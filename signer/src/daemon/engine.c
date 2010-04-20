@@ -308,8 +308,8 @@ engine_setup(engine_type* engine)
     }
 
     /* privdrop */
-    engine->uid = privuid(engine->config->username);
-    engine->gid = privgid(engine->config->group);
+    engine->uid = privuid(engine->config->username); /* LEAKS */
+    engine->gid = privgid(engine->config->group); /* LEAKS */
     se_chown(engine->config->pid_filename, engine->uid, engine->gid, 1); /* chown pidfile directory */
     se_chown(engine->config->clisock_filename, engine->uid, engine->gid, 0); /* chown sockfile */
     se_chown(engine->config->working_dir, engine->uid, engine->gid, 0); /* chown workdir */
@@ -364,7 +364,7 @@ engine_setup(engine_type* engine)
     sigaction(SIGTERM, &action, NULL);
 
     /* set up hsm */
-    result = hsm_open(engine->config->cfg_filename, hsm_prompt_pin, NULL);
+    result = hsm_open(engine->config->cfg_filename, hsm_prompt_pin, NULL); /* LEAKS */
     if (result != HSM_OK) {
         se_log_error("Error initializing libhsm");
         return 1;
