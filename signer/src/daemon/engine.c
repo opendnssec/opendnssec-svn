@@ -421,6 +421,38 @@ engine_run(engine_type* engine)
 
 
 /**
+ * Update zone list.
+ *
+ */
+static int
+engine_update_zonelist(engine_type* engine, char* buf)
+{
+    zonelist_type* new_zlist = NULL;
+
+    se_log_assert(engine);
+    se_log_assert(engine->config);
+    se_log_assert(engine->zonelist);
+    se_log_debug("update zone list");
+
+    new_zlist = zonelist_read(engine->config->zonelist_filename,
+        engine->zonelist->last_modified);
+    if (!new_zlist) {
+        if (buf) {
+            /* fstat <= last_modified || rng check failed */
+            (void)snprintf(buf, ODS_SE_MAXLINE, "Zone list has not changed.\n");
+        }
+        return 1;
+    }
+
+    zonelist_lock(engine->zonelist);
+    zonelist_merge(engine->zonelist, new_zlist);
+    zonelist_update(engine->zonelist, NULL, buf);
+    zonelist_unlock(engine->zonelist);
+    return 0;
+}
+
+
+/**
  * Start engine.
  *
  */
@@ -475,11 +507,8 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
             se_log_debug("signer engine started");
         }
 
-/*
-        if (engine_update_zonelist(engine, NULL) == 0) {
-            engine_update_zones(engine, NULL, NULL);
-        }
-*/
+        (void)engine_update_zonelist(engine, NULL);
+/*            engine_update_zones(engine, NULL, NULL); */
 
         engine_run(engine);
     }
