@@ -48,8 +48,11 @@
 #include <signal.h> /* sigfillset(), sigaction() */
 #include <stdio.h> /* snprintf() */
 #include <stdlib.h> /* exit(), fwrite() */
-#include <string.h> /* strlen() */
+#include <string.h> /* strlen(), strncpy() */
+#include <strings.h> /* bzero() */
+#include <sys/socket.h> /* socket(), connect(), close()  */
 #include <sys/types.h> /* getpid() */
+#include <sys/un.h> /* unix socket */
 #include <time.h> /* tzset() */
 #include <unistd.h> /* fork(), setsid(), getpid(), chdir() */
 
@@ -121,6 +124,72 @@ engine_start_cmdhandler(engine_type* engine)
 
 
 /**
+ * Self pipe trick (see Unix Network Programming).
+ *
+ */
+static int
+self_pipe_trick(engine_type* engine)
+{
+    int sockfd, ret;
+    struct sockaddr_un servaddr;
+    const char* servsock_filename = ODS_SE_SOCKFILE;
+
+    se_log_assert(engine);
+    se_log_assert(engine->cmdhandler);
+
+    sockfd = socket(AF_LOCAL, SOCK_STREAM, 0);
+    if (sockfd <= 0) {
+        se_log_error("cannot connect to command handler: "
+            "socket() failed: %s\n", strerror(errno));
+        return 1;
+    } else {
+        bzero(&servaddr, sizeof(servaddr));
+        servaddr.sun_family = AF_LOCAL;
+        strncpy(servaddr.sun_path, servsock_filename,
+            sizeof(servaddr.sun_path) - 1);
+
+        ret = connect(sockfd, (const struct sockaddr*) &servaddr,
+            sizeof(servaddr));
+        if (ret != 0) {
+            se_log_error("cannot connect to command handler: "
+                "connect() failed: %s\n", strerror(errno));
+            close(sockfd);
+            return 1;
+        } else {
+            /* self-pipe trick */
+            se_writen(sockfd, "", 1);
+            close(sockfd);
+        }
+    }
+    return 0;
+}
+
+
+/**
+ * Stop command handler.
+ *
+ */
+static void
+engine_stop_cmdhandler(engine_type* engine)
+{
+    se_log_assert(engine);
+    se_log_assert(engine->cmdhandler);
+    se_log_debug("stop command handler");
+
+    engine->cmdhandler->need_to_exit = 1;
+    if (self_pipe_trick(engine) == 0) {
+        while (!engine->cmdhandler_done) {
+			se_log_debug("waiting for command handler to exit...");
+        }
+    } else {
+        se_log_error("command handler self pipe trick failed, "
+            "unclean shutdown");
+    }
+    return;
+}
+
+
+/**
  * Drop privileges.
  *
  */
@@ -158,10 +227,6 @@ static void
 parent_cleanup(engine_type* engine, int keep_pointer)
 {
     if (engine) {
-        if (engine->cmdhandler) {
-            cmdhandler_cleanup(engine->cmdhandler);
-            engine->cmdhandler = NULL;
-        }
         if (engine->zonelist) {
             zonelist_cleanup(engine->zonelist);
             engine->zonelist = NULL;
@@ -422,6 +487,9 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
     /* shutdown */
     se_log_verbose("shutdown signer engine");
     hsm_close();
+    if (engine->cmdhandler != NULL) {
+        engine_stop_cmdhandler(engine);
+    }
     (void)unlink(engine->config->pid_filename);
     (void)unlink(engine->config->clisock_filename);
     engine_cleanup(engine);
