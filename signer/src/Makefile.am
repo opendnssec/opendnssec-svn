@@ -16,6 +16,7 @@ ods_signerd_SOURCES=		ods-signerd.c \
 				daemon/engine.c daemon/engine.h \
 				daemon/signal.c daemon/signal.h \
 				parser/confparser.c parser/confparser.h \
+				parser/zonelistparser.c parser/zonelistparser.h \
 				scheduler/locks.c scheduler/locks.h \
 				signer/domain.c signer/domain.h \
 				signer/zone.c signer/zone.h \
