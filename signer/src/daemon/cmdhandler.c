@@ -40,6 +40,7 @@
 
 #include <errno.h>
 #include <fcntl.h> /* fcntl() */
+#include <ldns/ldns.h> /* ldns_rbtree_*() */
 #include <stdio.h> /* snprintf() */
 #include <stdlib.h> /* atoi() */
 #include <string.h> /* strncpy(), strerror(), strlen(), strncmp() */
@@ -107,27 +108,75 @@ cmdhandler_handle_cmd_zones(int sockfd, cmdhandler_type* cmdc)
     se_log_assert(cmdc->engine);
     se_log_assert(cmdc->engine->zonelist);
 
+    /* lock zonelist */
     zonelist_lock(cmdc->engine->zonelist);
 
+    /* how many zones */
     (void)snprintf(buf, ODS_SE_MAXLINE, "I have %i zones configured\n",
         cmdc->engine->zonelist->zones->count);
     se_writen(sockfd, buf, strlen(buf));
 
+    /* list zones */
     node = ldns_rbtree_first(cmdc->engine->zonelist->zones);
     while (node && node != LDNS_RBTREE_NULL) {
         zone = (zone_type*) node->key;
-
-        /* clear buffer */
         for (i=0; i < ODS_SE_MAXLINE; i++) {
             buf[i] = 0;
         }
-
         (void)snprintf(buf, ODS_SE_MAXLINE, "- %s\n", zone->name);
         se_writen(sockfd, buf, strlen(buf));
         node = ldns_rbtree_next(node);
     }
 
+    /* unlock zonelist */
     zonelist_unlock(cmdc->engine->zonelist);
+    return;
+}
+
+
+/**
+ * Handle the 'queue' command.
+ *
+ */
+static void
+cmdhandler_handle_cmd_queue(int sockfd, cmdhandler_type* cmdc)
+{
+    char* taskstr = NULL;
+    char* strtime = NULL;
+    char buf[ODS_SE_MAXLINE];
+    size_t i = 0;
+    time_t now = 0;
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+    task_type* task = NULL;
+
+    se_log_assert(cmdc);
+    se_log_assert(cmdc->engine);
+    se_log_assert(cmdc->engine->tasklist);
+
+    /* lock tasklist */
+    lock_basic_lock(&cmdc->engine->tasklist->tasklist_lock);
+
+    /* how many tasks scheduled */
+    now = time(NULL);
+    strtime = ctime(&now);
+    (void)sprintf(buf, "I have %i tasks scheduled\nIt is now %s",
+        cmdc->engine->tasklist->tasks->count, strtime);
+    se_writen(sockfd, buf, strlen(buf));
+
+    /* list tasks */
+    node = ldns_rbtree_first(cmdc->engine->tasklist->tasks);
+    while (node && node != LDNS_RBTREE_NULL) {
+        task = (task_type*) node->key;
+        for (i=0; i < ODS_SE_MAXLINE; i++) {
+            buf[i] = 0;
+        }
+        taskstr = task2str(task, (char*) &buf[0]);
+        se_writen(sockfd, buf, strlen(buf));
+        node = ldns_rbtree_next(node);
+    }
+
+    /* unlock tasklist */
+    lock_basic_unlock(&cmdc->engine->tasklist->tasklist_lock);
     return;
 }
 
@@ -151,6 +200,7 @@ cmdhandler_handle_cmd_stop(int sockfd, cmdhandler_type* cmdc)
 
     (void)snprintf(buf, ODS_SE_MAXLINE, ODS_SE_STOP_RESPONSE);
     se_writen(sockfd, buf, strlen(buf));
+    return;
 }
 
 
@@ -165,6 +215,7 @@ cmdhandler_handle_cmd_start(int sockfd)
 
     (void)snprintf(buf, ODS_SE_MAXLINE, "Engine already running.\n");
     se_writen(sockfd, buf, strlen(buf));
+    return;
 }
 
 
@@ -285,7 +336,7 @@ again:
             }
         } else if (n == 5 && strncmp(buf, "queue", n) == 0) {
             se_log_debug("list tasks command");
-            cmdhandler_handle_cmd_notimpl(sockfd, buf);
+            cmdhandler_handle_cmd_queue(sockfd, cmdc);
         } else if (n == 5 && strncmp(buf, "flush", n) == 0) {
             se_log_debug("flush tasks command");
             cmdhandler_handle_cmd_notimpl(sockfd, buf);
@@ -335,7 +386,6 @@ again:
     } else if (n < 0 ) {
         se_log_error("command handler read error: %s", strerror(errno));
     }
-
     return;
 }
 
