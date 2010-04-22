@@ -32,7 +32,6 @@
  */
 
 #include "config.h"
-#include "signer/hsm.h"
 #include "signer/rrset.h"
 #include "util/duration.h"
 #include "util/log.h"
