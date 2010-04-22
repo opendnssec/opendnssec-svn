@@ -30,7 +30,7 @@
   <builders>
     <hudson.tasks.Shell>
       <command>cd OpenDNSSEC
-test/scripts/build_and_test</command>
+sh test/scripts/build_and_test.sh</command>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>
