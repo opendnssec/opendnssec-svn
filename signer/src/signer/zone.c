@@ -33,6 +33,7 @@
 
 #include "adapter/adapter.h"
 #include "scheduler/locks.h"
+#include "scheduler/task.h"
 #include "signer/signconf.h"
 #include "signer/zone.h"
 #include "signer/zonedata.h"
@@ -156,10 +157,10 @@ zone_update_zonelist(zone_type* z1, zone_type* z2)
 int
 zone_update_signconf(zone_type* zone, struct tasklist_struct* tl, char* buf)
 {
+    task_type* task = NULL;
     signconf_type* signconf = NULL;
     time_t last_modified = 0;
     time_t now;
-    struct task_struct* task = NULL;
 
     se_log_assert(zone);
     se_log_debug("load zone signconf %s (%s)", zone->name, zone->signconf_filename);
@@ -206,6 +207,9 @@ zone_update_signconf(zone_type* zone, struct tasklist_struct* tl, char* buf)
         se_log_debug("zone %s now has signconf", zone->name);
         /* zone state? */
         /* create task for new zone */
+        now = time(NULL);
+        zone->task = task_create(TASK_READ, now, zone->name, zone);
+        task = tasklist_schedule_task(tl, zone->task, 0);
         if (!task) {
             if (buf) {
                 (void)snprintf(buf, ODS_SE_MAXLINE, "Zone %s now has config, "
@@ -220,6 +224,7 @@ zone_update_signconf(zone_type* zone, struct tasklist_struct* tl, char* buf)
         return 1;
     } else {
         /* update task for new zone */
+        zone->task->what = signconf_compare(zone->signconf, signconf);
         signconf_cleanup(zone->signconf);
         zone->signconf = signconf;
         zone->signconf->name = zone->name;
@@ -254,6 +259,10 @@ zone_cleanup(zone_type* zone)
         if (zone->outbound_adapter) {
             adapter_cleanup(zone->outbound_adapter);
             zone->outbound_adapter = NULL;
+        }
+        if (zone->signconf) {
+            signconf_cleanup(zone->signconf);
+            zone->signconf = NULL;
         }
         if (zone->zonedata) {
             zonedata_cleanup(zone->zonedata);
