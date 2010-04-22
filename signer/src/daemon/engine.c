@@ -37,6 +37,8 @@
 #include "daemon/engine.h"
 #include "daemon/signal.h"
 #include "scheduler/locks.h"
+#include "scheduler/task.h"
+#include "signer/zone.h"
 #include "signer/zonelist.h"
 #include "util/file.h"
 #include "util/log.h"
@@ -70,6 +72,7 @@ engine_create(void)
     engine->config = NULL;
     engine->daemonize = 0;
     engine->zonelist = NULL;
+    engine->tasklist = NULL;
     engine->cmdhandler = NULL;
     engine->cmdhandler_done = 0;
     engine->pid = -1;
@@ -115,10 +118,8 @@ engine_start_cmdhandler(engine_type* engine)
         return 1;
     }
     engine->cmdhandler->engine = engine;
-
     se_thread_create(&engine->cmdhandler->thread_id,
         cmdhandler_thread_start, engine->cmdhandler);
-
     return 0;
 }
 
@@ -370,10 +371,9 @@ engine_setup(engine_type* engine)
         return 1;
     }
 
-    /* zones */
-    engine->zonelist = zonelist_create();
-
     /* set up the work floor */
+    engine->tasklist = tasklist_create(); /* tasks */
+    engine->zonelist = zonelist_create(); /* zones */
 
     return 0;
 }
@@ -446,9 +446,85 @@ engine_update_zonelist(engine_type* engine, char* buf)
 
     zonelist_lock(engine->zonelist);
     zonelist_merge(engine->zonelist, new_zlist);
-    zonelist_update(engine->zonelist, NULL, buf);
+    zonelist_update(engine->zonelist, engine->tasklist, buf);
     zonelist_unlock(engine->zonelist);
     return 0;
+}
+
+
+/**
+ * Update zones.
+ *
+ */
+static void
+engine_update_zones(engine_type* engine, const char* zone_name, char* buf)
+{
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+    zone_type* zone = NULL;
+    int tmp = 0;
+    int unchanged = 0;
+    int errors = 0;
+    int updated = 0;
+
+    se_log_assert(engine);
+    se_log_assert(engine->zonelist);
+    se_log_assert(engine->zonelist->zones);
+
+    lock_basic_lock(&engine->tasklist->tasklist_lock);
+    engine->tasklist->loading = 1;
+    lock_basic_unlock(&engine->tasklist->tasklist_lock);
+
+    node = ldns_rbtree_first(engine->zonelist->zones);
+    while (node && node != LDNS_RBTREE_NULL) {
+        zone = (zone_type*) node->key;
+
+        lock_basic_lock(&zone->zone_lock);
+
+        if (!zone_name || se_strcmp(zone->name, zone_name) == 0) {
+            if (zone_name) {
+                se_log_debug("update zone %s (signconf file %s)",
+                    zone->name, zone->signconf_filename);
+                lock_basic_lock(&engine->tasklist->tasklist_lock);
+                tmp = zone_update_signconf(zone, engine->tasklist, buf);
+                lock_basic_unlock(&engine->tasklist->tasklist_lock);
+                lock_basic_unlock(&zone->zone_lock);
+                return;
+            }
+
+            lock_basic_lock(&engine->tasklist->tasklist_lock);
+            tmp = zone_update_signconf(zone, engine->tasklist, buf);
+            lock_basic_unlock(&engine->tasklist->tasklist_lock);
+
+            if (tmp < 0) {
+                errors++;
+            } else if (tmp > 0) {
+                updated++;
+            } else {
+                unchanged++;
+            }
+        }
+
+        lock_basic_unlock(&zone->zone_lock);
+        node = ldns_rbtree_next(node);
+    }
+
+    lock_basic_lock(&engine->tasklist->tasklist_lock);
+    engine->tasklist->loading = 0;
+    lock_basic_unlock(&engine->tasklist->tasklist_lock);
+
+    if (zone_name) {
+        se_log_debug("zone %s not found", zone_name);
+        if (buf) {
+            (void)snprintf(buf, ODS_SE_MAXLINE, "Zone %s not found.\n", zone_name);
+        }
+    } else {
+        se_log_debug("configurations updated");
+        if (buf) {
+            (void)snprintf(buf, ODS_SE_MAXLINE, "Configurations updated: %i; errors: %i; "
+                "unchanged: %i.\n", updated, errors, unchanged);
+        }
+    }
+    return;
 }
 
 
@@ -507,8 +583,9 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
             se_log_debug("signer engine started");
         }
 
-        (void)engine_update_zonelist(engine, NULL);
-/*            engine_update_zones(engine, NULL, NULL); */
+        if (engine_update_zonelist(engine, NULL) == 0) {
+            engine_update_zones(engine, NULL, NULL);
+        }
 
         engine_run(engine);
     }

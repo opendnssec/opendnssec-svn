@@ -33,6 +33,7 @@
 
 #include "adapter/adapter.h"
 #include "scheduler/locks.h"
+#include "signer/signconf.h"
 #include "signer/zone.h"
 #include "signer/zonedata.h"
 #include "util/file.h"
@@ -67,6 +68,7 @@ zone_create(const char* name, ldns_rr_class klass)
     zone->fallback_ttl = 3600; /* perhaps set a default ttl in configure */
     zone->policy_name = NULL;
     zone->signconf_filename = NULL;
+    zone->signconf = NULL;
     zone->inbound_adapter = NULL;
     zone->outbound_adapter = NULL;
     /* status */
@@ -76,6 +78,7 @@ zone_create(const char* name, ldns_rr_class klass)
     zone->just_added = 0;
     zone->just_updated = 0;
     zone->tobe_removed = 0;
+    zone->in_progress = 0;
     /* zone data */
     zone->zonedata = zonedata_create();
 
@@ -143,6 +146,92 @@ zone_update_zonelist(zone_type* z1, zone_type* z2)
 
     zone_cleanup(z2);
     return;
+}
+
+
+/**
+ * Read signer configuration.
+ *
+ */
+int
+zone_update_signconf(zone_type* zone, struct tasklist_struct* tl, char* buf)
+{
+    signconf_type* signconf = NULL;
+    time_t last_modified = 0;
+    time_t now;
+    struct task_struct* task = NULL;
+
+    se_log_assert(zone);
+    se_log_debug("load zone signconf %s (%s)", zone->name, zone->signconf_filename);
+
+    if (zone->signconf) {
+        last_modified = zone->signconf->last_modified;
+    }
+
+    signconf = signconf_read(zone->signconf_filename, last_modified);
+    if (!signconf) {
+        if (!zone->policy_name) {
+            se_log_warning("zone %s has no policy", zone->name);
+        } else {
+            signconf = signconf_read(zone->signconf_filename, 0);
+            if (!signconf) {
+                se_log_warning("zone %s has policy %s configured, "
+                    "but has no (valid) signconf file",
+                    zone->name, zone->policy_name);
+                if (buf) {
+                    (void)snprintf(buf, ODS_SE_MAXLINE,
+                        "Zone %s config has errors.\n", zone->name);
+                }
+                return -1;
+            } else {
+                se_log_debug("zone %s has not changed", zone->name);
+            }
+        }
+        if (buf) {
+            (void)snprintf(buf, ODS_SE_MAXLINE,
+                "Zone %s config has not changed.\n", zone->name);
+        }
+        return 0;
+    } else if (signconf_check(signconf) != 0) {
+        se_log_warning("zone %s signconf has errors", zone->name);
+        if (buf) {
+            (void)snprintf(buf, ODS_SE_MAXLINE,
+                "Zone %s config has errors.\n", zone->name);
+        }
+        return -1;
+    } else if (!zone->signconf) {
+        zone->signconf = signconf;
+        /* we don't check if foo in <Zone name="foo"> matches zone->name */
+        zone->signconf->name = zone->name;
+        se_log_debug("zone %s now has signconf", zone->name);
+        /* zone state? */
+        /* create task for new zone */
+        if (!task) {
+            if (buf) {
+                (void)snprintf(buf, ODS_SE_MAXLINE, "Zone %s now has config, "
+                    "but could not be scheduled.\n", zone->name);
+            }
+        } else {
+            if (buf) {
+                (void)snprintf(buf, ODS_SE_MAXLINE,
+                    "Zone %s now has config.\n", zone->name);
+            }
+        }
+        return 1;
+    } else {
+        /* update task for new zone */
+        signconf_cleanup(zone->signconf);
+        zone->signconf = signconf;
+        zone->signconf->name = zone->name;
+        se_log_debug("zone %s signconf updated", zone->name);
+        if (buf) {
+            (void)snprintf(buf, ODS_SE_MAXLINE,
+                "Zone %s config updated.\n", zone->name);
+        }
+        return 1;
+    }
+    /* not reached */
+    return 0;
 }
 
 

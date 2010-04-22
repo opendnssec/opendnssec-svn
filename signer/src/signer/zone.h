@@ -37,6 +37,7 @@
 #include "config.h"
 #include "adapter/adapter.h"
 #include "scheduler/locks.h"
+#include "signer/signconf.h"
 #include "signer/zonedata.h"
 
 #include <ldns/ldns.h>
@@ -59,12 +60,14 @@ struct zone_struct {
     uint32_t outbound_serial; /* last written outbound soa serial */
     const char* policy_name; /* policy identifier */
     const char* signconf_filename; /* signer configuration filename */
+    signconf_type* signconf; /* signer configuration values */
     adapter_type* inbound_adapter; /* inbound adapter */
     adapter_type* outbound_adapter; /* outbound adapter */
     struct task_struct* task; /* current scheduled task */
     struct worker_struct* worker; /* current active worker */
     time_t backoff; /* backoff value if there is something failing with this zone */
     zonedata_type* zonedata; /* zone data */
+    int in_progress; /* zone is being worked on (could be checked with current active worker) */
     int just_added;
     int just_updated;
     int tobe_removed;
@@ -89,6 +92,17 @@ zone_type* zone_create(const char* name, ldns_rr_class klass);
  *
  */
 void zone_update_zonelist(zone_type* z1, zone_type* z2);
+
+/**
+ * Read signer configuration file.
+ * \param[in] zone corresponding zone
+ * \param[in] tl task list
+ * \param[in] buf feedback buffer
+ * \return int 0 on success, 1 on error
+ *
+ */
+int zone_update_signconf(zone_type* zone, struct tasklist_struct* tl,
+    char* buf);
 
 /**
  * Clean up a zone.
