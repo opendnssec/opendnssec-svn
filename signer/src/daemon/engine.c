@@ -56,7 +56,7 @@
 #include <sys/types.h> /* getpid() */
 #include <sys/un.h> /* unix socket */
 #include <time.h> /* tzset() */
-#include <unistd.h> /* fork(), setsid(), getpid(), chdir(), sleep() */
+#include <unistd.h> /* fork(), setsid(), getpid(), chdir() */
 
 
 /**
@@ -229,6 +229,10 @@ static void
 parent_cleanup(engine_type* engine, int keep_pointer)
 {
     if (engine) {
+        if (engine->tasklist) {
+            tasklist_cleanup(engine->tasklist);
+            engine->tasklist = NULL;
+        }
         if (engine->zonelist) {
             zonelist_cleanup(engine->zonelist);
             engine->zonelist = NULL;
