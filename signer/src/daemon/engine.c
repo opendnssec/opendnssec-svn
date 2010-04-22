@@ -56,7 +56,7 @@
 #include <sys/types.h> /* getpid() */
 #include <sys/un.h> /* unix socket */
 #include <time.h> /* tzset() */
-#include <unistd.h> /* fork(), setsid(), getpid(), chdir() */
+#include <unistd.h> /* fork(), setsid(), getpid(), chdir(), sleep() */
 
 
 /**
@@ -181,6 +181,7 @@ engine_stop_cmdhandler(engine_type* engine)
     if (self_pipe_trick(engine) == 0) {
         while (!engine->cmdhandler_done) {
 			se_log_debug("waiting for command handler to exit...");
+            sleep(1);
         }
     } else {
         se_log_error("command handler self pipe trick failed, "
