@@ -1,3 +1,7 @@
+#!/bin/sh
+#
+# $Id$
+
 # Build and test OpenDNSSEC
 # Uses $HOME/ODS for install sandbox
 rm -rf $HOME/ODS
