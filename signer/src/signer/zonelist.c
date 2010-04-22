@@ -209,7 +209,6 @@ zonelist_add_zone(zonelist_type* zonelist, zone_type* zone)
     se_log_assert(zonelist);
     se_log_assert(zonelist->zones);
     se_log_assert(zone);
-    se_log_debug("add zone %s to zone list", zone->name);
 
     if (zonelist_lookup_zone(zonelist, zone) != NULL) {
         se_log_warning("unable to add zone %s: already present", zone->name);
@@ -241,7 +240,6 @@ zonelist_delete_zone(zonelist_type* zonelist, zone_type* zone)
     se_log_assert(zonelist);
     se_log_assert(zonelist->zones);
     se_log_assert(zone);
-    se_log_debug("delete zone %s from zone list", zone->name);
 
     old_node = ldns_rbtree_delete(zonelist->zones, zone);
     if (!old_node) {
@@ -278,6 +276,7 @@ zonelist_update(zonelist_type* zl, struct tasklist_struct* tl, char* buf)
             /* remove task from queue */
             node = ldns_rbtree_next(node);
             lock_basic_unlock(&zone->zone_lock);
+            se_log_debug("delete zone %s from zone list", zone->name);
             (void)zonelist_delete_zone(zl, zone);
             zone = NULL;
             just_removed++;
@@ -338,6 +337,7 @@ zonelist_merge(zonelist_type* zl1, zonelist_type* zl2)
             return;
         } else if (!z1) {
             /* just add remaining zones from zl2 */
+            se_log_debug("add zone %s to zone list", z2->name);
             z2 = zonelist_add_zone(zl1, z2);
             if (!z2) {
                 se_log_error("zone list merge failed, z2 not added");
@@ -354,6 +354,7 @@ zonelist_merge(zonelist_type* zl1, zonelist_type* zl2)
                 n1 = ldns_rbtree_next(n1);
             } else if (ret > 0) {
                 /* add the new zone z2 */
+                se_log_debug("add zone %s to zone list", z2->name);
                 z2 = zonelist_add_zone(zl1, z2);
                 if (!z2) {
                     se_log_error("zone list merge failed, z2 not added");
