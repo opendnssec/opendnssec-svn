@@ -40,12 +40,16 @@
 
 #include <time.h>
 
+#define WORKER_WORKER 1
+
 typedef struct worker_struct worker_type;
 struct worker_struct {
     int thread_num;
     se_thread_type thread_id;
     tasklist_type* tasklist;
+    int type;
     int sleeping;
+    int waiting;
     int need_to_exit;
     cond_basic_type worker_alarm;
     lock_basic_type worker_lock;

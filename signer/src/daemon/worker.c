@@ -51,8 +51,8 @@ worker_create(int num, int type)
     worker_type* worker = (worker_type*) se_malloc(sizeof(worker_type));
     se_log_debug("create worker[%i]", num +1);
     worker->thread_num = num +1;
-    worker->type = type;
     worker->need_to_exit = 0;
+    worker->type = type;
     worker->sleeping = 0;
     worker->waiting = 0;
     lock_basic_init(&worker->worker_lock);
@@ -89,9 +89,9 @@ worker_start(worker_type* worker)
             lock_basic_unlock(&worker->tasklist->tasklist_lock);
 
             lock_basic_lock(&zone->zone_lock);
-            zone->current_worker = worker;
+            zone->worker = worker;
             worker_perform_task(worker, task);
-            zone->current_worker = NULL;
+            zone->worker = NULL;
             lock_basic_unlock(&zone->zone_lock);
 
             if (task->what == TASK_NONE) {
