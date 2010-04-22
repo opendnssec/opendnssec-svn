@@ -34,6 +34,7 @@
 #include "config.h"
 #include "parser/confparser.h"
 #include "parser/zonelistparser.h"
+#include "scheduler/task.h"
 #include "signer/zone.h"
 #include "signer/zonelist.h"
 #include "util/file.h"
@@ -262,6 +263,7 @@ zonelist_update(zonelist_type* zl, struct tasklist_struct* tl, char* buf)
 {
     ldns_rbnode_t* node = LDNS_RBTREE_NULL;
     zone_type* zone = NULL;
+    task_type* task = NULL;
     int just_removed = 0;
     int just_added = 0;
     int just_updated = 0;
@@ -273,10 +275,14 @@ zonelist_update(zonelist_type* zl, struct tasklist_struct* tl, char* buf)
         zone = (zone_type*) node->key;
         /* removed */
         if (zone->tobe_removed) {
-            /* remove task from queue */
+            if (zone->task) {
+                /* remove task from queue */
+                task = tasklist_delete_task(tl, zone->task);
+                task_cleanup(task);
+            }
             node = ldns_rbtree_next(node);
-            lock_basic_unlock(&zone->zone_lock);
             se_log_debug("delete zone %s from zone list", zone->name);
+            lock_basic_unlock(&zone->zone_lock);
             (void)zonelist_delete_zone(zl, zone);
             zone = NULL;
             just_removed++;
