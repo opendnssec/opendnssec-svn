@@ -19,6 +19,10 @@ echo ./configure --prefix=$HOME/ODS --with-pkcs11-softhsm=$HOME/ODS/lib/libsofth
 make install
 
 make check 
+rc=$?
+if [[ $rc != 0 ]] ; then
+    exit $rc
+fi
 
 export SOFTHSM_CONF=test/scripts/softhsm.conf
 
