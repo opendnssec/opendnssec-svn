@@ -14,5 +14,8 @@ install::
 	install -d $(DESTDIR)
 	install config.xml $(DESTDIR)/config.xml
 
+run:: $(HUDSON_WAR)
+	java -jar $(HUDSON_WAR)
+
 $(HUDSON_WAR):
 	wget http://hudson-ci.org/latest/hudson.war
