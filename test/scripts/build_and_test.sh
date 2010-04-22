@@ -16,7 +16,15 @@ echo cd ../OpenDNSSEC
 sh autogen.sh
 echo ./configure --prefix=$HOME/ODS --with-pkcs11-softhsm=$HOME/ODS/lib/libsofthsm.so
 ./configure --prefix=$HOME/ODS --with-pkcs11-softhsm=/usr/local/lib/libsofthsm.so
+rc=$?
+if [[ $rc != 0 ]] ; then
+    exit $rc
+fi
 make install
+rc=$?
+if [[ $rc != 0 ]] ; then
+    exit $rc
+fi
 
 make check 
 rc=$?
@@ -30,6 +38,10 @@ echo "yes" | $HOME/ODS/bin/ods-ksmutil setup
 
 echo $HOME/ODS/bin/softhsm --init-token --slot 0  --pin 1234 --so-pin 1234 --label "OpenDNSSEC"
 softhsm --init-token --slot 0  --pin 1234 --so-pin 1234 --label "OpenDNSSEC"
+rc=$?
+if [[ $rc != 0 ]] ; then
+    exit $rc
+fi
 
 cp test/zonedata/unknown.rr.org $HOME/ODS/var/opendnssec/unsigned/.
 $HOME/ODS/bin/ods-ksmutil zone add -z  unknown.rr.org -p default
