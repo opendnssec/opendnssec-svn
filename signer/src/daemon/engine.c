@@ -75,6 +75,7 @@ engine_create(void)
     engine->daemonize = 0;
     engine->zonelist = NULL;
     engine->tasklist = NULL;
+    engine->workers = NULL;
     engine->cmdhandler = NULL;
     engine->cmdhandler_done = 0;
     engine->pid = -1;
@@ -296,6 +297,90 @@ write_pidfile(const char* pidfile, pid_t pid)
 
 
 /**
+ * Create workers.
+ *
+ */
+static void
+engine_create_workers(engine_type* engine)
+{
+    size_t i = 0;
+
+    se_log_assert(engine);
+    se_log_assert(engine->config);
+
+    engine->workers = (worker_type**)
+        se_calloc((size_t)engine->config->num_worker_threads,
+        sizeof(worker_type*));
+
+    for (i=0; i < (size_t) engine->config->num_worker_threads; i++) {
+        engine->workers[i] = worker_create(i, WORKER_WORKER);
+        engine->workers[i]->tasklist = engine->tasklist;
+    }
+    return;
+}
+
+
+/**
+ * Start worker thread.
+ *
+ */
+static void*
+worker_thread_start(void* arg)
+{
+    worker_type* worker = (worker_type*) arg;
+    se_thread_blocksigs();
+    worker_start(worker);
+    return NULL;
+}
+
+
+/**
+ * Start workers.
+ *
+ */
+void
+engine_start_workers(engine_type* engine)
+{
+    size_t i = 0;
+
+    se_log_assert(engine);
+    se_log_assert(engine->config);
+    for (i=0; i < (size_t) engine->config->num_worker_threads; i++) {
+        engine->workers[i]->need_to_exit = 0;
+        se_thread_create(&engine->workers[i]->thread_id, worker_thread_start,
+            engine->workers[i]);
+    }
+    return;
+}
+
+
+/**
+ * Stop workers.
+ *
+ */
+static void
+engine_stop_workers(engine_type* engine)
+{
+    size_t i = 0;
+
+    se_log_assert(engine);
+    se_log_assert(engine->config);
+    se_log_debug("stop workers");
+
+    /* tell them to exit and wake up sleepyheads */
+    for (i=0; i < (size_t) engine->config->num_worker_threads; i++) {
+        engine->workers[i]->need_to_exit = 1;
+        worker_wakeup(engine->workers[i]);
+    }
+    /* head count */
+    for (i=0; i < (size_t) engine->config->num_worker_threads; i++) {
+        se_thread_join(engine->workers[i]->thread_id);
+    }
+    return;
+}
+
+
+/**
  * Set up engine.
  *
  */
@@ -381,6 +466,7 @@ engine_setup(engine_type* engine)
     /* set up the work floor */
     engine->tasklist = tasklist_create(); /* tasks */
     engine->zonelist = zonelist_create(); /* zones */
+    engine_create_workers(engine); /* workers */
 
     return 0;
 }
@@ -594,7 +680,9 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
             engine_update_zones(engine, NULL, NULL);
         }
 
+        engine_start_workers(engine);
         engine_run(engine);
+        engine_stop_workers(engine);
     }
 
     /* shutdown */
