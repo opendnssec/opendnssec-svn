@@ -210,6 +210,29 @@ cmdhandler_handle_cmd_flush(int sockfd, cmdhandler_type* cmdc)
 
 
 /**
+ * Handle the 'reload' command.
+ *
+ */
+static void
+cmdhandler_handle_cmd_reload(int sockfd, cmdhandler_type* cmdc)
+{
+    char buf[ODS_SE_MAXLINE];
+
+    se_log_assert(cmdc);
+    se_log_assert(cmdc->engine);
+
+    lock_basic_lock(&cmdc->engine->signal_lock);
+    cmdc->engine->need_to_reload = 1;
+    lock_basic_alarm(&cmdc->engine->signal_cond);
+    lock_basic_unlock(&cmdc->engine->signal_lock);
+
+    (void)snprintf(buf, ODS_SE_MAXLINE, "Reloading engine.\n");
+    se_writen(sockfd, buf, strlen(buf));
+    return;
+}
+
+
+/**
  * Handle the 'stop' command.
  *
  */
@@ -384,9 +407,9 @@ again:
         } else if (n == 5 && strncmp(buf, "start", n) == 0) {
             se_log_debug("start command");
             cmdhandler_handle_cmd_start(sockfd);
-        } else if (n == 7 && strncmp(buf, "reload", n) == 0) {
+        } else if (n == 6 && strncmp(buf, "reload", n) == 0) {
             se_log_debug("reload command");
-            cmdhandler_handle_cmd_notimpl(sockfd, buf);
+            cmdhandler_handle_cmd_reload(sockfd, cmdc);
         } else if (n >= 9 && strncmp(buf, "verbosity", 9) == 0) {
             se_log_debug("verbosity command");
             if (buf[9] == '\0') {
