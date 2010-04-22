@@ -173,7 +173,7 @@ task2str(task_type* task, char* buftask)
 
     se_log_assert(task);
     if (!buftask) {
-        strtask = (char*) se_calloc(MAX_LINE, sizeof(char));
+        strtask = (char*) se_calloc(ODS_SE_MAXLINE, sizeof(char));
     }
 
     if (task) {
@@ -184,11 +184,11 @@ task2str(task_type* task, char* buftask)
         }
         strtime[strlen(strtime)-1] = '\0';
         if (buftask) {
-            (void)snprintf(buftask, MAX_LINE, "On %s I will %s zone '%s'\n", strtime,
+            (void)snprintf(buftask, ODS_SE_MAXLINE, "On %s I will %s zone '%s'\n", strtime,
                 taskid2str(task->what), task->who);
             return buftask;
         } else {
-            snprintf(strtask, MAX_LINE, "On %s I will %s zone '%s'\n", strtime,
+            snprintf(strtask, ODS_SE_MAXLINE, "On %s I will %s zone '%s'\n", strtime,
                 taskid2str(task->what), task->who);
             return strtask;
         }
