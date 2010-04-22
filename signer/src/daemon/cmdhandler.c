@@ -182,6 +182,34 @@ cmdhandler_handle_cmd_queue(int sockfd, cmdhandler_type* cmdc)
 
 
 /**
+ * Handle the 'flush' command.
+ *
+ */
+static void
+cmdhandler_handle_cmd_flush(int sockfd, cmdhandler_type* cmdc)
+{
+    char buf[ODS_SE_MAXLINE];
+    size_t i = 0;
+
+    se_log_assert(cmdc);
+    se_log_assert(cmdc->engine);
+    se_log_assert(cmdc->engine->tasklist);
+
+    lock_basic_lock(&cmdc->engine->tasklist->tasklist_lock);
+    tasklist_flush(cmdc->engine->tasklist);
+    lock_basic_unlock(&cmdc->engine->tasklist->tasklist_lock);
+
+    /* wake up sleeping workers */
+    for (i=0; i < (size_t) cmdc->engine->config->num_worker_threads; i++) {
+        worker_wakeup(cmdc->engine->workers[i]);
+    }
+    (void)snprintf(buf, ODS_SE_MAXLINE, "All tasks scheduled immediately.\n");
+    se_writen(sockfd, buf, strlen(buf));
+    return;
+}
+
+
+/**
  * Handle the 'stop' command.
  *
  */
@@ -339,7 +367,7 @@ again:
             cmdhandler_handle_cmd_queue(sockfd, cmdc);
         } else if (n == 5 && strncmp(buf, "flush", n) == 0) {
             se_log_debug("flush tasks command");
-            cmdhandler_handle_cmd_notimpl(sockfd, buf);
+            cmdhandler_handle_cmd_flush(sockfd, cmdc);
         } else if (n >= 6 && strncmp(buf, "update", 6) == 0) {
             se_log_debug("update command");
             if (buf[6] == '\0') {
