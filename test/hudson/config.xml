@@ -1,4 +1,5 @@
 <?xml version='1.0' encoding='UTF-8'?>
+<!-- $Id$ -->
 <project>
   <actions/>
   <description>First stab at a test system for OpenDNSSEC - uses OpenDNSSEC-hudson branch just now</description>
