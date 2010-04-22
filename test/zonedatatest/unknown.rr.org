@@ -1,3 +1,5 @@
+; $Id$
+
 ; Examples from RFC3597 - Handling of Unknown DNS Resource Record (RR) Types
 
 @                       IN      SOA             ns1 postmaster.unknown.rr.org. (
