@@ -2,6 +2,8 @@
 #
 # $Id$
 
+LOGFILE=hudson.log
+
 # start Hudson in foreground
 #java -jar hudson.war
 
