@@ -92,6 +92,7 @@ task_cleanup(task_type* task)
     } else {
         se_log_warning("cleanup empty task");
     }
+    return;
 }
 
 
@@ -245,6 +246,7 @@ log_task(task_type* task)
         se_log_info("On %s I will %s zone %s", strtime,
             taskid2str(task->what), task->who);
     }
+    return;
 }
 
 
@@ -293,7 +295,7 @@ tasklist_cleanup(tasklist_type* list)
     } else {
         se_log_warning("cleanup empty task list");
     }
-
+    return;
 }
 
 
@@ -403,7 +405,6 @@ tasklist_flush(tasklist_type* list)
         task->flush = 1;
         node = ldns_rbtree_next(node);
     }
-
     return;
 }
 
