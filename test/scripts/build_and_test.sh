@@ -6,15 +6,7 @@
 # Uses $HOME/ODS for install sandbox
 rm -rf $HOME/ODS
 
-echo cd opendnssec/softHSM
-echo sh autogen.sh
-echo ./configure --prefix=$HOME/ODS --with-botan=/opt/local/var/macports/software/botan/1.8.7_0+darwin/opt/local/
-echo make check
-echo make install
-echo cd ../OpenDNSSEC
-
 sh autogen.sh
-echo ./configure --prefix=$HOME/ODS --with-pkcs11-softhsm=$HOME/ODS/lib/libsofthsm.so
 ./configure --prefix=$HOME/ODS --with-pkcs11-softhsm=/usr/local/lib/libsofthsm.so
 rc=$?
 if [[ $rc != 0 ]] ; then
@@ -36,7 +28,6 @@ export SOFTHSM_CONF=test/scripts/softhsm.conf
 
 echo "yes" | $HOME/ODS/bin/ods-ksmutil setup
 
-echo $HOME/ODS/bin/softhsm --init-token --slot 0  --pin 1234 --so-pin 1234 --label "OpenDNSSEC"
 softhsm --init-token --slot 0  --pin 1234 --so-pin 1234 --label "OpenDNSSEC"
 rc=$?
 if [[ $rc != 0 ]] ; then
