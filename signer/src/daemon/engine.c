@@ -232,14 +232,6 @@ static void
 parent_cleanup(engine_type* engine, int keep_pointer)
 {
     if (engine) {
-        if (engine->tasklist) {
-            tasklist_cleanup(engine->tasklist);
-            engine->tasklist = NULL;
-        }
-        if (engine->zonelist) {
-            zonelist_cleanup(engine->zonelist);
-            engine->zonelist = NULL;
-        }
         if (engine->config) {
             engine_config_cleanup(engine->config);
             engine->config = NULL;
@@ -457,11 +449,14 @@ engine_setup(engine_type* engine)
     sigaction(SIGTERM, &action, NULL);
 
     /* set up hsm */
+/*
     result = hsm_open(engine->config->cfg_filename, hsm_prompt_pin, NULL); /* LEAKS */
+/*
     if (result != HSM_OK) {
         se_log_error("Error initializing libhsm");
         return 1;
     }
+*/
 
     /* set up the work floor */
     engine->tasklist = tasklist_create(); /* tasks */
@@ -687,7 +682,9 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
 
     /* shutdown */
     se_log_verbose("shutdown signer engine");
+/*
     hsm_close();
+*/
     if (engine->cmdhandler != NULL) {
         engine_stop_cmdhandler(engine);
     }
@@ -709,7 +706,24 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
 void
 engine_cleanup(engine_type* engine)
 {
+    size_t i = 0;
+
     if (engine) {
+        se_log_debug("clean up engine");
+        if (engine->workers) {
+            for (i=0; i < (size_t) engine->config->num_worker_threads; i++) {
+                worker_cleanup(engine->workers[i]);
+            }
+            se_free((void*) engine->workers);
+        }
+        if (engine->tasklist) {
+            tasklist_cleanup(engine->tasklist);
+            engine->tasklist = NULL;
+        }
+        if (engine->zonelist) {
+            zonelist_cleanup(engine->zonelist);
+            engine->zonelist = NULL;
+        }
         parent_cleanup(engine, 1);
         lock_basic_destroy(&engine->signal_lock);
         lock_basic_off(&engine->signal_cond);
