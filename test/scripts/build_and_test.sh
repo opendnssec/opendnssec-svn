@@ -56,5 +56,5 @@ sleep 5
 $HOME/ODS/sbin/ods-control stop
 
 echo "NOW CHECK THAT ZONES HAVE BEEN SIGNED"
-sh test/scripts/check_zones_exist.sh unknown.rr.org example.com
+ruby test/scripts/check_zones_exist.sh unknown.rr.org example.com
 echo Still to check all.rr.org and all.rr.binary.org
