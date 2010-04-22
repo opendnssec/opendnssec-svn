@@ -93,7 +93,7 @@ zonelist_read(const char* zonelistfile, time_t last_modified)
     time_t st_mtime = 0;
 
     se_log_assert(zonelistfile);
-    se_log_debug("read zone list file %s", zonelistfile);
+    se_log_verbose("read zone list file %s", zonelistfile);
 
     /* is the file updated? */
     st_mtime = se_file_lastmodified(zonelistfile);

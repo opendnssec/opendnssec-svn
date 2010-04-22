@@ -101,7 +101,6 @@ se_log_init(const char *filename, int use_syslog, int verbosity)
         se_log_warning("cannot open %s for appending, logging to "
                        "stderr", filename);
     } else {
-        se_log_debug("no logfile, logging to stderr", filename);
         logfile = stderr;
     }
     return;

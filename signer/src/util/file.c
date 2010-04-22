@@ -364,13 +364,13 @@ se_chown(const char* file, uid_t uid, gid_t gid, int getdir)
     char* dir = NULL;
 
     if (!getdir) {
-        se_log_debug("create and chown directory '%s', user %ld, group %ld",
+        se_log_debug("create and chown directory %s [user %ld] [group %ld]",
            file, (signed long) uid, (signed long) gid);
         if (chown(file, uid, gid) != 0) {
             se_log_error("chown() for %s failed: %s", file, strerror(errno));
         }
     } else if ((dir = se_dir_name(file)) != NULL) {
-        se_log_debug("create and chown directory '%s', user %ld, group %ld",
+        se_log_debug("create and chown directory %s [user %ld] [group %ld]",
            dir, (signed long) uid, (signed long) gid);
         if (chown(dir, uid, gid) != 0) {
             se_log_error("chown() for %s failed: %s", dir, strerror(errno));

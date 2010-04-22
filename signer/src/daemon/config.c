@@ -101,7 +101,6 @@ engine_check_config(engineconfig_type* config)
 {
     int ret = 0;
 
-    se_log_debug("check config");
     if (!config) {
         se_log_error("engine config does not exist");
         return 1;

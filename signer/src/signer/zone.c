@@ -163,7 +163,7 @@ zone_update_signconf(zone_type* zone, struct tasklist_struct* tl, char* buf)
     time_t now;
 
     se_log_assert(zone);
-    se_log_debug("load zone signconf %s (%s)", zone->name, zone->signconf_filename);
+    se_log_debug("load zone %s signconf %s", zone->name, zone->signconf_filename);
 
     if (zone->signconf) {
         last_modified = zone->signconf->last_modified;
