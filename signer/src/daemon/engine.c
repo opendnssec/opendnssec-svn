@@ -36,6 +36,7 @@
 #include "daemon/config.h"
 #include "daemon/engine.h"
 #include "daemon/signal.h"
+#include "daemon/worker.h"
 #include "scheduler/locks.h"
 #include "scheduler/task.h"
 #include "signer/zone.h"
@@ -45,12 +46,13 @@
 #include "util/privdrop.h"
 #include "util/se_malloc.h"
 
+#include <errno.h>
 #include <libhsm.h> /* hsm_open(), hsm_close() */
 #include <libxml/parser.h> /* xmlInitParser(), xmlCleanupParser(), xmlCleanupThreads() */
 #include <signal.h> /* sigfillset(), sigaction() */
 #include <stdio.h> /* snprintf() */
 #include <stdlib.h> /* exit(), fwrite() */
-#include <string.h> /* strlen(), strncpy() */
+#include <string.h> /* strlen(), strncpy(), strerror() */
 #include <strings.h> /* bzero() */
 #include <sys/socket.h> /* socket(), connect(), close()  */
 #include <sys/types.h> /* getpid() */

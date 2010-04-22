@@ -1,4 +1,14 @@
+22 April 2010: Matthijs
+- queue command
+- Task queue
+- Parse signer configurations
+
+20 April 2010: Matthijs
+- Parse zonelist
+- help, start, stop, verbosity, zones commands
+
 19 April 2010: Matthijs
+- Privdrop
 - Signer client
 
 15 April 2010: Matthijs

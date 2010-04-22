@@ -37,10 +37,17 @@
 #include "config.h"
 #include "daemon/cmdhandler.h"
 #include "daemon/config.h"
+#include "daemon/worker.h"
+#include "scheduler/locks.h"
 #include "scheduler/task.h"
 #include "signer/zonelist.h"
 
 #include <signal.h>
+
+#define SIGNAL_RUN 0
+#define SIGNAL_INIT 1
+#define SIGNAL_RELOAD 2
+#define SIGNAL_SHUTDOWN 3
 
 /**
  * Engine stuff.
@@ -50,6 +57,7 @@ typedef struct engine_struct engine_type;
 struct engine_struct {
     engineconfig_type* config;
     cmdhandler_type* cmdhandler;
+    worker_type** workers;
     zonelist_type* zonelist;
     tasklist_type* tasklist;
     int cmdhandler_done;
