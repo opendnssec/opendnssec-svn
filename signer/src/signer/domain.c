@@ -33,6 +33,7 @@
 
 #include "config.h"
 #include "signer/domain.h"
+#include "signer/rrset.h"
 #include "util/log.h"
 #include "util/se_malloc.h"
 
@@ -52,8 +53,77 @@ domain_create(ldns_rdf* dname)
     domain->name = ldns_rdf_clone(dname);
     domain->parent = NULL;
     domain->nsec3 = NULL;
+    domain->auth_rrset = NULL;
+    domain->ns_rrset = NULL;
+    domain->ds_rrset = NULL;
+    domain->nsec_rrset = NULL;
     domain->domain_status = DOMAIN_STATUS_NONE;
+    domain->inbound_serial = 0;
     return domain;
+}
+
+
+/**
+ * Add RR to domain.
+ *
+ */
+int
+domain_add_rr(domain_type* domain, ldns_rr* rr)
+{
+    ldns_rr_type rr_type = 0, type_covered = 0;
+
+    se_log_assert(domain);
+    se_log_assert(domain->name);
+    se_log_assert(rr);
+    se_log_assert((ldns_dname_compare(ldns_rr_owner(rr), ldns_rr_owner(rr)) == 0));
+
+    rr_type = ldns_rr_get_type(rr);
+    /* denial of existence, skip: done with domain_nsecify */
+    if (rr_type == LDNS_RR_TYPE_NSEC || rr_type == LDNS_RR_TYPE_NSEC3) {
+        return 0;
+    }
+
+    /* delegation */
+    if (rr_type == LDNS_RR_TYPE_NS &&
+        domain->domain_status != DOMAIN_STATUS_APEX) {
+        if (!domain->ns_rrset) {
+            domain->ns_rrset = rrset_create(rr);
+            return 0;
+        }
+        return rrset_add_rr(domain->ns_rrset, rr);
+    }
+
+    /* delegation signer */
+    if (rr_type == LDNS_RR_TYPE_DS) {
+        if (!domain->ds_rrset) {
+            domain->ds_rrset = rrset_create(rr);
+            return 0;
+        }
+        return rrset_add_rr(domain->ds_rrset, rr);
+    }
+
+    /* signature */
+    if (rr_type == LDNS_RR_TYPE_RRSIG) {
+        type_covered = ldns_rdf2rr_type(ldns_rr_rrsig_typecovered(rr));
+        if (type_covered == LDNS_RR_TYPE_NSEC ||
+            type_covered == LDNS_RR_TYPE_NSEC3) {
+            se_log_assert(domain->nsec_rrset);
+            return rrset_add_rr(domain->nsec_rrset, rr);
+        } else if (type_covered == LDNS_RR_TYPE_DS) {
+            se_log_assert(domain->ds_rrset);
+            return rrset_add_rr(domain->ds_rrset, rr);
+        } else {
+            se_log_assert(domain->auth_rrset);
+            return rrset_add_rr(domain->auth_rrset, rr);
+        }
+    }
+
+    /* authoritative */
+    if (!domain->auth_rrset) {
+        domain->auth_rrset = rrset_create(rr);
+        return 0;
+    }
+    return rrset_add_rr(domain->auth_rrset, rr);
 }
 
 

@@ -35,6 +35,7 @@
 #define SIGNER_DOMAIN_H
 
 #include "config.h"
+#include "signer/rrset.h"
 
 #include <ldns/ldns.h>
 #include <time.h>
@@ -58,9 +59,12 @@ struct domain_struct {
     ldns_rdf* name;
     domain_type* parent;
     domain_type* nsec3;
-
-    /* status */
+    rrset_type* auth_rrset;
+    rrset_type* ns_rrset;
+    rrset_type* ds_rrset;
+    rrset_type* nsec_rrset;
     int domain_status;
+    uint32_t inbound_serial;
 };
 
 /**
@@ -70,6 +74,15 @@ struct domain_struct {
  *
  */
 domain_type* domain_create(ldns_rdf* dname);
+
+/**
+ * Add RR to domain.
+ * \param[in] domain domain
+ * \param[in] rr RR
+ * \return int 0 on success, 1 on error
+ *
+ */
+int domain_add_rr(domain_type* domain, ldns_rr* rr);
 
 /**
  * Clean up domain.
