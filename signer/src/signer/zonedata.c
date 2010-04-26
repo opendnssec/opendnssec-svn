@@ -64,7 +64,104 @@ zonedata_create(void)
 
     zd->domains = ldns_rbtree_create(domain_compare);
     zd->nsec3_domains = NULL;
+    zd->inbound_serial = 0;
     return zd;
+}
+
+
+/**
+ * Convert a domain to a tree node.
+ *
+ */
+static ldns_rbnode_t*
+domain2node(domain_type* domain)
+{
+    ldns_rbnode_t* node = (ldns_rbnode_t*) se_malloc(sizeof(ldns_rbnode_t));
+    node->key = domain->name;
+    node->data = domain;
+    return node;
+}
+
+
+/**
+ * Lookup domain.
+ *
+ */
+domain_type*
+zonedata_lookup_domain(zonedata_type* zd, domain_type* domain)
+{
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+
+    se_log_assert(zd);
+    se_log_assert(zd->domains);
+    se_log_assert(domain);
+
+    node = ldns_rbtree_search(zd->domains, domain->name);
+    if (node && node != LDNS_RBTREE_NULL) {
+        return (domain_type*) node->data;
+    }
+    return NULL;
+}
+
+
+/**
+ * Add a domain to the zone data.
+ *
+ */
+domain_type*
+zonedata_add_domain(zonedata_type* zd, domain_type* domain, int at_apex)
+{
+    ldns_rbnode_t* new_node = NULL;
+    char* str = NULL;
+
+    se_log_assert(zd);
+    se_log_assert(zd->domains);
+    se_log_assert(domain);
+
+    new_node = domain2node(domain);
+    if (ldns_rbtree_insert(zd->domains, new_node) == NULL) {
+        str = ldns_rdf2str(domain->name);
+        se_log_error("unable to add domain %s", domain->name);
+        se_free((void*)str);
+        se_free((void*)new_node);
+        return NULL;
+    }
+    domain->domain_status = DOMAIN_STATUS_NONE;
+    if (at_apex) {
+        domain->domain_status = DOMAIN_STATUS_APEX;
+    }
+    return domain;
+}
+
+
+/**
+ * Add a domain to the zone data.
+ *
+ */
+int
+zonedata_add_rr(zonedata_type* zd, ldns_rr* rr, int at_apex)
+{
+    domain_type* domain = NULL, *domain2 = NULL;
+ 
+    se_log_assert(zd);
+    se_log_assert(zd->domains);
+    se_log_assert(rr);
+
+    domain = domain_create(ldns_rr_owner(rr));
+    domain2 = zonedata_lookup_domain(zd, domain);
+    if (domain2) {
+        domain_cleanup(domain);
+    } else {
+        domain2 = zonedata_add_domain(zd, domain, at_apex);
+        if (!domain2) {
+            se_log_error("unable to add RR to zonedata: failed to add domain");
+            domain_cleanup(domain);
+            return 1;
+        }
+    }
+
+    se_log_assert(domain2);
+    return domain_add_rr(domain2, rr);
 }
 
 

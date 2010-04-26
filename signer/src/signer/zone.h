@@ -105,6 +105,15 @@ int zone_update_signconf(zone_type* zone, struct tasklist_struct* tl,
     char* buf);
 
 /**
+ * Add a RR to the zone.
+ * \param[in] zone zone structure
+ * \param[in] rr resource record
+ * \return int 0 on success, 1 on error
+ *
+ */
+int zone_add_rr(zone_type* zone, ldns_rr* rr);
+
+/**
  * Clean up a zone.
  * \param[in] zone zone to cleanup
  *

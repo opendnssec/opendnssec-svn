@@ -37,14 +37,17 @@
 #include "signer/signconf.h"
 #include "signer/zone.h"
 #include "signer/zonedata.h"
+#include "util/duration.h"
 #include "util/file.h"
 #include "util/log.h"
 #include "util/se_malloc.h"
 
-#include <ldns/ldns.h> /* ldns_dname_new_frm_str(), ldns_rdf_deep_free() */
+#include <ldns/ldns.h> /* ldns_*() */
 
 /* copycode: This define is taken from BIND9 */
 #define DNS_SERIAL_GT(a, b) ((int)(((a) - (b)) & 0xFFFFFFFF) > 0)
+
+#define SE_SOA_RDATA_MINIMUM 6
 
 
 /**
@@ -237,6 +240,68 @@ zone_update_signconf(zone_type* zone, struct tasklist_struct* tl, char* buf)
     }
     /* not reached */
     return 0;
+}
+
+
+/**
+ * Add a RR to the zone.
+ *
+ */
+int
+zone_add_rr(zone_type* zone, ldns_rr* rr)
+{
+    ldns_rr_type type = 0;
+    int at_apex = 0;
+    uint32_t tmp = 0;
+    ldns_rdf* soa_min = NULL;
+
+    se_log_assert(zone);
+    se_log_assert(zone->zonedata);
+    se_log_assert(zone->signconf);
+    se_log_assert(rr);
+
+    /* in-zone? */
+    if (ldns_dname_compare(zone->dname, ldns_rr_owner(rr)) != 0 &&
+        !ldns_dname_is_subdomain(ldns_rr_owner(rr), zone->dname)) {
+        se_log_warning("zone %s contains out of zone data, skipping",
+            zone->name);
+        ldns_rr_free(rr);
+        return 0; /* consider success */
+    }
+    if (ldns_dname_compare(zone->dname, ldns_rr_owner(rr)) == 0) {
+        at_apex = 1;
+    }
+
+    /* type specific configuration */
+    type = ldns_rr_get_type(rr);
+    if (type == LDNS_RR_TYPE_DNSKEY && zone->signconf->dnskey_ttl) {
+        tmp = (uint32_t) duration2time(zone->signconf->dnskey_ttl);
+        se_log_verbose("zone %s set DNSKEY TTL to %u", zone->name, tmp);
+        ldns_rr_set_ttl(rr, tmp);
+    }
+    if (type == LDNS_RR_TYPE_SOA) {
+        if (zone->signconf->soa_ttl) {
+            tmp = (uint32_t) duration2time(zone->signconf->soa_ttl);
+            se_log_verbose("zone %s set SOA TTL to %u", zone->name, tmp);
+            ldns_rr_set_ttl(rr, tmp);
+        }
+        if (zone->signconf->soa_min) {
+            tmp = (uint32_t) duration2time(zone->signconf->soa_min);
+            se_log_verbose("zone %s set SOA MINIMUM to %u",
+                zone->name, tmp);
+            soa_min = ldns_rr_set_rdf(rr,
+                ldns_native2rdf_int32(LDNS_RDF_TYPE_INT32, tmp),
+                SE_SOA_RDATA_MINIMUM);
+            if (soa_min) {
+                ldns_rdf_deep_free(soa_min);
+            } else {
+                se_log_error("zone %s failed to replace SOA MINIMUM "
+                    "rdata", zone->name);
+            }
+        }
+    }
+
+    return zonedata_add_rr(zone->zonedata, rr, at_apex);
 }
 
 

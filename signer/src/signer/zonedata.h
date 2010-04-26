@@ -47,6 +47,7 @@ typedef struct zonedata_struct zonedata_type;
 struct zonedata_struct {
     ldns_rbtree_t* domains;
     ldns_rbtree_t* nsec3_domains;
+    uint32_t inbound_serial;
 };
 
 /**
@@ -55,6 +56,35 @@ struct zonedata_struct {
  *
  */
 zonedata_type* zonedata_create(void);
+
+/**
+ * Look up domain in zone data.
+ * \param[in] zd zone data
+ * \param[in] domain domain to look for
+ * \return domain_type* domain, if found
+ *
+ */
+domain_type* zonedata_lookup_domain(zonedata_type* zd, domain_type* domain);
+
+/**
+ * Add domain to zone data.
+ * \param[in] zd zone data
+ * \param[in] domain domain to add
+ * \param[in] at_apex if is at apex of the zone
+ * \return domain_type* added domain
+ *
+ */
+domain_type* zonedata_add_domain(zonedata_type* zd, domain_type* domain, int at_apex);
+
+/**
+ * Add RR to zone data.
+ * \param[in] zd zone data
+ * \param[in] rr RR to add
+ * \param[in] at_apex if is at apex of the zone
+ * \return int 0 on success, 1 on false.
+ *
+ */
+int zonedata_add_rr(zonedata_type* zd, ldns_rr* rr, int at_apex);
 
 /**
  * Clean up zone data.
