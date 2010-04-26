@@ -42,6 +42,7 @@
 typedef struct rrset_struct rrset_type;
 struct rrset_struct {
     ldns_rr_type rr_type;
+    uint32_t inbound_serial;
     ldns_dnssec_rrs* rrs;
     ldns_dnssec_rrs* rrsigs;
     rrset_type* next;
@@ -70,6 +71,15 @@ void rrset_cleanup(rrset_type* rrset);
  *
  */
 int rrset_covers_rrtype(rrset_type* rrset, ldns_rr_type rr_type);
+
+/**
+ * Add RR to RRset.
+ * \param[in] rrset RRset
+ * \param[in] rr RR
+ * \return 0 on success, 1 on error
+ *
+ */
+int rrset_add_rr(rrset_type* rrset, ldns_rr* rr);
 
 /**
  * Print RRset.
