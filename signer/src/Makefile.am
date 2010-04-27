@@ -30,12 +30,14 @@ ods_signerd_SOURCES=		ods-signerd.c \
 				signer/zone.c signer/zone.h \
 				signer/zonedata.c signer/zonedata.h \
 				signer/zonelist.c signer/zonelist.h \
+				tools/tools.h \
+				tools/sorter.c tools/quicksorter_encode.c tools/quicksorter_encode.h \
 				util/duration.c util/duration.h \
 				util/file.c util/file.h \
 				util/log.c util/log.h \
 				util/privdrop.c util/privdrop.h \
 				util/se_malloc.c util/se_malloc.h \
-				util/tools.c util/tools.h
+				util/util.c util/util.h
 
 ods_signerd_LDADD=		@LDNS_LIBS@ @XML2_LIBS@ @LIBHSM_LIBS@ @PTHREAD_LIBS@
 ods_signerd_DEPENDENCIES=	@BUILD_LIBHSM@

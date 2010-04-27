@@ -37,6 +37,7 @@
 #include "scheduler/locks.h"
 #include "signer/tools.h"
 #include "signer/zone.h"
+#include "tools/tools.h"
 #include "util/file.h"
 #include "util/log.h"
 #include "util/se_malloc.h"
@@ -63,17 +64,12 @@ tools_read_input(zone_type* zone)
         tmpname2 = se_build_path(zone->name, ".unsorted", 0);
         result = se_file_copy(zone->inbound_adapter->filename, tmpname2);
     }
-
     if (result == 0) {
         tmpname = se_build_path(zone->name, ".sorted", 0);
-/*
         result = tools_sorter(tmpname2, tmpname,
-            zone->name, zone->signconf->soa_min, &zone->default_ttl,
-            &zone->inbound_serial);
-*/
+            zone->name, zone->signconf->soa_min, zone->signconf->dnskey_ttl);
         se_free((void*)tmpname);
     }
-
     se_free((void*)tmpname2);
     return result;
 }
