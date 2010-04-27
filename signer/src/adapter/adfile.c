@@ -40,7 +40,7 @@
 #include "util/file.h"
 #include "util/log.h"
 #include "util/se_malloc.h"
-#include "util/tools.h"
+#include "util/util.h"
 
 #include <ldns/ldns.h> /* ldns_*() */
 #include <stdio.h> /* rewind() */

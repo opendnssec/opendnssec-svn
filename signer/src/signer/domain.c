@@ -36,7 +36,7 @@
 #include "signer/rrset.h"
 #include "util/log.h"
 #include "util/se_malloc.h"
-#include "util/tools.h"
+#include "util/util.h"
 
 #include <ldns/ldns.h> /* ldns_*() */
 
