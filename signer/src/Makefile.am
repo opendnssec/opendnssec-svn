@@ -11,6 +11,7 @@ sbin_PROGRAMS = ods-signerd ods-signer
 
 ods_signerd_SOURCES=		ods-signerd.c \
 				adapter/adapter.c adapter/adapter.h \
+				adapter/adfile.c adapter/adfile.h \
 				daemon/cmdhandler.c daemon/cmdhandler.h \
 				daemon/config.c daemon/config.h \
 				daemon/engine.c daemon/engine.h \

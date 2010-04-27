@@ -27,64 +27,38 @@
  */
 
 /**
- * Inbound and Outbound Adapters.
+ * File Adapters.
  *
  */
 
-#ifndef ADAPTER_ADAPTER_H
-#define ADAPTER_ADAPTER_H
+#ifndef ADAPTER_ADFILE_H
+#define ADAPTER_ADFILE_H
 
-#include "adapter/adfile.h"
 #include "config.h"
 
 #include <stdio.h>
 
+#define SE_ADFILE_MAXLINE 65535
+
 struct zone_struct;
 
-/** Adapter mode. */
-enum adapter_mode_enum
-{
-        ADAPTER_UNKNOWN = 0,
-        ADAPTER_FILE
-};
-typedef enum adapter_mode_enum adapter_mode;
-
 /**
- * Adapter.
+ * Read zone file.
+ * \param[in] fd file descriptor
+ * \param[in] zone zone structure
+ * \param[in] include if set: an include file, otherwise: main zone file
+ * \return 0 on success, 1 on error
  *
  */
-typedef struct adapter_struct adapter_type;
-struct adapter_struct {
-    const char* filename;
-    adapter_mode type;
-    int inbound;
-};
+int adapter_file_read(FILE* fd, struct zone_struct* zone, int include);
 
 /**
- * Create a new adapter.
- * \param[in] filename filename
- * \param[in] type type of adapter
- * \param[in] inbound inbound adapter or outbound
- * \return adapter_type* created adapter
+ * Write zone file.
+ * \param[in] fd file descriptor
+ * \param[in] zone zone structure
+ * \return 0 on success, 1 on error
  *
  */
-adapter_type* adapter_create(const char* filename, adapter_mode type,
-    int inbound);
+int adapter_file_write(FILE* fd, struct zone_struct* zone);
 
-/**
- * Compare adapters.
- * /param[in] a1 adapter 1
- * /param[in] a2 adapter 2
- * /return int 0 on equal, -1 if a1 < a2, 1 if a1 > a2
- *
- */
-int adapter_compare(adapter_type* a1, adapter_type* a2);
-
-/**
- * Clean up adapter.
- * \param[in] adapter adapter to cleanup
- *
- */
-void adapter_cleanup(adapter_type* adapter);
-
-#endif /* ADAPTER_ADAPTER_H */
+#endif /* ADAPTER_ADFILE_H */
