@@ -84,9 +84,7 @@ rrset_covers_rr(ldns_dnssec_rrs* rrs, ldns_rr* rr)
 int
 rrset_add_rr(rrset_type* rrset, ldns_rr* rr)
 {
-    rrset_type* walk_rrset = NULL;
-    rrset_type* new_rrset = NULL;
-    ldns_dnssec_rrs* new_rrs = NULL;
+    ldns_status status = LDNS_STATUS_OK;
 
     se_log_assert(rr);
     se_log_assert(rrset);
@@ -133,10 +131,6 @@ void
 rrset_cleanup(rrset_type* rrset)
 {
     if (rrset) {
-        if (rrset->next) {
-            rrset_cleanup(rrset->next);
-            rrset->next = NULL;
-        }
         if (rrset->rrs) {
             ldns_dnssec_rrs_deep_free(rrset->rrs);
             rrset->rrs = NULL;

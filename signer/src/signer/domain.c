@@ -47,9 +47,9 @@
 static int
 rrset_compare(const void* a, const void* b)
 {
-    rrset_type* x = (rrset_type*)a;
-    rrset_type* y = (rrset_type*)b;
-    return x->rr_type - y->rr_type;
+    ldns_rr_type* x = (ldns_rr_type*)a;
+    ldns_rr_type* y = (ldns_rr_type*)b;
+    return (*x)-(*y);
 }
 
 
@@ -66,7 +66,7 @@ domain_create(ldns_rdf* dname)
     domain->name = ldns_rdf_clone(dname);
     domain->parent = NULL;
     domain->nsec3 = NULL;
-    domain->rrset = ldns_rbtree_create(rrset_compare);
+    domain->rrsets = ldns_rbtree_create(rrset_compare);
     domain->domain_status = DOMAIN_STATUS_NONE;
     domain->inbound_serial = 0;
     domain->outbound_serial = 0;
@@ -82,7 +82,7 @@ static ldns_rbnode_t*
 rrset2node(rrset_type* rrset)
 {
     ldns_rbnode_t* node = (ldns_rbnode_t*) se_malloc(sizeof(ldns_rbnode_t));
-    node->key = rrset->rr_type;
+    node->key = &(rrset->rr_type);
     node->data = rrset;
     return node;
 }
@@ -101,7 +101,7 @@ domain_lookup_rrset(domain_type* domain, rrset_type* rrset)
     se_log_assert(domain);
     se_log_assert(domain->rrsets);
 
-    node = ldns_rbtree_search(domain->rrsets, rrset->rr_type);
+    node = ldns_rbtree_search(domain->rrsets, &(rrset->rr_type));
     if (node && node != LDNS_RBTREE_NULL) {
         return (rrset_type*) node->data;
     }
@@ -151,7 +151,7 @@ domain_commit_add_rr(domain_type* domain, ldns_rr* rr)
     se_log_assert(domain);
     se_log_assert(domain->rrsets);
 
-    rrtype = ldns_rr_get_type(poprr));
+    rrtype = ldns_rr_get_type(rr);
     rrset = rrset_create(rrtype);
     rrset2 = domain_lookup_rrset(domain, rrset);
     if (rrset2) {
@@ -195,14 +195,14 @@ domain_commit_changes(domain_type* domain, uint32_t serial)
 
     /* del RRs */
     if (ldns_rr_list_rr_count(domain->rrs_del) > 0) {
-        while ( (poprr = ldns_rr_list_pop_rr(domains->rrs_del)) != NULL) {
+        while ( (poprr = ldns_rr_list_pop_rr(domain->rrs_del)) != NULL) {
             se_log_warning("delete RRs not implemented yet");
         }
     }
 
     /* add RRs */
     if (ldns_rr_list_rr_count(domain->rrs_add) > 0) {
-        while ( (poprr = ldns_rr_list_pop_rr(domains->rrs_add)) != NULL) {
+        while ( (poprr = ldns_rr_list_pop_rr(domain->rrs_add)) != NULL) {
             if (domain_commit_add_rr(domain, poprr) != 0) {
                 se_log_error("unable to commit changes: failed to add RR to "
                     "domain");

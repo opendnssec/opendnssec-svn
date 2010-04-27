@@ -162,7 +162,7 @@ zonedata_add_rr(zonedata_type* zd, ldns_rr* rr, int at_apex)
         }
     }
     se_log_assert(domain2);
-    return domain_add_rr(domain2, rr);
+    return domain_add_rr(domain2, rr, zd->inbound_serial);
 }
 
 
