@@ -52,6 +52,7 @@ tools_read_input(zone_type* zone)
 {
     char* tmpname = NULL;
     char* tmpname2 = NULL;
+    char* zonename = NULL;
     int result = 0;
 
     se_log_assert(zone);
@@ -59,16 +60,16 @@ tools_read_input(zone_type* zone)
     se_log_assert(zone->signconf);
     se_log_verbose("read zone %s", zone->name);
 
+    tmpname2 = se_build_path(zone->name, ".unsorted", 0);
     /* make a copy (slooooooow, use system(cp) ?) */
-    if (zone->signconf->audit) {
-        tmpname2 = se_build_path(zone->name, ".unsorted", 0);
-        result = se_file_copy(zone->inbound_adapter->filename, tmpname2);
-    }
+    result = se_file_copy(zone->inbound_adapter->filename, tmpname2);
     if (result == 0) {
         tmpname = se_build_path(zone->name, ".sorted", 0);
+        zonename = ldns_rdf2str(zone->dname);
         result = tools_sorter(tmpname2, tmpname,
-            zone->name, zone->signconf->soa_min, zone->signconf->dnskey_ttl);
+            zonename, zone->signconf->soa_min, zone->signconf->dnskey_ttl);
         se_free((void*)tmpname);
+        se_free((void*)zonename);
     }
     se_free((void*)tmpname2);
     return result;

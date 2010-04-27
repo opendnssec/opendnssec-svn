@@ -707,7 +707,7 @@ tools_sorter(const char* filename, char* outfilename, const char* zonename, dura
     }
 
     if (read_file((char*) infile, (char*) origin, default_ttl, dnskey_ttl, &g) != 0) {
-        se_log_error("quicksorter: init_global_data() failed");
+        se_log_error("quicksorter: read_file(%s) failed", filename);
         return 1;
     }
 
