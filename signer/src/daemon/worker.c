@@ -34,6 +34,7 @@
 #include "daemon/worker.h"
 #include "scheduler/locks.h"
 #include "scheduler/task.h"
+#include "signer/tools.h"
 #include "signer/zone.h"
 #include "util/log.h"
 #include "util/se_malloc.h"
@@ -147,7 +148,7 @@ worker_perform_task(worker_type* worker, task_type* task)
             se_log_warning("no task for zone %s", task->who);
             break;
         case TASK_READ:
-            if (0) {
+            if (tools_read_input(zone) != 0) {
                 se_log_error("task [read zone %s] failed", task->who);
                 goto task_perform_fail;
                 break;
