@@ -42,35 +42,20 @@
 typedef struct rrset_struct rrset_type;
 struct rrset_struct {
     ldns_rr_type rr_type;
+    int rr_count;
     uint32_t inbound_serial;
+    uint32_t outbound_serial;
     ldns_dnssec_rrs* rrs;
     ldns_dnssec_rrs* rrsigs;
-    rrset_type* next;
 };
 
 /**
  * Create new RRset.
- * \param[in] rr first RR in the new RRset
+ * \param[in] rrtype RRtype
  * \return new RRset
  *
  */
-rrset_type* rrset_create(ldns_rr* rr);
-
-/**
- * Clean up RRset.
- * \param[in] rrset RRset to be cleaned up
- *
- */
-void rrset_cleanup(rrset_type* rrset);
-
-/**
- * Look if the RRset covers a RRtype.
- * \param[in] rrset RRset to be checked
- * \param[in] rr_type RRtype
- * \return 1 if true, 0 if false
- *
- */
-int rrset_covers_rrtype(rrset_type* rrset, ldns_rr_type rr_type);
+rrset_type* rrset_create(ldns_rr_type rrtype);
 
 /**
  * Add RR to RRset.
@@ -82,16 +67,10 @@ int rrset_covers_rrtype(rrset_type* rrset, ldns_rr_type rr_type);
 int rrset_add_rr(rrset_type* rrset, ldns_rr* rr);
 
 /**
- * Print RRset.
- * \param[in] fd file descriptor
- * \param[in] rrset RRset to be printed
- * \param[in] comments print additional comments
- * \param[in] follow also print following RRsets
- * \param[in] glue_only only print A/AAAA RRs
- * \param[in] skip_soa skip SOA record, because it was printed seperately
+ * Clean up RRset.
+ * \param[in] rrset RRset to be cleaned up
  *
  */
-void rrset_print(FILE* fd, rrset_type* rrset, const char* comments, int follow,
-    int glue_only, int skip_soa);
+void rrset_cleanup(rrset_type* rrset);
 
 #endif /* SIGNER_RRSET_H */
