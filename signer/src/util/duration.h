@@ -113,6 +113,14 @@ time_t time_minimum(time_t a, time_t b);
 time_t time_maximum(time_t a, time_t b);
 
 /**
+ * Convert time into string.
+ * \param[in] n time
+ * \param[in] s string
+ *
+ */
+void time_itoa(time_t n, char* s);
+
+/**
  * Return time in datestamp.
  * \param[in] tt time
  * \param[in] format stamp format

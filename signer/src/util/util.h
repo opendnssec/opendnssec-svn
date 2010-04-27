@@ -31,8 +31,8 @@
  * Utility tools.
  */
 
-#ifndef UTIL_TOOLS_H
-#define UTIL_TOOLS_H
+#ifndef UTIL_UTIL_H
+#define UTIL_UTIL_H
 
 #include "config.h"
 
@@ -44,4 +44,4 @@
  */
 int util_is_dnssec_rr(ldns_rr* rr);
 
-#endif /* UTIL_TOOLS_H */
+#endif /* UTIL_UTIL_H */

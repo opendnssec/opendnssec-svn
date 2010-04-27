@@ -33,6 +33,7 @@
 
 #include "config.h"
 #include "util/log.h"
+#include "util/util.h"
 
 #include <ldns/ldns.h> /* ldns_rr_get_type() */
 
