@@ -59,12 +59,12 @@ struct domain_struct {
     ldns_rdf* name;
     domain_type* parent;
     domain_type* nsec3;
-    rrset_type* auth_rrset;
-    rrset_type* ns_rrset;
-    rrset_type* ds_rrset;
-    rrset_type* nsec_rrset;
+    ldns_rr_list* rrs_add;
+    ldns_rr_list* rrs_del;
+    ldns_rbtree_t* rrsets;
     int domain_status;
     uint32_t inbound_serial;
+    uint32_t outbound_serial;
 };
 
 /**
@@ -75,14 +75,55 @@ struct domain_struct {
  */
 domain_type* domain_create(ldns_rdf* dname);
 
+
 /**
- * Add RR to domain.
+ * Lookup a RRset within the domain.
  * \param[in] domain domain
- * \param[in] rr RR
+ * \param[in] rrset RRset
+ * \return rrset_type* RRset if found
+ *
+ */
+rrset_type* domain_lookup_rrset(domain_type* domain, rrset_type* rrset);
+
+
+/**
+ * Add a RRset to the domain.
+ * \param[in] domain domain
+ * \param[in] rrset RRset
+ * \return rrset_type* added RRset
+ *
+ */
+rrset_type* domain_add_rrset(domain_type* domain, rrset_type* rrset);
+
+
+/**
+ * Commit the added and deleted RRs.
+ * \param[in] domain domain
+ * \param[in] serial version to migrate to
  * \return int 0 on success, 1 on error
  *
  */
-int domain_add_rr(domain_type* domain, ldns_rr* rr);
+int domain_commit_changes(domain_type* domain, uint32_t serial);
+
+/**
+ * Add RR to the list of RRs to add to this domain.
+ * \param[in] domain domain
+ * \param[in] rr RR
+ * \param[in] serial version of zone this RR was added
+ * \return int 0 on success, 1 on error
+ *
+ */
+int domain_add_rr(domain_type* domain, ldns_rr* rr, uint32_t serial);
+
+/**
+ * Add RR to the list of RRs to delete from this domain.
+ * \param[in] domain domain
+ * \param[in] rr RR
+ * \param[in] serial version of zone this RR was deleted
+ * \return int 0 on success, 1 on error
+ *
+ */
+int domain_del_rr(domain_type* domain, ldns_rr* rr, uint32_t serial);
 
 /**
  * Clean up domain.
