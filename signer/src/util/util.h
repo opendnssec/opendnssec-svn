@@ -36,6 +36,8 @@
 
 #include "config.h"
 
+#include <ldns/ldns.h>
+
 /**
  * Check if a RR is a DNSSEC RR (RRSIG, NSEC, NSEC3 or NSEC3PARAMS).
  * \param[in] rr RR
