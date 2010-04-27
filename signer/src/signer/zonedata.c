@@ -61,7 +61,6 @@ zonedata_type*
 zonedata_create(void)
 {
     zonedata_type* zd = (zonedata_type*) se_malloc(sizeof(zonedata_type));
-
     zd->domains = ldns_rbtree_create(domain_compare);
     zd->nsec3_domains = NULL;
     zd->inbound_serial = 0;
@@ -162,7 +161,6 @@ zonedata_add_rr(zonedata_type* zd, ldns_rr* rr, int at_apex)
             return 1;
         }
     }
-
     se_log_assert(domain2);
     return domain_add_rr(domain2, rr);
 }
@@ -210,4 +208,5 @@ zonedata_cleanup(zonedata_type* zonedata)
     } else {
         se_log_warning("cleanup empty zone data");
     }
+    return;
 }

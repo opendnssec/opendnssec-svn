@@ -65,9 +65,9 @@ struct zone_struct {
     adapter_type* outbound_adapter; /* outbound adapter */
     struct task_struct* task; /* current scheduled task */
     struct worker_struct* worker; /* current active worker */
-    time_t backoff; /* backoff value if there is something failing with this zone */
+    time_t backoff; /* backoff value if there is something failing */
     zonedata_type* zonedata; /* zone data */
-    int in_progress; /* zone is being worked on (could be checked with current active worker) */
+    int in_progress; /* in progress (check with active worker?) */
     /* for zonelist */
     int just_added;
     int just_updated;
