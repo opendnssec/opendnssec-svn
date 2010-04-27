@@ -40,28 +40,12 @@
 #include "util/file.h"
 #include "util/log.h"
 #include "util/se_malloc.h"
+#include "util/tools.h"
 
 #include <ldns/ldns.h> /* ldns_*() */
 #include <stdio.h> /* rewind() */
 
 static int adfile_read_file(FILE* fd, struct zone_struct* zone, int include);
-
-/**
- * Check for DNSSEC type.
- *
- */
-static int
-is_dnssec_rr(ldns_rr* rr)
-{
-    ldns_rr_type type = 0;
-    se_log_assert(rr);
-
-    type = ldns_rr_get_type(rr);
-    return (type == LDNS_RR_TYPE_RRSIG ||
-            type == LDNS_RR_TYPE_NSEC ||
-            type == LDNS_RR_TYPE_NSEC3 ||
-            type == LDNS_RR_TYPE_NSEC3PARAMS);
-}
 
 
 /**
@@ -400,7 +384,7 @@ adfile_read_file(FILE* fd, struct zone_struct* zone, int include)
         }
 
         /* filter out DNSSEC RRs (except DNSKEY) from the Input File Adapter */
-        if (is_dnssec_rr(rr)) {
+        if (tools_is_dnssec_rr(rr)) {
             ldns_rr_free(rr);
             rr = NULL;
             continue;

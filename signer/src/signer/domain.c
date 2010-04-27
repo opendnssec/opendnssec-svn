@@ -36,8 +36,9 @@
 #include "signer/rrset.h"
 #include "util/log.h"
 #include "util/se_malloc.h"
+#include "util/tools.h"
 
-#include <ldns/ldns.h>
+#include <ldns/ldns.h> /* ldns_*() */
 
 
 /**
@@ -232,19 +233,13 @@ domain_commit_changes(domain_type* domain, uint32_t serial)
 static int
 domain_pend_rr(domain_type* domain, ldns_rr* rr, uint32_t serial, int del)
 {
-    ldns_rr_type rr_type = 0;
     ldns_status status = LDNS_STATUS_OK;
 
     se_log_assert(domain);
     se_log_assert(domain->name);
     se_log_assert((ldns_dname_compare(domain->name, ldns_rr_owner(rr)) == 0));
 
-    /* TODO: util/tools.h is_dnssec_rr() */
-    rr_type = ldns_rr_get_type(rr);
-    if (rr_type == LDNS_RR_TYPE_NSEC ||
-        rr_type == LDNS_RR_TYPE_NSEC3 ||
-        rr_type == LDNS_RR_TYPE_NSEC3PARAMS ||
-        rr_type == LDNS_RR_TYPE_RRSIG) {
+    if (tools_is_dnssec_rr(rr)) {
         return LDNS_STATUS_OK;
     }
 

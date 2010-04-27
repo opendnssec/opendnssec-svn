@@ -33,7 +33,8 @@ ods_signerd_SOURCES=		ods-signerd.c \
 				util/file.c util/file.h \
 				util/log.c util/log.h \
 				util/privdrop.c util/privdrop.h \
-				util/se_malloc.c util/se_malloc.h
+				util/se_malloc.c util/se_malloc.h \
+				util/tools.c util/tools.h
 
 ods_signerd_LDADD=		@LDNS_LIBS@ @XML2_LIBS@ @LIBHSM_LIBS@ @PTHREAD_LIBS@
 ods_signerd_DEPENDENCIES=	@BUILD_LIBHSM@
