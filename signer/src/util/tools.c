@@ -42,7 +42,7 @@
  *
  */
 int
-tools_is_dnssec_rr(ldns_rr* rr)
+util_is_dnssec_rr(ldns_rr* rr)
 {
     ldns_rr_type type = 0;
     se_log_assert(rr);

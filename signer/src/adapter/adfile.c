@@ -384,7 +384,7 @@ adfile_read_file(FILE* fd, struct zone_struct* zone, int include)
         }
 
         /* filter out DNSSEC RRs (except DNSKEY) from the Input File Adapter */
-        if (tools_is_dnssec_rr(rr)) {
+        if (util_is_dnssec_rr(rr)) {
             ldns_rr_free(rr);
             rr = NULL;
             continue;

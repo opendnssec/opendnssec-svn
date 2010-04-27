@@ -239,7 +239,7 @@ domain_pend_rr(domain_type* domain, ldns_rr* rr, uint32_t serial, int del)
     se_log_assert(domain->name);
     se_log_assert((ldns_dname_compare(domain->name, ldns_rr_owner(rr)) == 0));
 
-    if (tools_is_dnssec_rr(rr)) {
+    if (util_is_dnssec_rr(rr)) {
         return LDNS_STATUS_OK;
     }
 

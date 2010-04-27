@@ -42,6 +42,6 @@
  * \return int 1 on true, 0 on false
  *
  */
-int tools_is_dnssec_rr(ldns_rr* rr);
+int util_is_dnssec_rr(ldns_rr* rr);
 
 #endif /* UTIL_TOOLS_H */
