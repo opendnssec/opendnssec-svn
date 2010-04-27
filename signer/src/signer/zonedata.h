@@ -47,7 +47,9 @@ typedef struct zonedata_struct zonedata_type;
 struct zonedata_struct {
     ldns_rbtree_t* domains;
     ldns_rbtree_t* nsec3_domains;
-    uint32_t inbound_serial;
+    uint32_t default_ttl; /* fallback ttl */
+    uint32_t inbound_serial; /* last seen inbound soa serial */
+    uint32_t outbound_serial; /* last written outbound soa serial */
 };
 
 /**

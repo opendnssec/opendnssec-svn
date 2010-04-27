@@ -65,6 +65,8 @@ zonedata_create(void)
     zd->domains = ldns_rbtree_create(domain_compare);
     zd->nsec3_domains = NULL;
     zd->inbound_serial = 0;
+    zd->outbound_serial = 0;
+    zd->default_ttl = 3600; /* configure --default-ttl option? */
     return zd;
 }
 
@@ -141,8 +143,9 @@ zonedata_add_domain(zonedata_type* zd, domain_type* domain, int at_apex)
 int
 zonedata_add_rr(zonedata_type* zd, ldns_rr* rr, int at_apex)
 {
-    domain_type* domain = NULL, *domain2 = NULL;
- 
+    domain_type* domain = NULL;
+    domain_type* domain2 = NULL;
+
     se_log_assert(zd);
     se_log_assert(zd->domains);
     se_log_assert(rr);
@@ -186,6 +189,7 @@ zonedata_cleanup_domains(ldns_rbtree_t* domain_tree)
     se_rbnode_free(domain_tree->root);
     ldns_rbtree_free(domain_tree);
 }
+
 
 /**
  * Clean up zone data.

@@ -42,6 +42,9 @@
 
 #include <ldns/ldns.h>
 
+#define SE_SOA_RDATA_SERIAL  2
+#define SE_SOA_RDATA_MINIMUM 6
+
 struct task_struct;
 struct tasklist_struct;
 struct worker_struct;
@@ -55,9 +58,6 @@ struct zone_struct {
     const char* name; /* string format zone name */
     ldns_rdf* dname; /* wire format zone name */
     ldns_rr_class klass; /* class */
-    uint32_t fallback_ttl; /* fallback ttl */
-    uint32_t inbound_serial; /* last seen inbound soa serial */
-    uint32_t outbound_serial; /* last written outbound soa serial */
     const char* policy_name; /* policy identifier */
     const char* signconf_filename; /* signer configuration filename */
     signconf_type* signconf; /* signer configuration values */
@@ -68,6 +68,7 @@ struct zone_struct {
     time_t backoff; /* backoff value if there is something failing with this zone */
     zonedata_type* zonedata; /* zone data */
     int in_progress; /* zone is being worked on (could be checked with current active worker) */
+    /* for zonelist */
     int just_added;
     int just_updated;
     int tobe_removed;

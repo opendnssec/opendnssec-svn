@@ -47,8 +47,6 @@
 /* copycode: This define is taken from BIND9 */
 #define DNS_SERIAL_GT(a, b) ((int)(((a) - (b)) & 0xFFFFFFFF) > 0)
 
-#define SE_SOA_RDATA_MINIMUM 6
-
 
 /**
  * Create a new zone.
@@ -66,10 +64,7 @@ zone_create(const char* name, ldns_rr_class klass)
     zone->name = se_strdup(name);
     zone->dname = ldns_dname_new_frm_str(name);
     zone->klass = klass;
-    zone->inbound_serial = 0;
-    zone->outbound_serial = 0;
     /* policy */
-    zone->fallback_ttl = 3600; /* perhaps set a default ttl in configure */
     zone->policy_name = NULL;
     zone->signconf_filename = NULL;
     zone->signconf = NULL;
@@ -300,7 +295,6 @@ zone_add_rr(zone_type* zone, ldns_rr* rr)
             }
         }
     }
-
     return zonedata_add_rr(zone->zonedata, rr, at_apex);
 }
 
