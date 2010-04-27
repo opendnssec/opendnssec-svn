@@ -195,13 +195,13 @@ static inline uint16_t decode_int16(void* src)
 /* convert TTL text string to seconds */
 static int parse_ttl(char* ttl)
 {
-    int seconds = 0;
+    int seconds = 0, val;
 
     while (isspace(*ttl))
         ttl++;
 
     while (*ttl && !isspace(*ttl)) {
-        int val = atoi(ttl);
+        val = atoi(ttl);
         while (isdigit(*ttl))
             ttl++;
         switch (tolower(*ttl)) {
@@ -291,12 +291,12 @@ static int encode_base64(char** _src, char** _dest, bool stop_at_space)
     char* dest = *_dest;
 
     int bits = 0;
-    int char_count = 0;
+    int char_count = 0, len, c;
 
     while (*src && *src != '\n') {
         if (stop_at_space && isspace(*src))
             break;
-        int c = *src++;
+        c = *src++;
 	if (c == '=')
             break;
 	if (!inalphabet[c])
@@ -329,7 +329,7 @@ static int encode_base64(char** _src, char** _dest, bool stop_at_space)
                 break;
 	}
     }
-    int len = dest - *_dest;
+    len = dest - *_dest;
     *_src = src;
     *_dest = dest;
 
@@ -344,7 +344,7 @@ static int decode_base64(char** _src, char** _dest, int bytes)
 
     char* src = *_src;
     char* dest = *_dest;
-    int bits = 0;
+    int bits = 0, len;
     int char_count = 0;
 
     while (bytes--) {
@@ -376,7 +376,7 @@ static int decode_base64(char** _src, char** _dest, int bytes)
 	}
     }
 
-    int len = dest - *_dest;
+    len = dest - *_dest;
     *_src = src;
     *_dest = dest;
 
@@ -487,8 +487,9 @@ static void decode_string(char** _src, char** _dest, bool domain_name)
 
     do {
         int len = *src++;
+        int i;
 
-        for (int i=0; i<len; i++) {
+        for (i=0; i<len; i++) {
             switch (*src) {
                 case '\\':
                     *dest++ = '\\';
@@ -539,6 +540,9 @@ static void* encode_owner(char* name,
     char labelpos[MAX_NAME_LEN];
     char* tmpptr = tmpname;
     int val = encode_string(&name, &tmpptr, true, origin);
+    uint16_t* dptr;
+    int count = 0;
+    int pos = 0, i;
 
     if (val != 0) {
         se_log_error("encode_string() failed");
@@ -546,16 +550,14 @@ static void* encode_owner(char* name,
     }
 
     /* iterate through string and store the position of each label */
-    int count = 0;
-    int pos = 0;
     do {
         labelpos[count++] = pos;
         pos += tmpname[pos] + 1;
     } while (tmpname[pos]);
 
     /* now store the name backwards */
-    uint16_t* dptr = dest;
-    for (int i=count-1; i >= 0; i--) {
+    dptr = dest;
+    for (i=count-1; i >= 0; i--) {
         char* sptr = tmpname + labelpos[i];
         int len = *sptr++;
         while (len--) {
@@ -574,22 +576,24 @@ static void decode_owner(char** _rr, char** _dest)
 {
     uint16_t* rr = (uint16_t*)*_rr;
     char* dest = *_dest;
+    uint16_t* delim;
 
     int len = 0;
     while (rr[len] != END_OF_NAME)
         len++;
 
     /* reverse name */
-    uint16_t* delim = rr + len;
+    delim = rr + len;
 
     while (1) {
         uint16_t* end = delim;
+        uint16_t* p;
 
         /* find start of name segment */
         while (delim > rr && (delim[-1] != END_OF_SEGMENT))
             delim--;
 
-        uint16_t* p = delim;
+        p = delim;
 
         /* copy segment */
         while (p < end) {
@@ -727,7 +731,9 @@ static int encode_loc(char** _src, char** _dest)
     unsigned int lat = 0;
     unsigned int lon = 0;
 
-    for (int i=0; i<2; i++) {
+    int alt, size, hp, vp, i;
+
+    for (i=0; i<2; i++) {
         unsigned int val = 0;
 
         /* degrees */
@@ -768,13 +774,13 @@ static int encode_loc(char** _src, char** _dest)
             lon = val;
     };
 
-    int alt = atof(src) * 100;
+    alt = atof(src) * 100;
     while (*src && !isspace(*src)) src++;
     while (*src && isspace(*src)) src++;
 
-    int size = int2pow(100);
-    int hp = int2pow(10000);
-    int vp = int2pow(10);
+    size = int2pow(100);
+    hp = int2pow(10000);
+    vp = int2pow(10);
 
     /* optional parameters: */
     if (*src) {
@@ -818,19 +824,21 @@ static void decode_loc(char** _src, char** _dest)
 {
     char* src = *_src;
     char* dest = *_dest;
+    int size, hp, vp, alt, i;
+    unsigned int lat, lon;
 
     src++; /* version */
-    int size = pow2int(*src++);
-    int hp = pow2int(*src++);
-    int vp = pow2int(*src++);
-    unsigned int lat = decode_int32(src);
+    size = pow2int(*src++);
+    hp = pow2int(*src++);
+    vp = pow2int(*src++);
+    lat = decode_int32(src);
     src += 4;
-    unsigned int lon = decode_int32(src);
+    lon = decode_int32(src);
     src += 4;
-    int alt = decode_int32(src) - 10000000;
+    alt = decode_int32(src) - 10000000;
     src += 4;
 
-    for (int i=0; i<2; i++) {
+    for (i=0; i<2; i++) {
         int val;
         char dir;
         if (i==0) {
@@ -886,15 +894,15 @@ static int encode_apl(char** _src, char** _dest)
 
     while (*src) {
         int negation = 0;
+        char* slash;
+        int prefix, afi;
 
         if (*src == '!') {
             negation = 0x80;
             src++;
         }
 
-        char* slash;
-        int afi = atoi(src);
-        int prefix;
+        afi = atoi(src);
         while (isdigit(*src))
             src++;
         src++;
@@ -945,10 +953,11 @@ static int decode_apl(char** _src, char** _dest, int bytes)
 
     while (src < end) {
         int afi = decode_int16(src);
+        int prefix, adflength, negation;
         src += 2;
-        int prefix = *src++;
-        int adflength = *src++;
-        int negation = adflength & 0x80;
+        prefix = *src++;
+        adflength = *src++;
+        negation = adflength & 0x80;
 
         if (negation)
             *dest++ = '!';
@@ -980,6 +989,7 @@ static int decode_apl(char** _src, char** _dest, int bytes)
 static int encode_int(char** src, char** dest, int type)
 {
     int val = atoi(*src);
+    int vall = 0;
     switch (type) {
         case RD_INT8:
             **dest = val;
@@ -987,12 +997,12 @@ static int encode_int(char** src, char** dest, int type)
             break;
 
         case RD_INT16:
-            encode_int16(val, *dest);
+            vall = encode_int16(val, *dest);
             (*dest) += 2;
             break;
 
         case RD_INT32:
-            encode_int32(val, *dest);
+            vall = encode_int32(val, *dest);
             (*dest) += 4;
             break;
     }
@@ -1000,7 +1010,7 @@ static int encode_int(char** src, char** dest, int type)
     while (**src && !isspace((unsigned)**src))
         (*src)++;
 
-    return 0;
+    return vall;
 }
 
 /* CERT: RFC 2538 */
@@ -1051,6 +1061,8 @@ static int encode_hip(char** _src, char** _dest, char* origin)
 {
     char* src = *_src;
     char* dest = *_dest;
+    char* tmp;
+    int val;
 
     dest++; /* skip HIT length */
 
@@ -1064,7 +1076,7 @@ static int encode_hip(char** _src, char** _dest, char* origin)
     dest += 2; /* skip PK length */
 
     /* encode HIT */
-    char* tmp = dest;
+    tmp = dest;
     encode_base16(&src, &dest, true);
     while (isspace(*src))
         src++;
@@ -1082,7 +1094,7 @@ static int encode_hip(char** _src, char** _dest, char* origin)
 
     /* encode all Rendezvous Servers */
     while (*src) {
-        int val = encode_string(&src, &dest, true, origin);
+        val = encode_string(&src, &dest, true, origin);
         if (val != 0) {
             se_log_error("quicksorter: encode_string() failed");
             return 1;
@@ -1101,12 +1113,12 @@ static void decode_hip(char** _src, char** _dest, int length)
 {
     char* src = *_src;
     char* dest = *_dest;
-
+    int pklen;
     int hitlen = *src++;
     int pkalgo = *src++;
     dest += sprintf(dest, "%d ", pkalgo);
 
-    int pklen = decode_int16(src);
+    pklen = decode_int16(src);
     src += 2;
 
     decode_base16(&src, &dest, hitlen); /* HIT */
@@ -1123,7 +1135,7 @@ static void decode_hip(char** _src, char** _dest, int length)
     *_src = src;
     *_dest = dest;
 
-    return 0;
+    return;
 }
 
 /* Generic encoding: RFC 3597 */
@@ -1146,7 +1158,7 @@ static int encode_generic(char** _src, char** _dest)
 static void decode_generic(char** _src, char** _dest, int bytes)
 {
     *_dest += sprintf(*_dest, "\\# %d ", bytes);
-    return decode_base16(_src, _dest, bytes);
+    decode_base16(_src, _dest, bytes);
 }
 
 /* NSAP: RFC 1637 */
@@ -1159,14 +1171,14 @@ static int encode_nsap(char** _src, char** _dest)
 static void decode_nsap(char** _src, char** _dest, int bytes)
 {
     *_dest += sprintf(*_dest, "0x");
-    return decode_base16(_src, _dest, bytes);
+    decode_base16(_src, _dest, bytes);
 }
 
 static void* encode_rdata(int type, char* rdata, char* dest, char* origin)
 {
     static int tempvar = -1;
     const char* format = NULL;
-    int pcount = 0;
+    int pcount = 0, val = 0, i;
 
     if (type > 0 && type < NUM_TYPES) {
         format = format_list[type];
@@ -1184,10 +1196,10 @@ static void* encode_rdata(int type, char* rdata, char* dest, char* origin)
         }
     }
 
-    for (int i=1; i <= pcount; i++) {
+    for (i=1; i <= pcount; i++) {
         switch (format[i]) {
             case RD_NAME:
-                int val = encode_string(&rdata, &dest, true, origin);
+                val = encode_string(&rdata, &dest, true, origin);
                 if (val != 0) {
                     se_log_error("encode_string() failed");
                     return NULL;
@@ -1195,7 +1207,7 @@ static void* encode_rdata(int type, char* rdata, char* dest, char* origin)
                 break;
 
             case RD_STRING:
-                int val = encode_string(&rdata, &dest, false, NULL);
+                val = encode_string(&rdata, &dest, false, NULL);
                 if (val != 0) {
                     se_log_error("encode_string() failed");
                     return NULL;
@@ -1204,7 +1216,7 @@ static void* encode_rdata(int type, char* rdata, char* dest, char* origin)
 
             case RD_TXT:
                 while (*rdata) {
-                    int val = encode_string(&rdata, &dest, false, NULL);
+                    val = encode_string(&rdata, &dest, false, NULL);
                     if (val != 0) {
                         se_log_error("encode_string() failed");
                         return NULL;
@@ -1215,7 +1227,7 @@ static void* encode_rdata(int type, char* rdata, char* dest, char* origin)
                 break;
 
             case RD_A:
-                int val = encode_ipv4(&rdata, &dest);
+                val = encode_ipv4(&rdata, &dest);
                 if (val != 0) {
                     se_log_error("encode_ipv4() failed");
                     return NULL;
@@ -1223,7 +1235,7 @@ static void* encode_rdata(int type, char* rdata, char* dest, char* origin)
                 break;
 
             case RD_AAAA:
-                int val = encode_ipv6(&rdata, &dest);
+                val = encode_ipv6(&rdata, &dest);
                 if (val != 0) {
                     se_log_error("encode_ipv6() failed");
                     return NULL;
@@ -1233,7 +1245,7 @@ static void* encode_rdata(int type, char* rdata, char* dest, char* origin)
             case RD_INT8:
             case RD_INT16:
             case RD_INT32:
-                int val = encode_int(&rdata, &dest, format[i]);
+                val = encode_int(&rdata, &dest, format[i]);
                 if (val != 0) {
                     se_log_error("encode_int() failed");
                     return NULL;
@@ -1241,7 +1253,7 @@ static void* encode_rdata(int type, char* rdata, char* dest, char* origin)
                 break;
 
             case RD_BASE64:
-                int val = encode_base64(&rdata, &dest, false);
+                val = encode_base64(&rdata, &dest, false);
                 if (val < 0) {
                     se_log_error("encode_base64() failed");
                     return NULL;
@@ -1259,21 +1271,21 @@ static void* encode_rdata(int type, char* rdata, char* dest, char* origin)
                 switch (tempvar) {
                     case 0: break;
                     case 1:
-                    int val = encode_ipv4(&rdata, &dest);
+                    val = encode_ipv4(&rdata, &dest);
                     if (val != 0) {
                         se_log_error("encode_ipv4() failed");
                         return NULL;
                     }
                     break;
                     case 2:
-                    int val = encode_ipv6(&rdata, &dest);
+                    val = encode_ipv6(&rdata, &dest);
                     if (val != 0) {
                         se_log_error("encode_ipv6() failed");
                         return NULL;
                     }
                     break;
                     case 3:
-                    int val = encode_string(&rdata, &dest, true, origin);
+                    val = encode_string(&rdata, &dest, true, origin);
                     if (val != 0) {
                         se_log_error("encode_string() failed");
                         return NULL;
@@ -1291,7 +1303,7 @@ static void* encode_rdata(int type, char* rdata, char* dest, char* origin)
                 break;
 
             case RD_LOC:
-                int val = encode_loc(&rdata, &dest);
+                val = encode_loc(&rdata, &dest);
                 if (val != 0) {
                     se_log_error("encode_loc() failed");
                     return NULL;
@@ -1299,7 +1311,7 @@ static void* encode_rdata(int type, char* rdata, char* dest, char* origin)
                 break;
 
             case RD_APL:
-                int val = encode_apl(&rdata, &dest);
+                val = encode_apl(&rdata, &dest);
                 if (val != 0) {
                     se_log_error("encode_apl() failed");
                     return NULL;
@@ -1307,7 +1319,7 @@ static void* encode_rdata(int type, char* rdata, char* dest, char* origin)
                 break;
 
             case RD_CERT16:
-                int val = encode_cert16(&rdata, &dest);
+                val = encode_cert16(&rdata, &dest);
                 if (val != 0) {
                     se_log_error("encode_cert16() failed");
                     return NULL;
@@ -1315,7 +1327,7 @@ static void* encode_rdata(int type, char* rdata, char* dest, char* origin)
                 break;
 
             case RD_HIP:
-                int val = (encode_hip(&rdata, &dest, origin);
+                val = encode_hip(&rdata, &dest, origin);
                 if (val != 0) {
                     se_log_error("encode_hip() failed");
                     return NULL;
@@ -1323,7 +1335,7 @@ static void* encode_rdata(int type, char* rdata, char* dest, char* origin)
                 break;
 
             case RD_NSAP:
-                int val = encode_nsap(&rdata, &dest);
+                val = encode_nsap(&rdata, &dest);
                 if (val != 0) {
                     se_log_error("encode_nsap() failed");
                     return NULL;
@@ -1349,7 +1361,7 @@ static int decode_rdata(int type,
 {
     static int tempvar = -1;
     const char* format = NULL;
-    int pcount = 0;
+    int pcount = 0, i;
 
     char* rstart = rdata;
     char* dstart = dest;
@@ -1364,7 +1376,7 @@ static int decode_rdata(int type,
         pcount = 0;
     }
 
-    for (int i=1; i <= pcount; i++) {
+    for (i=1; i <= pcount; i++) {
         switch (format[i]) {
             case RD_NAME:
                 decode_string(&rdata, &dest, true);
@@ -1486,6 +1498,9 @@ int encode_rr(char* name,
               char* dest,
               char* origin)
 {
+    int seconds;
+    char* tmp;
+
     char* ptr = encode_owner(name, dest+12, origin);
     if (!ptr) {
         se_log_error("quicksorter: encode_owner() failed");
@@ -1501,7 +1516,7 @@ int encode_rr(char* name,
     encode_int16(class, ptr);
     ptr += 2;
 
-    char* tmp = ptr;
+    tmp = ptr;
     ptr = encode_rdata(type, rdata, ptr, origin);
     if (!ptr) {
         se_log_error("quicksorter: encode_rdata() failed");
@@ -1509,7 +1524,7 @@ int encode_rr(char* name,
     }
 
     *(unsigned int*)dest = (ptr - dest - 12); /* cmplen */
-    int seconds = parse_ttl(ttl);
+    seconds = parse_ttl(ttl);
     *(unsigned int*)(dest+4) = seconds;
     *(unsigned int*)(dest+8) = ptr - tmp; /* rdlen */
 
@@ -1518,13 +1533,19 @@ int encode_rr(char* name,
 
 int decode_rr(char* src, char* dest)
 {
+    int type;
+    int ttl;
+    int rdlen;
+    int klass;
+
     char* start = dest;
+
     src += 4; /* skip over cmplen */
 
-    int ttl = *(unsigned int*)src;
+    ttl = *(unsigned int*)src;
     src += 4;
 
-    int rdlen = *(unsigned int*)src;
+    rdlen = *(unsigned int*)src;
     src += 4;
 
     decode_owner(&src, &dest);
@@ -1532,15 +1553,15 @@ int decode_rr(char* src, char* dest)
 
     dest += sprintf(dest, "%d ", ttl);
 
-    int type = decode_int16(src);
+    type = decode_int16(src);
     src += 2;
-    int class = decode_int16(src);
+    klass = decode_int16(src);
     src += 2;
 
-    if (class > 0 && class < NUM_CLASSES)
-        dest += sprintf(dest, "%s ", classname[class]);
+    if (klass > 0 && klass < NUM_CLASSES)
+        dest += sprintf(dest, "%s ", classname[klass]);
     else
-        dest += sprintf(dest, "CLASS%d ", class);
+        dest += sprintf(dest, "CLASS%d ", klass);
 
     if (type > 0 && type < NUM_TYPES)
         dest += sprintf(dest, "%s ", typename[type]);

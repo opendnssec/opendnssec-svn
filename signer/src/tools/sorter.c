@@ -322,18 +322,41 @@ read_file(char* filename,
               struct global_data* g)
 {
     int infd = open(filename, O_RDONLY);
+    struct stat statbuf;
+    void* buffer;
+    int listlen;
+
+    int currclass = 1; /* default class IN */
+    char* currttl = 0;
+    char* ttlmacro = 0;
+    char* ptr;
+    int linenumber = 1;
+    char lastname[MAX_NAME_LEN];
+
+    char* name = NULL;
+    char* ttl = NULL;
+    int klass = 0;
+    int rrtype = 0;
+
+    int len = 0;
+    char* rr = NULL;
+    char* p = NULL;
+    char* paren = NULL;
+    int val = 0;
+
+    unsigned int buf[MAX_LINE_LEN/sizeof(int)]; /* encourage int align */
+
     if (-1 == infd) {
         se_log_error("quicksorter: cannot open file %s for reading", filename);
         return -2;
     }
 
-    struct stat statbuf;
     if (fstat(infd, &statbuf)) {
         se_log_error("quicksorter: cannot fstat file %s", filename);
         return -3;
     }
 
-    void* buffer = mmap(NULL, statbuf.st_size,
+    buffer = mmap(NULL, statbuf.st_size,
                         PROT_READ | PROT_WRITE,
                         MAP_PRIVATE, infd, 0);
     close(infd);
@@ -342,7 +365,7 @@ read_file(char* filename,
         return -4;
     }
 
-    int listlen = statbuf.st_size / 40; /* guesstimate line count */
+    listlen = statbuf.st_size / 40; /* guesstimate line count */
     if (g->linecount + listlen > g->listsize) {
         /* we need to realloc the line array */
         while (g->listsize < g->linecount + listlen)
@@ -360,12 +383,8 @@ read_file(char* filename,
     while (origin && *origin == '.')
         origin++;
 
-    int currclass = 1; /* default class IN */
-    char* currttl = 0;
-    char* ttlmacro = 0;
-    char* ptr = buffer;
-    int linenumber = 1;
-    char lastname[MAX_NAME_LEN];
+    ptr = buffer;
+
     while (1) {
         /* terminate line */
         char* end = strchr(ptr, '\n');
@@ -379,30 +398,31 @@ read_file(char* filename,
 
         /* handle macros */
         if (*ptr == '$') {
-            char* p = ptr;
-            while (!isspace(*p))
-                p++;
-            while (isspace(*p))
-                p++;
+            char* pp = ptr;
+            while (!isspace(*pp))
+                pp++;
+            while (isspace(*pp))
+                pp++;
 
             switch (ptr[1]) {
                 case 'I': {
+                    char* filename = NULL;
+                    char* domain = NULL;
                     if (memcmp(ptr+1,"INCLUDE",7))
                         break;
-                    char* filename = p;
-                    while (*p && !isspace(*p))
-                        p++;
-                    *p = 0; /* terminate filename */
-                    p++;
-                    while (*p && isspace(*p))
-                        p++;
+                    filename = pp;
+                    while (*pp && !isspace(*pp))
+                        pp++;
+                    *pp = 0; /* terminate filename */
+                    pp++;
+                    while (*pp && isspace(*pp))
+                        pp++;
 
-                    char* domain = NULL;
-                    if (*p && *p != ';') {
-                        domain = p;
-                        while (*p && !isspace(*p))
-                            p++;
-                        *p = 0; /* terminate domain name */
+                    if (*pp && *pp != ';') {
+                        domain = pp;
+                        while (*pp && !isspace(*pp))
+                            pp++;
+                        *pp = 0; /* terminate domain name */
                     }
                     read_file(filename, domain, default_ttl, dnskey_ttl, g);
                     goto next_line;
@@ -411,7 +431,7 @@ read_file(char* filename,
                 case 'O':
                     if (memcmp(ptr+1,"ORIGIN",6))
                         break;
-                    origin = p;
+                    origin = pp;
 
                     /* skip over any leading dots */
                     while (*origin == '.')
@@ -421,19 +441,20 @@ read_file(char* filename,
                 case 'T':
                     if (memcmp(ptr+1,"TTL",3))
                         break;
-                    ttlmacro = p;
+                    ttlmacro = pp;
                     goto next_line;
             }
         }
 
-        char* p = ptr;
+        p = ptr;
 
         /*** join split lines ***/
 
         /* look for multi-line token */
-        char* paren = p;
-        int val = 0;
+        paren = p;
+        val = 0;
         while ((paren = strchr(paren, '('))) {
+            char* comment = NULL;
             /* was paren part of a quoted string? */
             if (inside_string(ptr, paren, &val) != 0) {
                 se_log_error("quicksorter: inside_string() failed");
@@ -444,7 +465,7 @@ read_file(char* filename,
                 break;
 
             /* was paren in a comment? */
-            char* comment = strchr(ptr, ';');
+            comment = strchr(ptr, ';');
             if (comment && paren > comment) {
                 /* paren was in a comment. ignore it. */
                 *comment = 0;
@@ -494,7 +515,7 @@ read_file(char* filename,
             /* strip end-of-line comment */
             char* ptr = p;
             char* comment;
-            int val = 0;
+            val = 0;
             while ((comment = strchr(ptr, ';'))) {
                 if (inside_string(p, comment, &val) != 0) {
                     se_log_error("quicksorter: inside_string() failed");
@@ -511,11 +532,10 @@ read_file(char* filename,
 
 
         /*** find ttl, class and type ***/
-
-        char* name = lastname;
-        char* ttl = NULL;
-        int klass = 0;
-        int rrtype = 0;
+        name = lastname;
+        ttl = NULL;
+        klass = 0;
+        rrtype = 0;
 
         /* check for name */
         p = ptr;
@@ -602,18 +622,17 @@ read_file(char* filename,
             return -1;
         }
 
-        unsigned int buf[MAX_LINE_LEN/sizeof(int)]; /* encourage int align */
         if (!rrtype) {
             se_log_error("quicksorter: No RR type!");
             return -1;
         }
 
-        int len = encode_rr(name, rrtype, klass, ttl, p, (char*)buf, origin);
+        len = encode_rr(name, rrtype, klass, ttl, p, (char*)buf, origin);
         if (len < 0) {
             se_log_error("quicksorter: encode_rr failed");
             return -9;
         }
-        char* rr = malloc(len);
+        rr = malloc(len);
         memcpy(rr, buf, len);
 
         /* add rr to array */
@@ -687,7 +706,7 @@ tools_sorter(const char* filename, char* outfilename, const char* zonename, dura
         return 1;
     }
 
-    if (read_file(infile, origin, default_ttl, dnskey_ttl, &g) != 0) {
+    if (read_file((char*) infile, (char*) origin, default_ttl, dnskey_ttl, &g) != 0) {
         se_log_error("quicksorter: init_global_data() failed");
         return 1;
     }

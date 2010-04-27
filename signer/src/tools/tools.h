@@ -34,8 +34,7 @@
 #include "util/duration.h"
 
 int tools_sorter(const char* filename, char* outfilename,
-    const char* zonename, duration_type* soa_min, uint32_t* zone_ttl,
-    uint32_t* soa_serial);
+    const char* zonename, duration_type* soa_min, duration_type* sc_dnskey_ttl);
 
 /*
 
