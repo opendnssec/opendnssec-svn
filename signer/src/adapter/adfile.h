@@ -50,7 +50,7 @@ struct zone_struct;
  * \return 0 on success, 1 on error
  *
  */
-int adapter_file_read(FILE* fd, struct zone_struct* zone, int include);
+int adfile_read(struct zone_struct* zone);
 
 /**
  * Write zone file.
@@ -59,6 +59,6 @@ int adapter_file_read(FILE* fd, struct zone_struct* zone, int include);
  * \return 0 on success, 1 on error
  *
  */
-int adapter_file_write(FILE* fd, struct zone_struct* zone);
+int adfile_write(struct zone_struct* zone);
 
 #endif /* ADAPTER_ADFILE_H */

@@ -469,3 +469,24 @@ adfile_read(struct zone_struct* zone)
     }
     return error;
 }
+
+
+/**
+ * Write zone file.
+ *
+ */
+int
+adfile_write(struct zone_struct* zone)
+{
+    zone_type* zone_in = zone;
+    int error = 0;
+
+    se_log_assert(zone_in);
+    se_log_assert(zone_in->name);
+    se_log_assert(zone_in->outbound_adapter);
+    se_log_debug("write to output file adapter zone %s file %s",
+        zone_in->name, zone_in->outbound_adapter->filename);
+
+    return error;
+}
+
