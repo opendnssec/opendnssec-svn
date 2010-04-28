@@ -46,4 +46,13 @@
  */
 int util_is_dnssec_rr(ldns_rr* rr);
 
+/**
+ * A more efficient ldns_dnssec_rrs_add_rr(), get rid of ldns_rr_compare().
+ * \param[in] rrs RRset
+ * \param[in] rr to add
+ * \return ldns_status status
+ *
+ */
+ldns_status util_dnssec_rrs_add_rr(ldns_dnssec_rrs *rrs, ldns_rr *rr);
+
 #endif /* UTIL_UTIL_H */
