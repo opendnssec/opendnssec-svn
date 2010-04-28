@@ -116,6 +116,8 @@ util_dnssec_rrs_add_rr(ldns_dnssec_rrs *rrs, ldns_rr *rr)
         rrs->next = new_rrs;
     } else {
         /* should we error on equal? or free memory of rr */
+        se_log_warning("rr already in RRset, remove duplicate");
+        ldns_rr_free(rr);
     }
     return LDNS_STATUS_OK;
 }
