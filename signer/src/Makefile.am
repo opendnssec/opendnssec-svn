@@ -30,8 +30,6 @@ ods_signerd_SOURCES=		ods-signerd.c \
 				signer/zone.c signer/zone.h \
 				signer/zonedata.c signer/zonedata.h \
 				signer/zonelist.c signer/zonelist.h \
-				tools/tools.h \
-				tools/sorter.c tools/quicksorter_encode.c tools/quicksorter_encode.h \
 				util/duration.c util/duration.h \
 				util/file.c util/file.h \
 				util/log.c util/log.h \
