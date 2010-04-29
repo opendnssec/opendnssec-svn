@@ -449,14 +449,11 @@ engine_setup(engine_type* engine)
     sigaction(SIGTERM, &action, NULL);
 
     /* set up hsm */
-/*
     result = hsm_open(engine->config->cfg_filename, hsm_prompt_pin, NULL); /* LEAKS */
-/*
-    if (result != HSM_OK) {
+   if (result != HSM_OK) {
         se_log_error("Error initializing libhsm");
         return 1;
     }
-*/
 
     /* set up the work floor */
     engine->tasklist = tasklist_create(); /* tasks */
@@ -682,9 +679,7 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
 
     /* shutdown */
     se_log_verbose("shutdown signer engine");
-/*
     hsm_close();
-*/
     if (engine->cmdhandler != NULL) {
         engine_stop_cmdhandler(engine);
     }

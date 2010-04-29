@@ -34,6 +34,7 @@
 #include "adapter/adapter.h"
 #include "scheduler/locks.h"
 #include "scheduler/task.h"
+#include "signer/hsm.h"
 #include "signer/signconf.h"
 #include "signer/zone.h"
 #include "signer/zonedata.h"
@@ -236,13 +237,12 @@ zone_update_signconf(zone_type* zone, struct tasklist_struct* tl, char* buf)
  * Add the DNSKEYs from the Signer Configuration to the zone data.
  *
  */
-/*
 static int
 zone_publish_dnskeys(zone_type* zone)
 {
     key_type* key = NULL;
     uint32_t ttl = 0;
-    int count = 0;
+    size_t count = 0;
     int error = 0;
     hsm_ctx_t* ctx = NULL;
     ldns_rr* dnskey = NULL;
@@ -269,8 +269,8 @@ zone_publish_dnskeys(zone_type* zone)
             if (!key->dnskey) {
                 key->dnskey = hsm_get_key(ctx, zone->dname, key);
                 if (!key->dnskey) {
-                    se_log_error("error creating DNSKEYs for zone %s",
-                        zone->name);
+                    se_log_error("error creating DNSKEY for key %s",
+                        key->locator);
                     error = 1;
                     break;
                 }
@@ -280,8 +280,8 @@ zone_publish_dnskeys(zone_type* zone)
             dnskey = ldns_rr_clone(key->dnskey);
             error = zone_add_rr(zone, dnskey);
             if (error) {
-                se_log_error("error adding DNSKEYs for zone %s",
-                    zone->name);
+                se_log_error("error adding DNSKEY[%u] for key %s",
+                    ldns_calc_keytag(dnskey), key->locator);
                 break;
             }
         }
@@ -290,7 +290,6 @@ zone_publish_dnskeys(zone_type* zone)
     hsm_destroy_context(ctx);
     return error;
 }
-*/
 
 
 /**
@@ -305,7 +304,7 @@ zone_update_zonedata(zone_type* zone)
     se_log_assert(zone);
     se_log_assert(zone->zonedata);
 
-/*    error = zone_publish_dnskeys(zone); */
+    error = zone_publish_dnskeys(zone);
     if (error) {
         se_log_error("error adding DNSKEYs for zone %s", zone->name);
         return error;
