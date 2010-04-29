@@ -45,7 +45,7 @@
 #include <strings.h> /* strncasecmp() */
 #include <syslog.h> /* openlog(), closelog(), syslog() */
 static int logging_to_syslog = 0;
-#else
+#else /* !HAVE_SYSLOG_H */
 #define LOG_EMERG   0 /* se_fatal_exit */
 #define LOG_ALERT   1 /* se_log_alert */
 #define LOG_CRIT    2 /* se_log_crit */
