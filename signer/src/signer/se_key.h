@@ -64,6 +64,13 @@ struct keylist_struct {
 
 /**
  * Create a new key.
+ * \param[in] locator string that identifies location of key
+ * \param[in] algorithm DNSKEY algorithm field value
+ * \param[in] flags DNSKEY flags field value
+ * \param[in] publish if true, publish key as a DNSKEY
+ * \param[in] ksk if true, sign DNSKEY RRset with this key
+ * \param[in] zsk if true, sign all but DNSKEY RRset with this key
+ * \return key_type* key
  *
  */
 key_type* key_create(const char* locator, uint32_t algorithm, uint32_t flags,
@@ -71,54 +78,73 @@ key_type* key_create(const char* locator, uint32_t algorithm, uint32_t flags,
 
 /**
  * Clean up key.
+ * \param[in] key cleaun up this key
  *
  */
 void key_cleanup(key_type* key);
 
 /**
  * Print key.
+ * \param[in] out file descriptor
+ * \param[in] key print this key
  *
  */
 void key_print(FILE* out, key_type* key);
 
 /**
  * Create a new key list.
+ * \return keylist_type* key list
  *
  */
 keylist_type* keylist_create(void);
 
 /**
  * Add a key to the keylist.
+ * \param[in] kl key list
+ * \param[in] key key
+ * \return int 0 on success, 1 on error
  *
  */
 int keylist_add(keylist_type* kl, key_type* key);
 
 /**
  * Compare two key references.
+ * \param[in] a one key
+ * \param[in] b another key
+ * \return 0 on equal, -1 if a a < b, 1 if a > b.
  *
  */
 int key_compare(key_type* a, key_type* b);
 
 /**
  * Delete a key from the keylist.
+ * \param[in] kl key list
+ * \param[in] key key
+ * \return int 0 on success, 1 on error
  *
  */
 int keylist_delete(keylist_type* kl, key_type* key);
 
 /**
  * Compare two key lists.
+ * \param[in] a one key list
+ * \param[in] b another key list
+ * \return 0 on equal, -1 if a a < b, 1 if a > b.
  *
  */
 int keylist_compare(keylist_type* a, keylist_type* b);
 
 /**
  * Clean up key list.
+ * \param[in] kl key list to clean up
  *
  */
 void keylist_cleanup(keylist_type* kl);
 
 /**
  * Print key list.
+ * \param[in] out file descriptor
+ * \param[in] kl key list to print
  *
  */
 void keylist_print(FILE* out, keylist_type* kl);
