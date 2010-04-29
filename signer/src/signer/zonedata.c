@@ -136,7 +136,7 @@ zonedata_add_domain(zonedata_type* zd, domain_type* domain, int at_apex)
 
 
 /**
- * Add a domain to the zone data.
+ * Delete a domain from the zone data.
  *
  */
 domain_type*

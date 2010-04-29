@@ -92,6 +92,15 @@ rrset_type* domain_lookup_rrset(domain_type* domain, ldns_rr_type type);
 rrset_type* domain_add_rrset(domain_type* domain, rrset_type* rrset);
 
 /**
+ * Delete a RRset from the domain.
+ * \param[in] domain domain
+ * \param[in] rrset RRset
+ * \return rrset_type* RRset if failed
+ *
+ */
+rrset_type* domain_del_rrset(domain_type* domain, rrset_type* rrset);
+
+/**
  * Update domain with pending changes.
  * \param[in] domain domain
  * \param[in] serial version to update to

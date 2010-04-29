@@ -126,11 +126,44 @@ domain_add_rrset(domain_type* domain, rrset_type* rrset)
     new_node = rrset2node(rrset);
     if (ldns_rbtree_insert(domain->rrsets, new_node) == NULL) {
         str = ldns_rdf2str(domain->name);
-        se_log_error("unable to add RRset %i to domain %s",
+        se_log_error("unable to add RRset %i to domain %s: already present",
             rrset->rr_type, domain->name);
         se_free((void*)str);
         se_free((void*)new_node);
         return NULL;
+    }
+    return rrset;
+}
+
+
+/**
+ * Delete RRset from domain.
+ *
+ */
+rrset_type*
+domain_del_rrset(domain_type* domain, rrset_type* rrset)
+{
+    rrset_type* del_rrset = NULL;
+    ldns_rbnode_t* del_node = NULL;
+    char* str = NULL;
+
+    se_log_assert(rrset);
+    se_log_assert(domain);
+    se_log_assert(domain->rrsets);
+
+    del_node = ldns_rbtree_delete(domain->rrsets,
+        (const void*)&rrset->rr_type);
+    if (del_node) {
+        del_rrset = (rrset_type*) del_node->data;
+        rrset_cleanup(del_rrset);
+        se_free((void*)del_node);
+        return NULL;
+    } else {
+        str = ldns_rdf2str(domain->name);
+        se_log_error("unable to delete RRset %i from domain %s: "
+            "not in tree", rrset->rr_type, domain->name);
+        se_free((void*)str);
+        return rrset;
     }
     return rrset;
 }
