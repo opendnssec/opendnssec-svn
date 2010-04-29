@@ -59,8 +59,6 @@ struct domain_struct {
     ldns_rdf* name;
     domain_type* parent;
     domain_type* nsec3;
-    ldns_rr_list* rrs_add;
-    ldns_rr_list* rrs_del;
     ldns_rbtree_t* rrsets;
     int domain_status;
     uint32_t inbound_serial;
@@ -75,16 +73,14 @@ struct domain_struct {
  */
 domain_type* domain_create(ldns_rdf* dname);
 
-
 /**
  * Lookup a RRset within the domain.
  * \param[in] domain domain
- * \param[in] rrset RRset
+ * \param[in] type RRtype to look for
  * \return rrset_type* RRset if found
  *
  */
-rrset_type* domain_lookup_rrset(domain_type* domain, rrset_type* rrset);
-
+rrset_type* domain_lookup_rrset(domain_type* domain, ldns_rr_type type);
 
 /**
  * Add a RRset to the domain.
@@ -95,35 +91,40 @@ rrset_type* domain_lookup_rrset(domain_type* domain, rrset_type* rrset);
  */
 rrset_type* domain_add_rrset(domain_type* domain, rrset_type* rrset);
 
-
 /**
- * Commit the added and deleted RRs.
+ * Update domain with pending changes.
  * \param[in] domain domain
- * \param[in] serial version to migrate to
+ * \param[in] serial version to update to
  * \return int 0 on success, 1 on error
  *
  */
-int domain_commit_changes(domain_type* domain, uint32_t serial);
+int domain_update(domain_type* domain, uint32_t serial);
 
 /**
- * Add RR to the list of RRs to add to this domain.
- * \param[in] domain domain
- * \param[in] rr RR
- * \param[in] serial version of zone this RR was added
- * \return int 0 on success, 1 on error
- *
- */
-int domain_add_rr(domain_type* domain, ldns_rr* rr, uint32_t serial);
-
-/**
- * Add RR to the list of RRs to delete from this domain.
+ * Add RR to domain
  * \param[in] domain domain
  * \param[in] rr RR
- * \param[in] serial version of zone this RR was deleted
  * \return int 0 on success, 1 on error
  *
  */
-int domain_del_rr(domain_type* domain, ldns_rr* rr, uint32_t serial);
+int domain_add_rr(domain_type* domain, ldns_rr* rr);
+
+/**
+ * Delete RR from domain.
+ * \param[in] domain domain
+ * \param[in] rr RR
+ * \return int 0 on success, 1 on error
+ *
+ */
+int domain_del_rr(domain_type* domain, ldns_rr* rr);
+
+/**
+ * Delete all RRs from domain.
+ * \param[in] domain domain
+ * \return int 0 on success, 1 on error
+ *
+ */
+int domain_del_rrs(domain_type* domain);
 
 /**
  * Clean up domain.
@@ -131,5 +132,14 @@ int domain_del_rr(domain_type* domain, ldns_rr* rr, uint32_t serial);
  *
  */
 void domain_cleanup(domain_type* domain);
+
+/**
+ * Print domain.
+ * \param[in] out file descriptor
+ * \param[in] domain domain to print
+ * \param[in] internal if true, print in internal format
+ *
+ */
+void domain_print(FILE* fd, domain_type* domain, int internal);
 
 #endif /* SIGNER_DOMAIN_H */

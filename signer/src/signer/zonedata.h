@@ -62,11 +62,11 @@ zonedata_type* zonedata_create(void);
 /**
  * Look up domain in zone data.
  * \param[in] zd zone data
- * \param[in] domain domain to look for
+ * \param[in] name domain name to look for
  * \return domain_type* domain, if found
  *
  */
-domain_type* zonedata_lookup_domain(zonedata_type* zd, domain_type* domain);
+domain_type* zonedata_lookup_domain(zonedata_type* zd, ldns_rdf* name);
 
 /**
  * Add domain to zone data.
@@ -76,7 +76,16 @@ domain_type* zonedata_lookup_domain(zonedata_type* zd, domain_type* domain);
  * \return domain_type* added domain
  *
  */
-domain_type* zonedata_add_domain(zonedata_type* zd, domain_type* domain, int at_apex);
+domain_type* zonedata_add_domain(zonedata_type* zd, domain_type* domain,
+    int at_apex);
+
+/**
+ * Update zone data with pending changes.
+ * \param[in] zd zone data
+ * \return int 0 on success, 1 on false.
+ *
+ */
+int zonedata_update(zonedata_type* zd);
 
 /**
  * Add RR to zone data.
@@ -89,10 +98,36 @@ domain_type* zonedata_add_domain(zonedata_type* zd, domain_type* domain, int at_
 int zonedata_add_rr(zonedata_type* zd, ldns_rr* rr, int at_apex);
 
 /**
+ * Delete RR from zone data.
+ * \param[in] zd zone data
+ * \param[in] rr RR to delete
+ * \return int 0 on success, 1 on false.
+ *
+ */
+int zonedata_del_rr(zonedata_type* zd, ldns_rr* rr);
+
+/**
+ * Delete all current RRs from zone data.
+ * \param[in] zd zone data
+ * \return int 0 on success, 1 on false.
+ *
+ */
+int zonedata_del_rrs(zonedata_type* zd);
+
+/**
  * Clean up zone data.
  * \param[in] zonedata zone data to cleanup
  *
  */
 void zonedata_cleanup(zonedata_type* zonedata);
+
+/**
+ * Print zone data.
+ * \param[in] out file descriptor
+ * \param[in] zd zone data to print
+ * \param[in] internal if true, print in internal format
+ *
+ */
+void zonedata_print(FILE* fd, zonedata_type* zd, int skip_soa);
 
 #endif /* SIGNER_ZONEDATA_H */

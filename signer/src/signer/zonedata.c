@@ -89,15 +89,15 @@ domain2node(domain_type* domain)
  *
  */
 domain_type*
-zonedata_lookup_domain(zonedata_type* zd, domain_type* domain)
+zonedata_lookup_domain(zonedata_type* zd, ldns_rdf* name)
 {
     ldns_rbnode_t* node = LDNS_RBTREE_NULL;
 
     se_log_assert(zd);
     se_log_assert(zd->domains);
-    se_log_assert(domain);
+    se_log_assert(name);
 
-    node = ldns_rbtree_search(zd->domains, domain->name);
+    node = ldns_rbtree_search(zd->domains, name);
     if (node && node != LDNS_RBTREE_NULL) {
         return (domain_type*) node->data;
     }
@@ -134,35 +134,115 @@ zonedata_add_domain(zonedata_type* zd, domain_type* domain, int at_apex)
     return domain;
 }
 
+/**
+ * Update zone data with pending changes.
+ *
+ */
+int
+zonedata_update(zonedata_type* zd)
+{
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+    domain_type* domain = NULL;
+
+    se_log_assert(zd);
+    se_log_assert(zd->domains);
+
+    if (!zd->inbound_serial) {
+        se_log_error("unable to update zonedata: serial is zero");
+        return 1;
+    }
+
+    if (zd->domains->root != LDNS_RBTREE_NULL) {
+        node = ldns_rbtree_first(zd->domains);
+    }
+    while (node && node != LDNS_RBTREE_NULL) {
+        domain = (domain_type*) node->data;
+        if (domain_update(domain, zd->inbound_serial) != 0) {
+            se_log_error("unable to update zonedata to serial %u: failed "
+                "to update domain", zd->inbound_serial);
+            return 1;
+        }
+        node = ldns_rbtree_next(node);
+    }
+    return 0;
+}
+
 
 /**
- * Add a domain to the zone data.
+ * Add RR to the zone data.
  *
  */
 int
 zonedata_add_rr(zonedata_type* zd, ldns_rr* rr, int at_apex)
 {
     domain_type* domain = NULL;
-    domain_type* domain2 = NULL;
 
     se_log_assert(zd);
     se_log_assert(zd->domains);
     se_log_assert(rr);
 
+    domain = zonedata_lookup_domain(zd, ldns_rr_owner(rr));
+    if (domain) {
+        return domain_add_rr(domain, rr);
+    }
+    /* no domain with this name yet */
     domain = domain_create(ldns_rr_owner(rr));
-    domain2 = zonedata_lookup_domain(zd, domain);
-    if (domain2) {
-        domain_cleanup(domain);
-    } else {
-        domain2 = zonedata_add_domain(zd, domain, at_apex);
-        if (!domain2) {
-            se_log_error("unable to add RR to zonedata: failed to add domain");
-            domain_cleanup(domain);
+    domain = zonedata_add_domain(zd, domain, at_apex);
+    if (!domain) {
+        se_log_error("unable to add RR to zonedata: failed to add domain");
+        return 1;
+    }
+    return domain_add_rr(domain, rr);
+}
+
+
+/**
+ * Delete RR from the zone data.
+ *
+ */
+int
+zonedata_del_rr(zonedata_type* zd, ldns_rr* rr)
+{
+    domain_type* domain = NULL;
+
+    se_log_assert(zd);
+    se_log_assert(zd->domains);
+    se_log_assert(rr);
+
+    domain = zonedata_lookup_domain(zd, ldns_rr_owner(rr));
+    if (domain) {
+        return domain_del_rr(domain, rr);
+    }
+    /* no domain with this name yet */
+    se_log_warning("unable to delete RR from zonedata: no such domain");
+    return 0;
+}
+
+
+/**
+ * Delete all current RRs from the zone data.
+ *
+ */
+int
+zonedata_del_rrs(zonedata_type* zd)
+{
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+    domain_type* domain = NULL;
+
+    se_log_assert(zd);
+    se_log_assert(zd->domains);
+
+    if (zd->domains->root != LDNS_RBTREE_NULL) {
+        node = ldns_rbtree_first(zd->domains);
+    }
+    while (node && node != LDNS_RBTREE_NULL) {
+        domain = (domain_type*) node->data;
+        if (domain_del_rrs(domain) != 0) {
             return 1;
         }
+        node = ldns_rbtree_next(node);
     }
-    se_log_assert(domain2);
-    return domain_add_rr(domain2, rr, zd->inbound_serial);
+    return 0;
 }
 
 
@@ -173,19 +253,20 @@ zonedata_add_rr(zonedata_type* zd, ldns_rr* rr, int at_apex)
 static void
 zonedata_cleanup_domains(ldns_rbtree_t* domain_tree)
 {
-    ldns_rbnode_t* node = NULL;
-    domain_type* name = NULL;
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+    domain_type* domain = NULL;
 
     if (domain_tree && domain_tree->root != LDNS_RBTREE_NULL) {
         node = ldns_rbtree_first(domain_tree);
     }
     while (node && node != LDNS_RBTREE_NULL) {
-        name = (domain_type*) node->data;
-        domain_cleanup(name);
+        domain = (domain_type*) node->data;
+        domain_cleanup(domain);
         node = ldns_rbtree_next(node);
     }
     se_rbnode_free(domain_tree->root);
     ldns_rbtree_free(domain_tree);
+    return;
 }
 
 
@@ -207,6 +288,35 @@ zonedata_cleanup(zonedata_type* zonedata)
         se_free((void*) zonedata);
     } else {
         se_log_warning("cleanup empty zone data");
+    }
+    return;
+}
+
+
+/**
+ * Print zone data.
+ *
+ */
+void
+zonedata_print(FILE* fd, zonedata_type* zd, int internal)
+{
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+    domain_type* domain = NULL;
+
+    se_log_assert(fd);
+    se_log_assert(zd);
+    se_log_assert(zd->domains);
+
+    node = ldns_rbtree_first(zd->domains);
+    if (!node || node == LDNS_RBTREE_NULL) {
+        fprintf(fd, "; zone empty\n");
+        return;
+    }
+
+    while (node && node != LDNS_RBTREE_NULL) {
+        domain = (domain_type*) node->data;
+        domain_print(fd, domain, internal);
+        node = ldns_rbtree_next(node);
     }
     return;
 }

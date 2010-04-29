@@ -94,15 +94,14 @@ rrset2node(rrset_type* rrset)
  *
  */
 rrset_type*
-domain_lookup_rrset(domain_type* domain, rrset_type* rrset)
+domain_lookup_rrset(domain_type* domain, ldns_rr_type type)
 {
     ldns_rbnode_t* node = LDNS_RBTREE_NULL;
 
-    se_log_assert(rrset);
     se_log_assert(domain);
     se_log_assert(domain->rrsets);
 
-    node = ldns_rbtree_search(domain->rrsets, &(rrset->rr_type));
+    node = ldns_rbtree_search(domain->rrsets, &(type));
     if (node && node != LDNS_RBTREE_NULL) {
         return (rrset_type*) node->data;
     }
@@ -138,150 +137,115 @@ domain_add_rrset(domain_type* domain, rrset_type* rrset)
 
 
 /**
- * Perform add updates at the domain
- *
- */
-static int
-domain_commit_add_rr(domain_type* domain, ldns_rr* rr)
-{
-    ldns_rr_type rrtype = 0;
-    rrset_type* rrset = NULL;
-    rrset_type* rrset2 = NULL;
-
-    se_log_assert(rr);
-    se_log_assert(domain);
-    se_log_assert(domain->rrsets);
-
-    rrtype = ldns_rr_get_type(rr);
-    rrset = rrset_create(rrtype);
-    rrset2 = domain_lookup_rrset(domain, rrset);
-    if (rrset2) {
-        rrset_cleanup(rrset);
-        rrset2->inbound_serial = domain->inbound_serial;
-    } else {
-        rrset2 = domain_add_rrset(domain, rrset);
-        if (!rrset2) {
-            se_log_error("unable to add RR to domain: failed to add RRset");
-            rrset_cleanup(rrset);
-            return 1;
-        }
-        rrset2->inbound_serial = domain->inbound_serial;
-    }
-   se_log_assert(rrset2);
-   return rrset_add_rr(rrset2, rr);
-}
-
-
-/**
- * Commit the added and deleted RRs.
+ * Update domain with pending changes.
  *
  */
 int
-domain_commit_changes(domain_type* domain, uint32_t serial)
+domain_update(domain_type* domain, uint32_t serial)
 {
-    size_t old_rrset_count = 0;
-    size_t new_rrset_count = 0;
-    ldns_rr* poprr = NULL;
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+    rrset_type* rrset = NULL;
 
     se_log_assert(serial);
     se_log_assert(domain);
     se_log_assert(domain->rrsets);
 
-    if (domain->inbound_serial < serial) {
-        /* domain obsoleted */
+    if (domain->rrsets->root != LDNS_RBTREE_NULL) {
+        node = ldns_rbtree_first(domain->rrsets);
     }
-
-    /* current no. of RRsets */
-    old_rrset_count = domain->rrsets->count;
-
-    /* del RRs */
-    if (ldns_rr_list_rr_count(domain->rrs_del) > 0) {
-        while ( (poprr = ldns_rr_list_pop_rr(domain->rrs_del)) != NULL) {
-            se_log_warning("delete RRs not implemented yet");
+    while (node && node != LDNS_RBTREE_NULL) {
+        rrset = (rrset_type*) node->data;
+        if (rrset_update(rrset, serial) != 0) {
+            se_log_error("failed to update domain to serial %u: failed to "
+                "update RRset", serial);
+            return 1;
         }
-    }
-
-    /* add RRs */
-    if (ldns_rr_list_rr_count(domain->rrs_add) > 0) {
-        while ( (poprr = ldns_rr_list_pop_rr(domain->rrs_add)) != NULL) {
-            if (domain_commit_add_rr(domain, poprr) != 0) {
-                se_log_error("unable to commit changes: failed to add RR to "
-                    "domain");
-                return 1;
-            }
-        }
-    }
-
-    /* new no. of RRsets */
-    new_rrset_count = domain->rrsets->count;
-
-    if (new_rrset_count <= 0) {
-        /* domain obsoleted */
-    } else if (old_rrset_count > 0) {
-        /* domain updated */
-    } else {
-        /* domain added */
+        node = ldns_rbtree_next(node);
     }
     return 0;
 }
 
 
 /**
- * Add RR to the list of pending changes.
+ * Add RR to domain.
  *
  */
-static int
-domain_pend_rr(domain_type* domain, ldns_rr* rr, uint32_t serial, int del)
+int
+domain_add_rr(domain_type* domain, ldns_rr* rr)
 {
-    ldns_status status = LDNS_STATUS_OK;
+    rrset_type* rrset = NULL;
 
+    se_log_assert(rr);
     se_log_assert(domain);
     se_log_assert(domain->name);
+    se_log_assert(domain->rrsets);
     se_log_assert((ldns_dname_compare(domain->name, ldns_rr_owner(rr)) == 0));
 
-    if (util_is_dnssec_rr(rr)) {
-        return LDNS_STATUS_OK;
+    rrset = domain_lookup_rrset(domain, ldns_rr_get_type(rr));
+    if (rrset) {
+        return rrset_add_rr(rrset, rr);
     }
-
-    if (del) {
-        status = ldns_rr_list_push_rr(domain->rrs_del, rr);
-    } else {
-        status = ldns_rr_list_push_rr(domain->rrs_add, rr);
+    /* no RRset with this RRtype yet */
+    rrset = rrset_create(ldns_rr_get_type(rr));
+    rrset = domain_add_rrset(domain, rrset);
+    if (!rrset) {
+        se_log_error("unable to add RR to domain: failed to add RRset");
+        return 1;
     }
-    if (status == LDNS_STATUS_OK) {
-        domain->inbound_serial = serial;
-    }
-    return status;
+    return rrset_add_rr(rrset, rr);
 }
 
 
 /**
- * Add RR to the list of RRs to add to this domain.
+ * Delete RR from domain.
  *
  */
 int
-domain_add_rr(domain_type* domain, ldns_rr* rr, uint32_t serial)
+domain_del_rr(domain_type* domain, ldns_rr* rr)
 {
-    se_log_assert(domain->rrs_add);
-    if (domain_pend_rr(domain, rr, serial, 0) == LDNS_STATUS_OK) {
-        return 0;
+    rrset_type* rrset = NULL;
+
+    se_log_assert(rr);
+    se_log_assert(domain);
+    se_log_assert(domain->name);
+    se_log_assert(domain->rrsets);
+    se_log_assert((ldns_dname_compare(domain->name, ldns_rr_owner(rr)) == 0));
+
+    rrset = domain_lookup_rrset(domain, ldns_rr_get_type(rr));
+    if (rrset) {
+        return rrset_del_rr(rrset, rr);
     }
-    return 1;
+    /* no RRset with this RRtype yet */
+    se_log_warning("unable to delete RR from domain: no such RRset "
+        "[rrtype %i]", ldns_rr_get_type(rr));
+    return 0; /* well, it is not present in the zone anymore, is it? */
 }
 
 
 /**
- * Add RR to the list of RRs to delete from to this domain.
+ * Delete all RRs from domain.
  *
  */
 int
-domain_del_rr(domain_type* domain, ldns_rr* rr, uint32_t serial)
+domain_del_rrs(domain_type* domain)
 {
-    se_log_assert(domain->rrs_del);
-    if (domain_pend_rr(domain, rr, serial, 1) == LDNS_STATUS_OK) {
-        return 0;
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+    rrset_type* rrset = NULL;
+
+    se_log_assert(domain);
+    se_log_assert(domain->rrsets);
+
+    if (domain->rrsets->root != LDNS_RBTREE_NULL) {
+        node = ldns_rbtree_first(domain->rrsets);
     }
-    return 1;
+    while (node && node != LDNS_RBTREE_NULL) {
+        rrset = (rrset_type*) node->data;
+		if (rrset_del_rrs(rrset) != 0) {
+            return 1;
+        }
+        node = ldns_rbtree_next(node);
+    }
+    return 0;
 }
 
 
@@ -292,7 +256,7 @@ domain_del_rr(domain_type* domain, ldns_rr* rr, uint32_t serial)
 static void
 domain_cleanup_rrsets(ldns_rbtree_t* rrset_tree)
 {
-    ldns_rbnode_t* node = NULL;
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
     rrset_type* rrset = NULL;
 
     if (rrset_tree && rrset_tree->root != LDNS_RBTREE_NULL) {
@@ -325,14 +289,6 @@ domain_cleanup(domain_type* domain)
             domain_cleanup_rrsets(domain->rrsets);
             domain->rrsets = NULL;
         }
-        if (domain->rrs_add) {
-            ldns_rr_list_deep_free(domain->rrs_add);
-            domain->rrs_add = NULL;
-        }
-        if (domain->rrs_del) {
-            ldns_rr_list_deep_free(domain->rrs_del);
-            domain->rrs_del = NULL;
-        }
         /* don't destroy corresponding parent and nsec3 domain */
         se_free((void*) domain);
     } else {
@@ -342,4 +298,41 @@ domain_cleanup(domain_type* domain)
 }
 
 
+/**
+ * Print domain.
+ *
+ */
+void
+domain_print(FILE* fd, domain_type* domain, int internal)
+{
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+    rrset_type* rrset = NULL;
+    rrset_type* soa_rrset = NULL;
+    char* str = NULL;
 
+    if (internal) {
+        se_log_assert(domain->name);
+        str = ldns_rdf2str(domain->name);
+        fprintf(fd, "; DNAME: %s\n", str);
+        se_free((void*)str);
+    }
+
+    if (domain->rrsets && domain->rrsets->root != LDNS_RBTREE_NULL) {
+        node = ldns_rbtree_first(domain->rrsets);
+    }
+
+    /* print soa */
+    soa_rrset = domain_lookup_rrset(domain, LDNS_RR_TYPE_SOA);
+    if (soa_rrset && !internal) {
+        rrset_print(fd, soa_rrset);
+    }
+
+    while (node && node != LDNS_RBTREE_NULL) {
+        rrset = (rrset_type*) node->data;
+        if (rrset->rr_type != LDNS_RR_TYPE_SOA || internal) {
+            rrset_print(fd, rrset);
+        }
+        node = ldns_rbtree_next(node);
+    }
+    return;
+}

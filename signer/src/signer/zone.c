@@ -43,6 +43,8 @@
 #include "util/se_malloc.h"
 
 #include <ldns/ldns.h> /* ldns_*() */
+#include <libhsm.h> /* hsm_create_context(), hsm_get_key(), hsm_destroy_context() */
+#include <libhsmdns.h> /* hsm_create_context(), hsm_get_key(), hsm_destroy_context() */
 
 /* copycode: This define is taken from BIND9 */
 #define DNS_SERIAL_GT(a, b) ((int)(((a) - (b)) & 0xFFFFFFFF) > 0)
@@ -56,21 +58,16 @@ zone_type*
 zone_create(const char* name, ldns_rr_class klass)
 {
     zone_type* zone = (zone_type*) se_calloc(1, sizeof(zone_type));
-
     se_log_assert(name);
     se_log_debug("create zone %s", name);
-
-    /* zone identification */
     zone->name = se_strdup(name);
     zone->dname = ldns_dname_new_frm_str(name);
     zone->klass = klass;
-    /* policy */
     zone->policy_name = NULL;
     zone->signconf_filename = NULL;
     zone->signconf = NULL;
     zone->inbound_adapter = NULL;
     zone->outbound_adapter = NULL;
-    /* status */
     zone->task = NULL;
     zone->backoff = 0;
     zone->worker = NULL;
@@ -78,9 +75,7 @@ zone_create(const char* name, ldns_rr_class klass)
     zone->just_updated = 0;
     zone->tobe_removed = 0;
     zone->in_progress = 0;
-    /* zone data */
     zone->zonedata = zonedata_create();
-
     lock_basic_init(&zone->zone_lock);
     lock_basic_init(&zone->slhelper_lock);
     return zone;
@@ -237,6 +232,88 @@ zone_update_signconf(zone_type* zone, struct tasklist_struct* tl, char* buf)
     return 0;
 }
 
+/**
+ * Add the DNSKEYs from the Signer Configuration to the zone data.
+ *
+ */
+/*
+static int
+zone_publish_dnskeys(zone_type* zone)
+{
+    key_type* key = NULL;
+    uint32_t ttl = 0;
+    int count = 0;
+    int error = 0;
+    hsm_ctx_t* ctx = NULL;
+    ldns_rr* dnskey = NULL;
+
+    se_log_assert(zone);
+    se_log_assert(zone->signconf);
+    se_log_assert(zone->signconf->keys);
+    se_log_assert(zone->zonedata);
+
+    ctx = hsm_create_context();
+    if (ctx == NULL) {
+        se_log_error("error creating libhsm context");
+        return 2;
+    }
+
+    ttl = zone->zonedata->default_ttl;
+    if (zone->signconf->dnskey_ttl) {
+        ttl = (uint32_t) duration2time(zone->signconf->dnskey_ttl);
+    }
+
+    key = zone->signconf->keys->first_key;
+    for (count=0; count < zone->signconf->keys->count; count++) {
+        if (key->publish) {
+            if (!key->dnskey) {
+                key->dnskey = hsm_get_key(ctx, zone->dname, key);
+                if (!key->dnskey) {
+                    se_log_error("error creating DNSKEYs for zone %s",
+                        zone->name);
+                    error = 1;
+                    break;
+                }
+            }
+            ldns_rr_set_ttl(key->dnskey, ttl);
+            ldns_rr_set_class(key->dnskey, zone->klass);
+            dnskey = ldns_rr_clone(key->dnskey);
+            error = zone_add_rr(zone, dnskey);
+            if (error) {
+                se_log_error("error adding DNSKEYs for zone %s",
+                    zone->name);
+                break;
+            }
+        }
+        key = key->next;
+    }
+    hsm_destroy_context(ctx);
+    return error;
+}
+*/
+
+
+/**
+ * Publish DNSKEYs and update the pending zone data changes.
+ *
+ */
+int
+zone_update_zonedata(zone_type* zone)
+{
+    int error = 0;
+
+    se_log_assert(zone);
+    se_log_assert(zone->zonedata);
+
+/*    error = zone_publish_dnskeys(zone); */
+    if (error) {
+        se_log_error("error adding DNSKEYs for zone %s", zone->name);
+        return error;
+    }
+
+    return zonedata_update(zone->zonedata);
+}
+
 
 /**
  * Add a RR to the zone.
@@ -300,6 +377,20 @@ zone_add_rr(zone_type* zone, ldns_rr* rr)
 
 
 /**
+ * Delete a RR from the zone.
+ *
+ */
+int
+zone_del_rr(zone_type* zone, ldns_rr* rr)
+{
+    se_log_assert(zone);
+    se_log_assert(zone->zonedata);
+    se_log_assert(rr);
+    return zonedata_del_rr(zone->zonedata, rr);
+}
+
+
+/**
  * Clean up a zone.
  *
  */
@@ -340,4 +431,21 @@ zone_cleanup(zone_type* zone)
     } else {
         se_log_warning("cleanup emtpy zone");
     }
+    return;
+}
+
+
+/**
+ * Print zone.
+ *
+ */
+void
+zone_print(FILE* out, zone_type* zone, int internal)
+{
+    se_log_assert(out);
+    se_log_assert(zone);
+    se_log_assert(zone->zonedata);
+
+    zonedata_print(out, zone->zonedata, internal);
+    return;
 }

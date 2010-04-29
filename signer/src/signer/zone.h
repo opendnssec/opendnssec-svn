@@ -95,7 +95,7 @@ zone_type* zone_create(const char* name, ldns_rr_class klass);
 void zone_update_zonelist(zone_type* z1, zone_type* z2);
 
 /**
- * Read signer configuration file.
+ * Update signer configuration file.
  * \param[in] zone corresponding zone
  * \param[in] tl task list
  * \param[in] buf feedback buffer
@@ -106,13 +106,30 @@ int zone_update_signconf(zone_type* zone, struct tasklist_struct* tl,
     char* buf);
 
 /**
+ * Update zone data.
+ * \param[in] zone corresponding zone
+ * \return int 0 on success, 1 on error
+ *
+ */
+int zone_update_zonedata(zone_type* zone);
+
+/**
  * Add a RR to the zone.
  * \param[in] zone zone structure
- * \param[in] rr resource record
+ * \param[in] rr RR
  * \return int 0 on success, 1 on error
  *
  */
 int zone_add_rr(zone_type* zone, ldns_rr* rr);
+
+/**
+ * Delete a RR from the zone.
+ * \param[in] zone zone structure
+ * \param[in] rr RR
+ * \return int 0 on success, 1 on error
+ *
+ */
+int zone_del_rr(zone_type* zone, ldns_rr* rr);
 
 /**
  * Clean up a zone.
@@ -120,5 +137,14 @@ int zone_add_rr(zone_type* zone, ldns_rr* rr);
  *
  */
 void zone_cleanup(zone_type* zone);
+
+/**
+ * Print a zone.
+ * \param[in] out file descriptor
+ * \param[in] zone zone to print
+ * \param[in] internal if true, print in internal format
+ *
+ */
+void zone_print(FILE* fd, zone_type* zone, int skip_soa);
 
 #endif /* SIGNER_ZONE_H */
