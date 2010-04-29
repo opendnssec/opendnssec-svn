@@ -1,5 +1,9 @@
+29 April 2010: Matthijs
+- Pend updates
+- Print zone
+
 22 April 2010: Matthijs
-- queue command
+- queue, flush, reload commands
 - Task queue
 - Parse signer configurations
 
