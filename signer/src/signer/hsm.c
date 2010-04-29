@@ -48,7 +48,6 @@ hsm_get_key(hsm_ctx_t* ctx, ldns_rdf* dname, key_type* key_id)
 
     se_log_assert(dname);
     se_log_assert(key_id);
-    se_log_none("get dnskey from hsm");
 
     params = hsm_sign_params_new();
     params->owner = ldns_rdf_clone(dname);
@@ -66,8 +65,6 @@ hsm_get_key(hsm_ctx_t* ctx, ldns_rdf* dname, key_type* key_id)
         error = 1;
     }
     hsm_sign_params_free(params);
-
-    se_log_none("get dnskey from hsm: done");
 
     if (error == 0) {
         return rrkey;
@@ -94,7 +91,6 @@ hsm_sign_rrset_with_key(hsm_ctx_t* ctx, ldns_rdf* dname, key_type* key_id,
     se_log_assert(rrset);
     se_log_assert(inception);
     se_log_assert(expiration);
-    se_log_none("sign rrset with key");
 
     /* lookup key */
     hsmkey = hsm_find_key_by_id(ctx, key_id->locator);
@@ -120,8 +116,6 @@ hsm_sign_rrset_with_key(hsm_ctx_t* ctx, ldns_rdf* dname, key_type* key_id,
         se_log_error("could not find key %s", key_id->locator);
         error = 1;
     }
-
-    se_log_none("sign rrset with key: done");
 
     if (error == 0) {
         return rrsig;
