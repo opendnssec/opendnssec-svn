@@ -37,7 +37,6 @@
 #include "scheduler/locks.h"
 #include "signer/tools.h"
 #include "signer/zone.h"
-#include "tools/tools.h"
 #include "util/file.h"
 #include "util/log.h"
 #include "util/se_malloc.h"
@@ -51,8 +50,6 @@ int
 tools_read_input(zone_type* zone)
 {
     char* tmpname = NULL;
-    char* tmpname2 = NULL;
-    char* zonename = NULL;
     int result = 0;
 
     se_log_assert(zone);
@@ -60,17 +57,66 @@ tools_read_input(zone_type* zone)
     se_log_assert(zone->signconf);
     se_log_verbose("read zone %s", zone->name);
 
-    tmpname2 = se_build_path(zone->name, ".unsorted", 0);
     /* make a copy (slooooooow, use system(cp) ?) */
-    result = se_file_copy(zone->inbound_adapter->filename, tmpname2);
-    if (result == 0) {
-        tmpname = se_build_path(zone->name, ".sorted", 0);
-        zonename = ldns_rdf2str(zone->dname);
-        result = tools_sorter(tmpname2, tmpname,
-            zonename, zone->signconf->soa_min, zone->signconf->dnskey_ttl);
+    if (zone->signconf->audit) {
+        tmpname = se_build_path(zone->name, ".unsorted", 0);
+        result = se_file_copy(zone->inbound_adapter->filename, tmpname);
         se_free((void*)tmpname);
-        se_free((void*)zonename);
     }
-    se_free((void*)tmpname2);
+
+    switch (zone->inbound_adapter->type) {
+        case ADAPTER_FILE:
+            result = adfile_read(zone);
+            break;
+        case ADAPTER_UNKNOWN:
+        default:
+            se_log_error("read zone %s failed: unknown inbound adapter type %i",
+                zone->name, (int) zone->inbound_adapter->type);
+            result = 1;
+            break;
+    }
+    return result;
+}
+
+
+/**
+ * Add DNSKEY records to zone.
+ *
+ */
+int
+tools_add_dnskeys(zone_type* zone)
+{
+    se_log_assert(zone);
+    se_log_assert(zone->signconf);
+    se_log_verbose("publish dnskeys to zone %s", zone->name);
+    return zone_update_zonedata(zone);
+}
+
+
+/**
+ * Write zone to output adapter.
+ * \param[in] zone zone
+ * \return int 0 on success, 1 on fail
+ *
+ */
+int tools_write_output(zone_type* zone)
+{
+    int result = 0;
+
+    se_log_assert(zone);
+    se_log_assert(zone->outbound_adapter);
+    se_log_verbose("write zone %s", zone->name);
+
+    switch (zone->outbound_adapter->type) {
+        case ADAPTER_FILE:
+            result = adfile_write(zone);
+            break;
+        case ADAPTER_UNKNOWN:
+        default:
+            se_log_error("write zone %s failed: unknown outbound adapter type %i",
+                zone->name, (int) zone->inbound_adapter->type);
+            result = 1;
+            break;
+    }
     return result;
 }

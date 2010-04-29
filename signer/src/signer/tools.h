@@ -45,4 +45,20 @@
  */
 int tools_read_input(zone_type* zone);
 
+/**
+ * Add DNSKEY records to zone.
+ * \param[in] zone zone
+ * \return int 0 on success, 1 on fail
+ *
+ */
+int tools_add_dnskeys(zone_type* zone);
+
+/**
+ * Write zone to output adapter.
+ * \param[in] zone zone
+ * \return int 0 on success, 1 on fail
+ *
+ */
+int tools_write_output(zone_type* zone);
+
 #endif /* SIGNER_TOOLS_H */
