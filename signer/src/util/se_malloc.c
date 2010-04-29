@@ -106,7 +106,7 @@ se_rbnode_free(ldns_rbnode_t* node)
         se_rbnode_free(node->left);
         se_rbnode_free(node->right);
         free((void*)node);
-	}
+    }
 }
 
 /**

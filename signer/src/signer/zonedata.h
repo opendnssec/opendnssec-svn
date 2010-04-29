@@ -80,6 +80,15 @@ domain_type* zonedata_add_domain(zonedata_type* zd, domain_type* domain,
     int at_apex);
 
 /**
+ * Delete domain from zone data.
+ * \param[in] zd zone data
+ * \param[in] domain domain to delete
+ * \return domain_type* domain if failed
+ *
+ */
+domain_type* zonedata_del_domain(zonedata_type* zd, domain_type* domain);
+
+/**
  * Update zone data with pending changes.
  * \param[in] zd zone data
  * \return int 0 on success, 1 on false.

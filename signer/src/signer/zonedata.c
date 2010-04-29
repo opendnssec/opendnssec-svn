@@ -122,7 +122,7 @@ zonedata_add_domain(zonedata_type* zd, domain_type* domain, int at_apex)
     new_node = domain2node(domain);
     if (ldns_rbtree_insert(zd->domains, new_node) == NULL) {
         str = ldns_rdf2str(domain->name);
-        se_log_error("unable to add domain %s", domain->name);
+        se_log_error("unable to add domain %s: already present", domain->name);
         se_free((void*)str);
         se_free((void*)new_node);
         return NULL;
@@ -133,6 +133,38 @@ zonedata_add_domain(zonedata_type* zd, domain_type* domain, int at_apex)
     }
     return domain;
 }
+
+
+/**
+ * Add a domain to the zone data.
+ *
+ */
+domain_type*
+zonedata_del_domain(zonedata_type* zd, domain_type* domain)
+{
+    domain_type* del_domain = NULL;
+    ldns_rbnode_t* del_node = NULL;
+    char* str = NULL;
+
+    se_log_assert(zd);
+    se_log_assert(zd->domains);
+    se_log_assert(domain);
+
+    del_node = ldns_rbtree_delete(zd->domains, (const void*)domain->name);
+    if (del_node) {
+        del_domain = (domain_type*) del_node->data;
+        domain_cleanup(del_domain);
+        se_free((void*)del_node);
+        return NULL;
+    } else {
+        str = ldns_rdf2str(domain->name);
+        se_log_error("unable to delete domain %s: not in tree", domain->name);
+        se_free((void*)str);
+        return domain;
+    }
+    return domain;
+}
+
 
 /**
  * Update zone data with pending changes.
