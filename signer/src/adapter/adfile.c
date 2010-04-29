@@ -439,6 +439,13 @@ adfile_read(struct zone_struct* zone)
     se_log_debug("read from input file adapter zone %s file %s",
         zone_in->name, zone_in->inbound_adapter->filename);
 
+    /* remove current rrs */
+    error = zonedata_del_rrs(zone_in->zonedata);
+    if (error) {
+        se_log_error("error removing current RRs in zone %s", zone_in->name);
+        return error;
+    }
+
     /* read the zonefile */
     fd = se_fopen(zone_in->inbound_adapter->filename, NULL, "r");
     if (fd) {
@@ -462,15 +469,20 @@ adfile_read(struct zone_struct* zone)
 int
 adfile_write(struct zone_struct* zone)
 {
-    zone_type* zone_in = zone;
-    int error = 0;
+    FILE* fd = NULL;
+    zone_type* zone_out = zone;
 
-    se_log_assert(zone_in);
-    se_log_assert(zone_in->name);
-    se_log_assert(zone_in->outbound_adapter);
+    se_log_assert(zone_out);
+    se_log_assert(zone_out->name);
+    se_log_assert(zone_out->outbound_adapter);
     se_log_debug("write to output file adapter zone %s file %s",
-        zone_in->name, zone_in->outbound_adapter->filename);
+        zone_out->name, zone_out->outbound_adapter->filename);
 
-    return error;
+    fd = se_fopen(zone_out->outbound_adapter->filename, NULL, "w");
+    if (fd) {
+        zone_print(fd, zone_out, 0);
+        se_fclose(fd);
+    }
+    return 0;
 }
 
