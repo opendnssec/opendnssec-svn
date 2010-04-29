@@ -46,6 +46,8 @@ struct rrset_struct {
     uint32_t inbound_serial;
     uint32_t outbound_serial;
     ldns_dnssec_rrs* rrs;
+    ldns_dnssec_rrs* add;
+    ldns_dnssec_rrs* del;
     ldns_dnssec_rrs* rrsigs;
 };
 
@@ -58,6 +60,15 @@ struct rrset_struct {
 rrset_type* rrset_create(ldns_rr_type rrtype);
 
 /**
+ * Update RRset with pending changes.
+ * \param[in] rrset RRset
+ * \param[in] serial version to update to
+ * \return 0 on success, 1 on error
+ *
+ */
+int rrset_update(rrset_type* rrset, uint32_t serial);
+
+/**
  * Add RR to RRset.
  * \param[in] rrset RRset
  * \param[in] rr RR
@@ -67,10 +78,35 @@ rrset_type* rrset_create(ldns_rr_type rrtype);
 int rrset_add_rr(rrset_type* rrset, ldns_rr* rr);
 
 /**
+ * Delete RR from RRset.
+ * \param[in] rrset RRset
+ * \param[in] rr RR
+ * \return 0 on success, 1 on error
+ *
+ */
+int rrset_del_rr(rrset_type* rrset, ldns_rr* rr);
+
+/**
+ * Delete all RRs from RRset.
+ * \param[in] rrset RRset
+ * \return 0 on success, 1 on error
+ *
+ */
+int rrset_del_rrs(rrset_type* rrset);
+
+/**
  * Clean up RRset.
  * \param[in] rrset RRset to be cleaned up
  *
  */
 void rrset_cleanup(rrset_type* rrset);
+
+/**
+ * Print RRset.
+ * \param[in] fd file descriptor
+ * \param[in] rrset RRset to be printed
+ *
+ */
+void rrset_print(FILE* fd, rrset_type* rrset);
 
 #endif /* SIGNER_RRSET_H */
