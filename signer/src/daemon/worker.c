@@ -131,7 +131,6 @@ void
 worker_perform_task(worker_type* worker, task_type* task)
 {
     zone_type* zone = NULL;
-    const char* tmpname = NULL;
 
     se_log_assert(worker);
     se_log_assert(task);
@@ -155,7 +154,7 @@ worker_perform_task(worker_type* worker, task_type* task)
             }
             task->what = TASK_ADDKEYS;
         case TASK_ADDKEYS:
-            if (0) {
+            if (tools_add_dnskeys(zone) != 0) {
                 se_log_error("task [add dnskeys to zone %s] failed",
                     task->who);
                 goto task_perform_fail;
@@ -185,7 +184,7 @@ worker_perform_task(worker_type* worker, task_type* task)
             }
             task->what = TASK_WRITE;
         case TASK_WRITE:
-            if (0) {
+            if (tools_write_output(zone) != 0) {
                 se_log_error("task [write zone %s] failed", task->who);
                 task->what = TASK_SIGN;
                 goto task_perform_fail;
