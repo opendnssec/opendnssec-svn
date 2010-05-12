@@ -95,6 +95,14 @@ int rrset_del_rr(rrset_type* rrset, ldns_rr* rr);
 int rrset_del_rrs(rrset_type* rrset);
 
 /**
+ * Return the number of RRs in RRset.
+ * \param[in] rrset RRset
+ * \return number of RRs
+ *
+ */
+int rrset_count_rr(rrset_type* rrset);
+
+/**
  * Clean up RRset.
  * \param[in] rrset RRset to be cleaned up
  *

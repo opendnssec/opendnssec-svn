@@ -169,6 +169,8 @@ int
 rrset_update(rrset_type* rrset, uint32_t serial)
 {
     ldns_dnssec_rrs* rrs = NULL;
+    int addcount = 0;
+    int delcount = 0;
 
     se_log_assert(rrset);
     se_log_assert(serial);
@@ -178,7 +180,7 @@ rrset_update(rrset_type* rrset, uint32_t serial)
         rrs = rrset->del;
         while (rrs) {
             if (rrs->rr) {
-                rrset->rr_count -= rrset_del_pending_rr(rrset, rrs->rr);
+                delcount = rrset_del_pending_rr(rrset, rrs->rr);
             }
             rrs = rrs->next;
         }
@@ -189,16 +191,29 @@ rrset_update(rrset_type* rrset, uint32_t serial)
         rrs = rrset->add;
         while (rrs) {
             if (rrs->rr) {
-                rrset->rr_count += rrset_add_pending_rr(rrset, rrs->rr);
+                addcount = rrset_add_pending_rr(rrset, rrs->rr);
             }
             rrs = rrs->next;
         }
         ldns_dnssec_rrs_free(rrset->add);
         rrset->add = NULL;
-
+        rrset->rr_count = rrset->rr_count + addcount;
+        rrset->rr_count = rrset->rr_count - delcount;
         rrset->inbound_serial = serial;
     }
     return 0;
+}
+
+
+/**
+ * Return the number of RRs in RRset.
+ *
+ */
+int
+rrset_count_rr(rrset_type* rrset)
+{
+    se_log_assert(rrset);
+    return rrset->rr_count;
 }
 
 

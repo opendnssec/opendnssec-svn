@@ -63,6 +63,7 @@ struct domain_struct {
     int domain_status;
     uint32_t inbound_serial;
     uint32_t outbound_serial;
+    uint32_t nsec_serial;
 };
 
 /**
@@ -99,6 +100,14 @@ rrset_type* domain_add_rrset(domain_type* domain, rrset_type* rrset);
  *
  */
 rrset_type* domain_del_rrset(domain_type* domain, rrset_type* rrset);
+
+/**
+ * Return the number of RRsets at this domain.
+ * \param[in] domain domain
+ * \return int number of RRsets at domain
+ *
+ */
+int domain_count_rrset(domain_type* domain);
 
 /**
  * Update domain with pending changes.

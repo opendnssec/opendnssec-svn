@@ -70,6 +70,7 @@ domain_create(ldns_rdf* dname)
     domain->rrsets = ldns_rbtree_create(rrset_compare);
     domain->domain_status = DOMAIN_STATUS_NONE;
     domain->inbound_serial = 0;
+    domain->nsec_serial = 0;
     domain->outbound_serial = 0;
     return domain;
 }
@@ -170,6 +171,20 @@ domain_del_rrset(domain_type* domain, rrset_type* rrset)
 
 
 /**
+ * Return the number of RRsets at this domain.
+ *
+ */
+int domain_count_rrset(domain_type* domain)
+{
+    se_log_assert(domain);
+    if (!domain->rrsets) {
+        return 0;
+    }
+    return domain->rrsets->count;
+}
+
+
+/**
  * Update domain with pending changes.
  *
  */
@@ -183,17 +198,24 @@ domain_update(domain_type* domain, uint32_t serial)
     se_log_assert(domain);
     se_log_assert(domain->rrsets);
 
-    if (domain->rrsets->root != LDNS_RBTREE_NULL) {
-        node = ldns_rbtree_first(domain->rrsets);
-    }
-    while (node && node != LDNS_RBTREE_NULL) {
-        rrset = (rrset_type*) node->data;
-        if (rrset_update(rrset, serial) != 0) {
-            se_log_error("failed to update domain to serial %u: failed to "
-                "update RRset", serial);
-            return 1;
+    if (domain->inbound_serial < serial) {
+        if (domain->rrsets->root != LDNS_RBTREE_NULL) {
+            node = ldns_rbtree_first(domain->rrsets);
         }
-        node = ldns_rbtree_next(node);
+        while (node && node != LDNS_RBTREE_NULL) {
+            rrset = (rrset_type*) node->data;
+            if (rrset_update(rrset, serial) != 0) {
+                se_log_error("failed to update domain to serial %u: failed "
+                    "to update RRset", serial);
+                return 1;
+            }
+            node = ldns_rbtree_next(node);
+            /* delete memory of RRsets if no RRs exist */
+            if (rrset_count_rr(rrset) <= 0) {
+                rrset = domain_del_rrset(domain, rrset);
+            }
+        }
+        domain->inbound_serial = serial;
     }
     return 0;
 }

@@ -195,6 +195,11 @@ zonedata_update(zonedata_type* zd)
             return 1;
         }
         node = ldns_rbtree_next(node);
+        /* delete memory of domain if no RRsets exists */
+        if (domain_count_rrset(domain) <= 0) {
+            /* also delete empty non-terminal parents: TODO (NSEC3) */
+            domain = zonedata_del_domain(zd, domain);
+        }
     }
     return 0;
 }
