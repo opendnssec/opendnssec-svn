@@ -390,6 +390,20 @@ zone_del_rr(zone_type* zone, ldns_rr* rr)
 
 
 /**
+ * Nsecify zone.
+ *
+ */
+int
+zone_nsecify(zone_type* zone)
+{
+    se_log_assert(zone);
+    se_log_assert(zone->zonedata);
+
+    return 0;
+}
+
+
+/**
  * Clean up a zone.
  *
  */

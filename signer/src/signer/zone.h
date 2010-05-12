@@ -132,6 +132,14 @@ int zone_add_rr(zone_type* zone, ldns_rr* rr);
 int zone_del_rr(zone_type* zone, ldns_rr* rr);
 
 /**
+ * Nsecify zone.
+ * \param[in] zone zone to nsecify
+ * \return int 0 on success, 1 on error
+ *
+ */
+int zone_nsecify(zone_type* zone);
+
+/**
  * Clean up a zone.
  * \param[in] zone zone to cleanup
  *
