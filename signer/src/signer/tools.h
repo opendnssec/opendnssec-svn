@@ -54,6 +54,14 @@ int tools_read_input(zone_type* zone);
 int tools_add_dnskeys(zone_type* zone);
 
 /**
+ * Add NSEC(3) records to zone.
+ * \param[in] zone zone
+ * \return int 0 on success, 1 on fail
+ *
+ */
+int tools_nsecify(zone_type* zone);
+
+/**
  * Write zone to output adapter.
  * \param[in] zone zone
  * \return int 0 on success, 1 on fail

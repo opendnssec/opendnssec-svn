@@ -94,6 +94,20 @@ tools_add_dnskeys(zone_type* zone)
 
 
 /**
+ * Add NSEC(3) records to zone.
+ *
+ */
+int
+tools_nsecify(zone_type* zone)
+{
+    se_log_assert(zone);
+    se_log_assert(zone->signconf);
+    se_log_verbose("nsecify zone %s", zone->name);
+    return zone_nsecify(zone);
+}
+
+
+/**
  * Write zone to output adapter.
  * \param[in] zone zone
  * \return int 0 on success, 1 on fail

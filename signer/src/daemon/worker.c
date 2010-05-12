@@ -162,7 +162,7 @@ worker_perform_task(worker_type* worker, task_type* task)
             }
             task->what = TASK_NSECIFY;
         case TASK_NSECIFY:
-            if (0) {
+            if (tools_nsecify(zone) != 0) {
                 se_log_error("task [nsecify zone %s] failed", task->who);
                 goto task_perform_fail;
                 break;
