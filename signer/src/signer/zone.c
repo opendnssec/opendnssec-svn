@@ -35,6 +35,7 @@
 #include "scheduler/locks.h"
 #include "scheduler/task.h"
 #include "signer/hsm.h"
+#include "signer/nsec3params.h"
 #include "signer/signconf.h"
 #include "signer/zone.h"
 #include "signer/zonedata.h"
@@ -67,6 +68,7 @@ zone_create(const char* name, ldns_rr_class klass)
     zone->policy_name = NULL;
     zone->signconf_filename = NULL;
     zone->signconf = NULL;
+    zone->nsec3params = NULL;
     zone->inbound_adapter = NULL;
     zone->outbound_adapter = NULL;
     zone->task = NULL;
@@ -293,6 +295,53 @@ zone_publish_dnskeys(zone_type* zone)
 
 
 /**
+ * Add the DNSKEYs from the Signer Configuration to the zone data.
+ *
+ */
+static int
+zone_publish_nsec3params(zone_type* zone)
+{
+    ldns_rr* nsec3params_rr = NULL;
+    int error = 0;
+
+    if (!zone->nsec3params) {
+        zone->nsec3params = nsec3params_create(
+            (uint8_t) zone->signconf->nsec3_algo,
+            (uint8_t) zone->signconf->nsec3_optout,
+            (uint16_t) zone->signconf->nsec3_iterations,
+            zone->signconf->nsec3_salt);
+        if (!zone->nsec3params) {
+            se_log_error("error creating NSEC3 parameters for zone %s",
+                zone->name);
+            return 1;
+        }
+    }
+
+    nsec3params_rr = ldns_rr_new_frm_type(LDNS_RR_TYPE_NSEC3PARAMS);
+    ldns_rr_set_class(nsec3params_rr, zone->klass);
+    ldns_rr_set_ttl(nsec3params_rr, zone->zonedata->default_ttl);
+    ldns_rr_set_owner(nsec3params_rr, ldns_rdf_clone(zone->dname));
+    ldns_nsec3_add_param_rdfs(nsec3params_rr,
+        zone->nsec3params->algorithm, 0,
+        zone->nsec3params->iterations,
+        zone->nsec3params->salt_len,
+        zone->nsec3params->salt_data);
+    /**
+     * Always set bit 7 of the flags to zero,
+     * according to rfc5155 section 11
+     */
+    ldns_set_bit(ldns_rdf_data(ldns_rr_rdf(nsec3params_rr, 1)), 7, 0);
+
+    error = zone_add_rr(zone, nsec3params_rr);
+    if (error) {
+        se_log_error("error adding NSEC3PARAMS record to zone %s",
+            zone->name);
+    }
+    return error;
+}
+
+
+/**
  * Publish DNSKEYs and update the pending zone data changes.
  *
  */
@@ -302,12 +351,21 @@ zone_update_zonedata(zone_type* zone)
     int error = 0;
 
     se_log_assert(zone);
+    se_log_assert(zone->signconf);
     se_log_assert(zone->zonedata);
 
     error = zone_publish_dnskeys(zone);
     if (error) {
-        se_log_error("error adding DNSKEYs for zone %s", zone->name);
+        se_log_error("error adding DNSKEYs to zone %s", zone->name);
         return error;
+    }
+    /* if NSEC3, also publish NSEC3PARAMS record: TODO */
+    if (zone->signconf->nsec_type == LDNS_RR_TYPE_NSEC3) {
+        error = zone_publish_nsec3params(zone);
+        if (error) {
+            se_log_error("error adding NSEC3PARAMS RR to zone %s", zone->name);
+            return error;
+        }
     }
 
     return zonedata_update(zone->zonedata);
@@ -396,10 +454,26 @@ zone_del_rr(zone_type* zone, ldns_rr* rr)
 int
 zone_nsecify(zone_type* zone)
 {
+    int result = 0;
+
     se_log_assert(zone);
+    se_log_assert(zone->signconf);
     se_log_assert(zone->zonedata);
 
-    return 0;
+    if (zone->signconf->nsec_type == LDNS_RR_TYPE_NSEC) {
+        result = zonedata_nsecify(zone->zonedata, zone->klass);
+    } else if (zone->signconf->nsec_type == LDNS_RR_TYPE_NSEC3) {
+        if (zone->signconf->nsec3_optout) {
+            se_log_debug("OptOut is being used for zone %s", zone->name);
+        }
+        result = zonedata_nsecify3(zone->zonedata, zone->klass,
+            zone->nsec3params);
+    } else {
+        se_log_error("unknown RR type for denial of existence, %i",
+            zone->signconf->nsec_type);
+        result = 1;
+    }
+    return result;
 }
 
 

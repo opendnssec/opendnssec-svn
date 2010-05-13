@@ -70,8 +70,10 @@ domain_create(ldns_rdf* dname)
     domain->rrsets = ldns_rbtree_create(rrset_compare);
     domain->domain_status = DOMAIN_STATUS_NONE;
     domain->inbound_serial = 0;
-    domain->nsec_serial = 0;
     domain->outbound_serial = 0;
+    /* nsec */
+    domain->nsec_serial = 0;
+    domain->nsec_bitmap_changed = 0;
     return domain;
 }
 
@@ -133,6 +135,7 @@ domain_add_rrset(domain_type* domain, rrset_type* rrset)
         se_free((void*)new_node);
         return NULL;
     }
+    domain->nsec_bitmap_changed = 1;
     return rrset;
 }
 
@@ -158,6 +161,7 @@ domain_del_rrset(domain_type* domain, rrset_type* rrset)
         del_rrset = (rrset_type*) del_node->data;
         rrset_cleanup(del_rrset);
         se_free((void*)del_node);
+        domain->nsec_bitmap_changed = 1;
         return NULL;
     } else {
         str = ldns_rdf2str(domain->name);

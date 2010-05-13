@@ -89,9 +89,29 @@ domain_type* zonedata_add_domain(zonedata_type* zd, domain_type* domain,
 domain_type* zonedata_del_domain(zonedata_type* zd, domain_type* domain);
 
 /**
+ * Add NSEC records to zone data.
+ * \param[in] zd zone data
+ * \param[in] klass class of zone
+ * \return int 0 on success, 1 on false
+ *
+ */
+int zonedata_nsecify(zonedata_type* zd, ldns_rr_class klass);
+
+/**
+ * Add NSEC3 records to zone data.
+ * \param[in] zd zone data
+ * \param[in] klass class of zone
+ * \param[in] nsec3params NSEC3 paramaters
+ * \return int 0 on success, 1 on false
+ *
+ */
+int zonedata_nsecify3(zonedata_type* zd, ldns_rr_class klass,
+    nsec3params_type* nsec3params);
+
+/**
  * Update zone data with pending changes.
  * \param[in] zd zone data
- * \return int 0 on success, 1 on false.
+ * \return int 0 on success, 1 on false
  *
  */
 int zonedata_update(zonedata_type* zd);
@@ -101,7 +121,7 @@ int zonedata_update(zonedata_type* zd);
  * \param[in] zd zone data
  * \param[in] rr RR to add
  * \param[in] at_apex if is at apex of the zone
- * \return int 0 on success, 1 on false.
+ * \return int 0 on success, 1 on false
  *
  */
 int zonedata_add_rr(zonedata_type* zd, ldns_rr* rr, int at_apex);
@@ -110,7 +130,7 @@ int zonedata_add_rr(zonedata_type* zd, ldns_rr* rr, int at_apex);
  * Delete RR from zone data.
  * \param[in] zd zone data
  * \param[in] rr RR to delete
- * \return int 0 on success, 1 on false.
+ * \return int 0 on success, 1 on false
  *
  */
 int zonedata_del_rr(zonedata_type* zd, ldns_rr* rr);
@@ -118,7 +138,7 @@ int zonedata_del_rr(zonedata_type* zd, ldns_rr* rr);
 /**
  * Delete all current RRs from zone data.
  * \param[in] zd zone data
- * \return int 0 on success, 1 on false.
+ * \return int 0 on success, 1 on false
  *
  */
 int zonedata_del_rrs(zonedata_type* zd);

@@ -32,8 +32,9 @@
  */
 
 #include "config.h"
-#include "signer/zonedata.h"
 #include "signer/domain.h"
+#include "signer/nsec3params.h"
+#include "signer/zonedata.h"
 #include "util/log.h"
 #include "util/se_malloc.h"
 
@@ -163,6 +164,32 @@ zonedata_del_domain(zonedata_type* zd, domain_type* domain)
         return domain;
     }
     return domain;
+}
+
+
+/**
+ * Add NSEC records to zonedata.
+ *
+ */
+int
+zonedata_nsecify(zonedata_type* zd, ldns_rr_class klass)
+{
+    se_log_assert(zd);
+
+    return 0;
+}
+
+
+/**
+ * Add NSEC3 records to zonedata.
+ *
+ */
+int
+zonedata_nsecify3(zonedata_type* zd, ldns_rr_class klass, nsec3params_type* nsec3params)
+{
+    se_log_assert(zd);
+
+    return 0;
 }
 
 

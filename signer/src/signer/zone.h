@@ -37,6 +37,7 @@
 #include "config.h"
 #include "adapter/adapter.h"
 #include "scheduler/locks.h"
+#include "signer/nsec3params.h"
 #include "signer/signconf.h"
 #include "signer/zonedata.h"
 
@@ -61,6 +62,7 @@ struct zone_struct {
     const char* policy_name; /* policy identifier */
     const char* signconf_filename; /* signer configuration filename */
     signconf_type* signconf; /* signer configuration values */
+    nsec3params_type* nsec3params; /* NSEC3 parameters */
     adapter_type* inbound_adapter; /* inbound adapter */
     adapter_type* outbound_adapter; /* outbound adapter */
     struct task_struct* task; /* current scheduled task */
