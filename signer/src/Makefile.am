@@ -24,6 +24,7 @@ ods_signerd_SOURCES=		ods-signerd.c \
 				scheduler/task.c scheduler/task.h \
 				signer/domain.c signer/domain.h \
 				signer/hsm.c signer/hsm.h \
+				signer/nsec3params.c signer/nsec3params.h \
 				signer/rrset.c signer/rrset.h \
 				signer/se_key.c signer/se_key.h \
 				signer/signconf.c signer/signconf.h \
