@@ -35,6 +35,7 @@
 #define SIGNER_DOMAIN_H
 
 #include "config.h"
+#include "signer/nsec3params.h"
 #include "signer/rrset.h"
 
 #include <ldns/ldns.h>
@@ -60,6 +61,7 @@ struct domain_struct {
     domain_type* parent;
     domain_type* nsec3;
     ldns_rbtree_t* rrsets;
+    rrset_type* nsec_rrset;
     int domain_status;
     uint32_t inbound_serial;
     uint32_t outbound_serial;
@@ -125,6 +127,30 @@ int domain_update(domain_type* domain, uint32_t serial);
  *
  */
 void domain_update_status(domain_type* domain);
+
+/**
+ * Add NSEC record to domain.
+ * \param[in] domain domain
+ * \param[in] to next domain
+ * \param[in] ttl denial of existence ttl
+ * \param[in] klass corresponding klass
+ * \return int 0 on success, 1 on error
+ *
+ */
+int domain_nsecify(domain_type* domain, domain_type* to, uint32_t ttl,
+    ldns_rr_class klass);
+
+/**
+ * Add NSEC3 record to domain.
+ * \param[in] domain domain
+ * \param[in] to next domain
+ * \param[in] ttl denial of existence ttl
+ * \param[in] klass corresponding klass
+ * \return int 0 on success, 1 on error
+ *
+ */
+int domain_nsecify3(domain_type* domain, domain_type* to, uint32_t ttl,
+    ldns_rr_class klass, nsec3params_type* nsec3params);
 
 /**
  * Add RR to domain

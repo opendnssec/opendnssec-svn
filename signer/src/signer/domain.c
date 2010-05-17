@@ -72,6 +72,7 @@ domain_create(ldns_rdf* dname)
     domain->inbound_serial = 0;
     domain->outbound_serial = 0;
     /* nsec */
+    domain->nsec_rrset = NULL;
     domain->nsec_serial = 0;
     domain->nsec_bitmap_changed = 0;
     return domain;
@@ -250,7 +251,7 @@ domain_update_status(domain_type* domain)
     }
 
     parent = domain->parent;
-    while (parent) {
+    while (parent && parent->domain_status != DOMAIN_STATUS_APEX) {
         if (domain_lookup_rrset(parent, LDNS_RR_TYPE_DNAME) ||
             domain_lookup_rrset(parent, LDNS_RR_TYPE_NS)) {
             domain->domain_status = DOMAIN_STATUS_OCCLUDED;
@@ -261,6 +262,98 @@ domain_update_status(domain_type* domain)
     /* else, it is just an authoritative domain */
     domain->domain_status = DOMAIN_STATUS_AUTH;
     return;
+}
+
+
+/**
+ * Create NSEC bitmap.
+ *
+ */
+static void
+domain_nsecify_create_bitmap(domain_type* domain, ldns_rr_type types[],
+    size_t* types_count)
+{
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+    rrset_type* rrset = NULL;
+
+    if (domain->rrsets && domain->rrsets->root != LDNS_RBTREE_NULL) {
+        node = ldns_rbtree_first(domain->rrsets);
+    }
+    while (node && node != LDNS_RBTREE_NULL) {
+        rrset = (rrset_type*) node->data;
+        types[*types_count] = rrset->rr_type;
+        *types_count = *types_count + 1;
+        node = ldns_rbtree_next(node);
+    }
+    return;
+}
+
+
+/**
+ * Add NSEC record to domain.
+ *
+ */
+int
+domain_nsecify(domain_type* domain, domain_type* to, uint32_t ttl,
+    ldns_rr_class klass)
+{
+    ldns_rr_type types[1024];
+    ldns_rr* nsec_rr = NULL;
+    size_t types_count = 0;
+
+    se_log_assert(domain);
+    se_log_assert(domain->name);
+    se_log_assert(to);
+    se_log_assert(to->name);
+
+    /* create types bitmap */
+    domain_nsecify_create_bitmap(domain, types, &types_count);
+    types[types_count] = LDNS_RR_TYPE_RRSIG;
+    types_count++;
+    types[types_count] = LDNS_RR_TYPE_NSEC;
+    types_count++;
+
+    nsec_rr = ldns_rr_new();
+    if (!nsec_rr) {
+        se_log_alert("failed to create NSEC rr");
+        return 1;
+    }
+
+    ldns_rr_set_type(nsec_rr, LDNS_RR_TYPE_NSEC);
+    ldns_rr_set_owner(nsec_rr, ldns_rdf_clone(domain->name));
+    ldns_rr_push_rdf(nsec_rr, ldns_rdf_clone(to->name));
+    ldns_rr_push_rdf(nsec_rr, ldns_dnssec_create_nsec_bitmap(types,
+        types_count, LDNS_RR_TYPE_NSEC));
+    ldns_rr_set_ttl(nsec_rr, ttl);
+    ldns_rr_set_class(nsec_rr, klass);
+
+    if (domain->nsec_rrset) {
+        rrset_cleanup(domain->nsec_rrset);
+    }
+    domain->nsec_rrset = rrset_create_frm_rr(nsec_rr);
+    if (!domain->nsec_rrset) {
+        se_log_alert("failed to create NSEC RRset");
+        return 1;
+    }
+    return 0;
+}
+
+
+/**
+ * Add NSEC record to domain.
+ *
+ */
+int
+domain_nsecify3(domain_type* domain, domain_type* to, uint32_t ttl,
+    ldns_rr_class klass, nsec3params_type* nsec3params)
+{
+    se_log_assert(domain);
+    se_log_assert(domain->name);
+    se_log_assert(to);
+    se_log_assert(to->name);
+    se_log_assert(nsec3params);
+
+    return domain_nsecify(domain, to, ttl, klass); /* for now */
 }
 
 
@@ -387,6 +480,10 @@ domain_cleanup(domain_type* domain)
             domain_cleanup_rrsets(domain->rrsets);
             domain->rrsets = NULL;
         }
+        if (domain->nsec_rrset) {
+            rrset_cleanup(domain->nsec_rrset);
+            domain->nsec_rrset = NULL;
+        }
         /* don't destroy corresponding parent and nsec3 domain */
         se_free((void*) domain);
     } else {
@@ -431,6 +528,13 @@ domain_print(FILE* fd, domain_type* domain, int internal)
             rrset_print(fd, rrset);
         }
         node = ldns_rbtree_next(node);
+    }
+
+    /* print nsec */
+    if (domain->nsec_rrset) {
+        rrset_print(fd, domain->nsec_rrset);
+    } else {
+        fprintf(fd, "; NO NSEC\n");
     }
     return;
 }
