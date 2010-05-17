@@ -63,6 +63,28 @@ rrset_create(ldns_rr_type rrtype)
 
 
 /**
+ * Create new RRset from RR.
+ *
+ */
+rrset_type*
+rrset_create_frm_rr(ldns_rr* rr)
+{
+    rrset_type* rrset = (rrset_type*) se_calloc(1, sizeof(rrset_type));
+    se_log_assert(rr);
+    rrset->rr_type = ldns_rr_get_type(rr);
+    rrset->rr_count = 1;
+    rrset->inbound_serial = 0;
+    rrset->outbound_serial = 0;
+    rrset->rrs = ldns_dnssec_rrs_new();
+    rrset->rrs->rr = rr;
+    rrset->add = NULL;
+    rrset->del = NULL;
+    rrset->rrsigs = NULL;
+    return rrset;
+}
+
+
+/**
  * Log RR.
  *
  */

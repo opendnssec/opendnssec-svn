@@ -60,6 +60,14 @@ struct rrset_struct {
 rrset_type* rrset_create(ldns_rr_type rrtype);
 
 /**
+ * Create new RRset from RR.
+ * \param[in] rr RR
+ * \return new RRset
+ *
+ */
+rrset_type* rrset_create_frm_rr(ldns_rr* rr);
+
+/**
  * Update RRset with pending changes.
  * \param[in] rrset RRset
  * \param[in] serial version to update to
