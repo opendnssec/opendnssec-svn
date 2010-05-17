@@ -359,7 +359,6 @@ zone_update_zonedata(zone_type* zone)
         se_log_error("error adding DNSKEYs to zone %s", zone->name);
         return error;
     }
-    /* if NSEC3, also publish NSEC3PARAMS record: TODO */
     if (zone->signconf->nsec_type == LDNS_RR_TYPE_NSEC3) {
         error = zone_publish_nsec3params(zone);
         if (error) {
@@ -367,7 +366,6 @@ zone_update_zonedata(zone_type* zone)
             return error;
         }
     }
-
     return zonedata_update(zone->zonedata);
 }
 
