@@ -120,6 +120,13 @@ int domain_count_rrset(domain_type* domain);
 int domain_update(domain_type* domain, uint32_t serial);
 
 /**
+ * Update domain status.
+ * \param[in] domain domain
+ *
+ */
+void domain_update_status(domain_type* domain);
+
+/**
  * Add RR to domain
  * \param[in] domain domain
  * \param[in] rr RR

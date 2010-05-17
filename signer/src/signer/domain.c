@@ -226,6 +226,45 @@ domain_update(domain_type* domain, uint32_t serial)
 
 
 /**
+ * Update domain status.
+ *
+ */
+void
+domain_update_status(domain_type* domain)
+{
+    domain_type* parent = NULL;
+
+    se_log_assert(domain);
+    if (domain->domain_status == DOMAIN_STATUS_APEX) {
+        /* apex stays apex */
+        return;
+    }
+
+    if (domain_count_rrset(domain) <= 0) {
+        /* Empty Non-Terminal */
+        return; /* we don't care */
+    }
+
+    if (domain_lookup_rrset(domain, LDNS_RR_TYPE_NS)) {
+        domain->domain_status = DOMAIN_STATUS_NS;
+    }
+
+    parent = domain->parent;
+    while (parent) {
+        if (domain_lookup_rrset(parent, LDNS_RR_TYPE_DNAME) ||
+            domain_lookup_rrset(parent, LDNS_RR_TYPE_NS)) {
+            domain->domain_status = DOMAIN_STATUS_OCCLUDED;
+            return;
+        }
+        parent = parent->parent;
+    }
+    /* else, it is just an authoritative domain */
+    domain->domain_status = DOMAIN_STATUS_AUTH;
+    return;
+}
+
+
+/**
  * Add RR to domain.
  *
  */
