@@ -454,26 +454,34 @@ zone_del_rr(zone_type* zone, ldns_rr* rr)
 int
 zone_nsecify(zone_type* zone)
 {
-    int result = 0;
+    int error = 0;
 
     se_log_assert(zone);
     se_log_assert(zone->signconf);
     se_log_assert(zone->zonedata);
 
+    /* add empty non-terminals */
+    error = zonedata_entize(zone->zonedata, zone->dname);
+    if (error) {
+        se_log_error("failed to add empty non-terminals to zone %s",
+            zone->name);
+        return error;
+    }
+
     if (zone->signconf->nsec_type == LDNS_RR_TYPE_NSEC) {
-        result = zonedata_nsecify(zone->zonedata, zone->klass);
+        error = zonedata_nsecify(zone->zonedata, zone->klass);
     } else if (zone->signconf->nsec_type == LDNS_RR_TYPE_NSEC3) {
         if (zone->signconf->nsec3_optout) {
             se_log_debug("OptOut is being used for zone %s", zone->name);
         }
-        result = zonedata_nsecify3(zone->zonedata, zone->klass,
+        error = zonedata_nsecify3(zone->zonedata, zone->klass,
             zone->nsec3params);
     } else {
         se_log_error("unknown RR type for denial of existence, %i",
             zone->signconf->nsec_type);
-        result = 1;
+        error = 1;
     }
-    return result;
+    return error;
 }
 
 

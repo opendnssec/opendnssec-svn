@@ -89,6 +89,15 @@ domain_type* zonedata_add_domain(zonedata_type* zd, domain_type* domain,
 domain_type* zonedata_del_domain(zonedata_type* zd, domain_type* domain);
 
 /**
+ * Add empty non-terminals to zone data.
+ * \param[in] zd zone data
+ * \param[in] apex apex domain name
+ * \return int 0 on success, 1 on false
+ *
+ */
+int zonedata_entize(zonedata_type* zd, ldns_rdf* apex);
+
+/**
  * Add NSEC records to zone data.
  * \param[in] zd zone data
  * \param[in] klass class of zone
