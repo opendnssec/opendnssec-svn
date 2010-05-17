@@ -75,6 +75,7 @@ domain_create(ldns_rdf* dname)
     domain->nsec_rrset = NULL;
     domain->nsec_serial = 0;
     domain->nsec_bitmap_changed = 0;
+    domain->nsec_nxt_changed = 0;
     return domain;
 }
 
@@ -299,6 +300,7 @@ domain_nsecify(domain_type* domain, domain_type* to, uint32_t ttl,
 {
     ldns_rr_type types[1024];
     ldns_rr* nsec_rr = NULL;
+    ldns_rdf* old_rdf = NULL;
     size_t types_count = 0;
 
     se_log_assert(domain);
@@ -306,34 +308,60 @@ domain_nsecify(domain_type* domain, domain_type* to, uint32_t ttl,
     se_log_assert(to);
     se_log_assert(to->name);
 
-    /* create types bitmap */
-    domain_nsecify_create_bitmap(domain, types, &types_count);
-    types[types_count] = LDNS_RR_TYPE_RRSIG;
-    types_count++;
-    types[types_count] = LDNS_RR_TYPE_NSEC;
-    types_count++;
+    if (domain->nsec_serial < domain->inbound_serial) {
+        if (!domain->nsec_rrset || domain->nsec_bitmap_changed) {
+            /* create types bitmap */
+            domain_nsecify_create_bitmap(domain, types, &types_count);
+            types[types_count] = LDNS_RR_TYPE_RRSIG;
+            types_count++;
+            types[types_count] = LDNS_RR_TYPE_NSEC;
+            types_count++;
+        }
 
-    nsec_rr = ldns_rr_new();
-    if (!nsec_rr) {
-        se_log_alert("failed to create NSEC rr");
-        return 1;
-    }
+        if (!domain->nsec_rrset) {
+            nsec_rr = ldns_rr_new();
+            if (!nsec_rr) {
+                se_log_alert("failed to create NSEC rr");
+                return 1;
+            }
+            ldns_rr_set_type(nsec_rr, LDNS_RR_TYPE_NSEC);
+            ldns_rr_set_owner(nsec_rr, ldns_rdf_clone(domain->name));
+            ldns_rr_push_rdf(nsec_rr, ldns_rdf_clone(to->name));
+            ldns_rr_push_rdf(nsec_rr, ldns_dnssec_create_nsec_bitmap(types,
+                types_count, LDNS_RR_TYPE_NSEC));
+            ldns_rr_set_ttl(nsec_rr, ttl);
+            ldns_rr_set_class(nsec_rr, klass);
+            domain->nsec_rrset = rrset_create_frm_rr(nsec_rr);
+            if (!domain->nsec_rrset) {
+                se_log_alert("failed to create NSEC RRset");
+                return 1;
+            }
+        } else {
+            se_log_assert(domain->nsec_rrset);
+            se_log_assert(domain->nsec_rrset->rrs);
+            se_log_assert(domain->nsec_rrset->rrs->rr);
 
-    ldns_rr_set_type(nsec_rr, LDNS_RR_TYPE_NSEC);
-    ldns_rr_set_owner(nsec_rr, ldns_rdf_clone(domain->name));
-    ldns_rr_push_rdf(nsec_rr, ldns_rdf_clone(to->name));
-    ldns_rr_push_rdf(nsec_rr, ldns_dnssec_create_nsec_bitmap(types,
-        types_count, LDNS_RR_TYPE_NSEC));
-    ldns_rr_set_ttl(nsec_rr, ttl);
-    ldns_rr_set_class(nsec_rr, klass);
-
-    if (domain->nsec_rrset) {
-        rrset_cleanup(domain->nsec_rrset);
-    }
-    domain->nsec_rrset = rrset_create_frm_rr(nsec_rr);
-    if (!domain->nsec_rrset) {
-        se_log_alert("failed to create NSEC RRset");
-        return 1;
+            nsec_rr = domain->nsec_rrset->rrs->rr;
+            if (domain->nsec_nxt_changed) {
+                old_rdf = ldns_rr_set_rdf(nsec_rr, ldns_rdf_clone(to->name), 0);
+                if (!old_rdf) {
+                    se_log_alert("failed to update NSEC next owner name");
+                    return 1;
+                }
+                domain->nsec_nxt_changed = 0;
+            }
+            if (domain->nsec_bitmap_changed) {
+                old_rdf = ldns_rr_set_rdf(nsec_rr,
+                    ldns_dnssec_create_nsec_bitmap(types, types_count,
+                    LDNS_RR_TYPE_NSEC), 1);
+                if (!old_rdf) {
+                    se_log_alert("failed to update NSEC bitmap");
+                    return 1;
+                }
+                domain->nsec_bitmap_changed = 0;
+            }
+        }
+        domain->nsec_serial = domain->inbound_serial;
     }
     return 0;
 }

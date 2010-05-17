@@ -67,6 +67,7 @@ struct domain_struct {
     uint32_t outbound_serial;
     uint32_t nsec_serial;
     uint8_t nsec_bitmap_changed;
+    uint8_t nsec_nxt_changed;
 };
 
 /**

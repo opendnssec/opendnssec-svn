@@ -113,12 +113,15 @@ zonedata_lookup_domain(zonedata_type* zd, ldns_rdf* name)
 domain_type*
 zonedata_add_domain(zonedata_type* zd, domain_type* domain, int at_apex)
 {
-    ldns_rbnode_t* new_node = NULL;
+    ldns_rbnode_t* new_node = LDNS_RBTREE_NULL;
+    ldns_rbnode_t* prev_node = LDNS_RBTREE_NULL;
+    domain_type* prev_domain = NULL;
     char* str = NULL;
 
     se_log_assert(zd);
     se_log_assert(zd->domains);
     se_log_assert(domain);
+    se_log_assert(domain->rrsets);
 
     new_node = domain2node(domain);
     if (ldns_rbtree_insert(zd->domains, new_node) == NULL) {
@@ -129,8 +132,19 @@ zonedata_add_domain(zonedata_type* zd, domain_type* domain, int at_apex)
         return NULL;
     }
     domain->domain_status = DOMAIN_STATUS_NONE;
+    domain->nsec_bitmap_changed = 1;
     if (at_apex) {
         domain->domain_status = DOMAIN_STATUS_APEX;
+    }
+    prev_node = ldns_rbtree_previous(new_node);
+    if (!prev_node || prev_node == LDNS_RBTREE_NULL) {
+        prev_node = ldns_rbtree_last(domain->rrsets);
+    }
+    if (!prev_node || prev_node == LDNS_RBTREE_NULL) {
+        prev_domain = (domain_type*) prev_node->data;
+    }
+    if (prev_domain) {
+        prev_domain->nsec_nxt_changed = 1;
     }
     return domain;
 }
@@ -144,15 +158,29 @@ domain_type*
 zonedata_del_domain(zonedata_type* zd, domain_type* domain)
 {
     domain_type* del_domain = NULL;
-    ldns_rbnode_t* del_node = NULL;
+    domain_type* prev_domain = NULL;
+    ldns_rbnode_t* del_node = LDNS_RBTREE_NULL;
+    ldns_rbnode_t* prev_node = LDNS_RBTREE_NULL;
     char* str = NULL;
 
     se_log_assert(zd);
     se_log_assert(zd->domains);
     se_log_assert(domain);
 
-    del_node = ldns_rbtree_delete(zd->domains, (const void*)domain->name);
+    del_node = ldns_rbtree_search(zd->domains, (const void*)domain->name);
     if (del_node) {
+        prev_node = ldns_rbtree_previous(del_node);
+        if (!prev_node || prev_node == LDNS_RBTREE_NULL) {
+            prev_node = ldns_rbtree_last(domain->rrsets);
+        }
+        if (!prev_node || prev_node == LDNS_RBTREE_NULL) {
+            prev_domain = (domain_type*) prev_node->data;
+        }
+        if (prev_domain) {
+            prev_domain->nsec_nxt_changed = 1;
+        }
+
+        del_node = ldns_rbtree_search(zd->domains, (const void*)domain->name);
         del_domain = (domain_type*) del_node->data;
         domain_cleanup(del_domain);
         se_free((void*)del_node);
