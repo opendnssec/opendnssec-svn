@@ -86,23 +86,122 @@ domain2node(domain_type* domain)
 
 
 /**
+ * Internal lookup domain function.
+ *
+ */
+static domain_type*
+zonedata_domain_search(ldns_rbtree_t* tree, ldns_rdf* name)
+{
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+
+    se_log_assert(tree);
+    se_log_assert(name);
+
+    node = ldns_rbtree_search(tree, name);
+    if (node && node != LDNS_RBTREE_NULL) {
+        return (domain_type*) node->data;
+    }
+    return NULL;
+}
+
+
+/**
+ * Lookup domain in NSEC3 space.
+ *
+ */
+static domain_type*
+zonedata_lookup_domain_nsec3(zonedata_type* zd, ldns_rdf* name)
+{
+    se_log_assert(zd);
+    se_log_assert(zd->nsec3_domains);
+    se_log_assert(name);
+    return zonedata_domain_search(zd->nsec3_domains, name);
+}
+
+
+/**
  * Lookup domain.
  *
  */
 domain_type*
 zonedata_lookup_domain(zonedata_type* zd, ldns_rdf* name)
 {
-    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
-
     se_log_assert(zd);
     se_log_assert(zd->domains);
     se_log_assert(name);
+    return zonedata_domain_search(zd->domains, name);
+}
 
-    node = ldns_rbtree_search(zd->domains, name);
-    if (node && node != LDNS_RBTREE_NULL) {
-        return (domain_type*) node->data;
+
+/**
+ * Add a NSEC3 domain to the zone data.
+ *
+ */
+static domain_type*
+zonedata_add_domain_nsec3(zonedata_type* zd, domain_type* domain,
+    ldns_rdf* apex, nsec3params_type* nsec3params)
+{
+    ldns_rbnode_t* new_node = LDNS_RBTREE_NULL;
+    ldns_rbnode_t* prev_node = LDNS_RBTREE_NULL;
+    domain_type* nsec3_domain = NULL;
+    domain_type* prev_domain = NULL;
+    ldns_rdf* hashed_ownername = NULL;
+    ldns_rdf* hashed_label = NULL;
+    char* str = NULL;
+
+    se_log_assert(zd);
+    se_log_assert(zd->domains);
+    se_log_assert(zd->nsec3_domains);
+    se_log_assert(domain);
+    se_log_assert(domain->rrsets);
+
+    /**
+     * The owner name of the NSEC3 RR is the hash of the original owner
+     * name, prepended as a single label to the zone name.
+     */
+    hashed_label = ldns_nsec3_hash_name(domain->name,
+        nsec3params->algorithm, nsec3params->iterations,
+        nsec3params->salt_len, nsec3params->salt_data);
+    hashed_ownername = ldns_dname_cat_clone(
+        (const ldns_rdf*) hashed_label,
+        (const ldns_rdf*) apex);
+    ldns_rdf_deep_free(hashed_label);
+
+    nsec3_domain = zonedata_lookup_domain_nsec3(zd, hashed_ownername);
+    if (!nsec3_domain) {
+        nsec3_domain = domain_create(hashed_ownername);
+        nsec3_domain->domain_status = DOMAIN_STATUS_HASH;
+        ldns_rdf_deep_free(hashed_ownername);
+        new_node = domain2node(nsec3_domain);
+        if (!ldns_rbtree_insert(zd->nsec3_domains, new_node)) {
+            str = ldns_rdf2str(nsec3_domain->name);
+            se_log_error("unable to add NSEC3 domain %s", str);
+            se_free((void*)str);
+            se_free((void*)new_node);
+            domain_cleanup(nsec3_domain);
+            return NULL;
+        }
+        nsec3_domain->nsec_nxt_changed = 1;
+        /* mark the change in the previous NSEC3 domain */
+        prev_node = ldns_rbtree_previous(new_node);
+        if (!prev_node || prev_node == LDNS_RBTREE_NULL) {
+            prev_node = ldns_rbtree_last(zd->nsec3_domains);
+        }
+        if (!prev_node || prev_node == LDNS_RBTREE_NULL) {
+            prev_domain = (domain_type*) prev_node->data;
+        }
+        if (prev_domain) {
+            prev_domain->nsec_nxt_changed = 1;
+        }
+        return nsec3_domain;
+    } else {
+        str = ldns_rdf2str(hashed_ownername);
+        ldns_rdf_deep_free(hashed_ownername);
+        se_log_error("unable to add NSEC3 domain %s (has collision?) ", str);
+        se_free((void*)str);
+        return NULL;
     }
-    return NULL;
+    return nsec3_domain;
 }
 
 
@@ -133,12 +232,15 @@ zonedata_add_domain(zonedata_type* zd, domain_type* domain, int at_apex)
     }
     domain->domain_status = DOMAIN_STATUS_NONE;
     domain->nsec_bitmap_changed = 1;
+    domain->nsec_nxt_changed = 1;
     if (at_apex) {
         domain->domain_status = DOMAIN_STATUS_APEX;
     }
+    /* mark previous domain for NSEC */
+    domain->nsec_nxt_changed = 1;
     prev_node = ldns_rbtree_previous(new_node);
     if (!prev_node || prev_node == LDNS_RBTREE_NULL) {
-        prev_node = ldns_rbtree_last(domain->rrsets);
+        prev_node = ldns_rbtree_last(zd->domains);
     }
     if (!prev_node || prev_node == LDNS_RBTREE_NULL) {
         prev_domain = (domain_type*) prev_node->data;
@@ -151,11 +253,11 @@ zonedata_add_domain(zonedata_type* zd, domain_type* domain, int at_apex)
 
 
 /**
- * Delete a domain from the zone data.
+ * Internal delete domain function.
  *
  */
-domain_type*
-zonedata_del_domain(zonedata_type* zd, domain_type* domain)
+static domain_type*
+zonedata_domain_delete(ldns_rbtree_t* tree, domain_type* domain)
 {
     domain_type* del_domain = NULL;
     domain_type* prev_domain = NULL;
@@ -163,15 +265,14 @@ zonedata_del_domain(zonedata_type* zd, domain_type* domain)
     ldns_rbnode_t* prev_node = LDNS_RBTREE_NULL;
     char* str = NULL;
 
-    se_log_assert(zd);
-    se_log_assert(zd->domains);
+    se_log_assert(tree);
     se_log_assert(domain);
 
-    del_node = ldns_rbtree_search(zd->domains, (const void*)domain->name);
+    del_node = ldns_rbtree_search(tree, (const void*)domain->name);
     if (del_node) {
         prev_node = ldns_rbtree_previous(del_node);
         if (!prev_node || prev_node == LDNS_RBTREE_NULL) {
-            prev_node = ldns_rbtree_last(domain->rrsets);
+            prev_node = ldns_rbtree_last(tree);
         }
         if (!prev_node || prev_node == LDNS_RBTREE_NULL) {
             prev_domain = (domain_type*) prev_node->data;
@@ -180,7 +281,7 @@ zonedata_del_domain(zonedata_type* zd, domain_type* domain)
             prev_domain->nsec_nxt_changed = 1;
         }
 
-        del_node = ldns_rbtree_search(zd->domains, (const void*)domain->name);
+        del_node = ldns_rbtree_search(tree, (const void*)domain->name);
         del_domain = (domain_type*) del_node->data;
         domain_cleanup(del_domain);
         se_free((void*)del_node);
@@ -193,6 +294,39 @@ zonedata_del_domain(zonedata_type* zd, domain_type* domain)
     }
     return domain;
 }
+
+
+/**
+ * Delete a NSEC3 domain from the zone data.
+ *
+ */
+static domain_type*
+zonedata_del_domain_nsec3(zonedata_type* zd, domain_type* domain)
+{
+    se_log_assert(zd);
+    se_log_assert(zd->nsec3_domains);
+    se_log_assert(domain);
+    return zonedata_domain_delete(zd->nsec3_domains, domain);
+}
+
+
+/**
+ * Delete a domain from the zone data.
+ *
+ */
+domain_type*
+zonedata_del_domain(zonedata_type* zd, domain_type* domain)
+{
+    domain_type* nsec3_domain = NULL;
+    se_log_assert(zd);
+    se_log_assert(zd->domains);
+    se_log_assert(domain);
+    if (domain->nsec3) {
+        nsec3_domain = zonedata_del_domain_nsec3(zd, domain->nsec3);
+    }
+    return zonedata_domain_delete(zd->domains, domain);
+}
+
 
 /**
  * Add empty non-terminals to a domain in the zone data.
@@ -347,7 +481,8 @@ zonedata_nsecify(zonedata_type* zd, ldns_rr_class klass)
             apex = domain;
         }
         /* don't do glue-only or empty domains */
-        if (domain->domain_status == DOMAIN_STATUS_OCCLUDED ||
+        if (domain->domain_status == DOMAIN_STATUS_NONE ||
+            domain->domain_status == DOMAIN_STATUS_OCCLUDED ||
             domain_count_rrset(domain) <= 0) {
             node = ldns_rbtree_next(node);
             continue;
@@ -364,7 +499,8 @@ zonedata_nsecify(zonedata_type* zd, ldns_rr_class klass)
                 return 1;
             }
             /* don't do glue-only or empty domains */
-            if (to->domain_status == DOMAIN_STATUS_OCCLUDED ||
+            if (to->domain_status == DOMAIN_STATUS_NONE ||
+                to->domain_status == DOMAIN_STATUS_OCCLUDED ||
                 domain_count_rrset(to) <= 0) {
                 node = ldns_rbtree_next(node);
             } else {
@@ -386,11 +522,130 @@ zonedata_nsecify(zonedata_type* zd, ldns_rr_class klass)
  *
  */
 int
-zonedata_nsecify3(zonedata_type* zd, ldns_rr_class klass, nsec3params_type* nsec3params)
+zonedata_nsecify3(zonedata_type* zd, ldns_rr_class klass,
+    nsec3params_type* nsec3params)
 {
-    se_log_assert(zd);
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+    domain_type* domain = NULL;
+    domain_type* to = NULL;
+    domain_type* apex = NULL;
+    char* str = NULL;
 
-    return zonedata_nsecify(zd, klass); /* for now */
+    se_log_assert(zd);
+    se_log_assert(zd->domains);
+    se_log_assert(nsec3params);
+
+    if (!zd->nsec3_domains) {
+        zd->nsec3_domains = ldns_rbtree_create(domain_compare);
+    }
+
+    node = ldns_rbtree_first(zd->domains);
+    while (node && node != LDNS_RBTREE_NULL) {
+        domain = (domain_type*) node->data;
+        if (domain->domain_status == DOMAIN_STATUS_APEX) {
+            apex = domain;
+        }
+        /* don't do glue-only domains */
+        if (domain->domain_status == DOMAIN_STATUS_NONE ||
+            domain->domain_status == DOMAIN_STATUS_OCCLUDED ||
+            domain->domain_status == DOMAIN_STATUS_ENT_GLUE) {
+            node = ldns_rbtree_next(node);
+            continue;
+        }
+        /* Opt-Out? */
+        if (nsec3params->flags) {
+            /* If Opt-Out is being used, owner names of unsigned delegations
+               MAY be excluded. */
+            if (domain->domain_status != DOMAIN_STATUS_APEX &&
+                domain_lookup_rrset(domain, LDNS_RR_TYPE_NS) &&
+                !domain_lookup_rrset(domain, LDNS_RR_TYPE_DS)) {
+                str = ldns_rdf2str(domain->name);
+                se_log_debug("nsecify3: opt-out unsigned delegation %s", str);
+                se_free((void*) str);
+                node = ldns_rbtree_next(node);
+                continue;
+            }
+            if (domain->domain_status == DOMAIN_STATUS_ENT_NS) {
+                str = ldns_rdf2str(domain->name);
+                se_log_debug("nsecify3: opt-out empty non-terminal %s (to "
+                    "unsigned delegation)", str);
+                se_free((void*) str);
+                node = ldns_rbtree_next(node);
+                continue;
+            }
+            if (domain->domain_status == DOMAIN_STATUS_ENT_GLUE ||
+                domain->domain_status == DOMAIN_STATUS_OCCLUDED) {
+                node = ldns_rbtree_next(node);
+                continue;
+            }
+        }
+
+        if (!apex) {
+            se_log_alert("apex undefined!, aborting nsecify3");
+            return 1;
+        }
+
+        /* add the NSEC3 domain */
+        if (!domain->nsec3) {
+            domain->nsec3 = zonedata_add_domain_nsec3(zd, domain, apex->name,
+                nsec3params);
+            if (domain->nsec3 == NULL) {
+                str = ldns_rdf2str(domain->name);
+                se_log_alert("failed to add NSEC3 domain for %s", str);
+                se_free((void*) str);
+                return 1;
+            }
+            domain->nsec3->nsec3 = domain; /* back reference */
+        }
+
+        /* The Next Hashed Owner Name field is left blank for the moment. */
+
+        /**
+         * Additionally, for collision detection purposes, optionally
+         * create an additional NSEC3 RR corresponding to the original
+         * owner name with the asterisk label prepended (i.e., as if a
+         * wildcard existed as a child of this owner name) and keep track
+         * of this original owner name. Mark this NSEC3 RR as temporary.
+        **/
+        /* [TODO] */
+        /**
+         * pseudo:
+         * wildcard_name = *.domain->name;
+         * hashed_ownername = ldns_nsec3_hash_name(domain->name,
+               nsec3params->algorithm, nsec3params->iterations,
+               nsec3params->salt_len, nsec3params->salt);
+         * domain->nsec3_wildcard = domain_create(hashed_ownername);
+        **/
+
+        node = ldns_rbtree_next(node);
+    }
+
+    /* Now we have the complete NSEC3 tree */
+
+    /**
+     * In each NSEC3 RR, insert the next hashed owner name by using the
+     * value of the next NSEC3 RR in hash order.  The next hashed owner
+     * name of the last NSEC3 RR in the zone contains the value of the
+     * hashed owner name of the first NSEC3 RR in the hash order.
+    **/
+    node = ldns_rbtree_first(zd->nsec3_domains);
+    while (node && node != LDNS_RBTREE_NULL) {
+        domain = (domain_type*) node->data;
+        node = ldns_rbtree_next(node);
+        if (!node || node == LDNS_RBTREE_NULL) {
+            node = ldns_rbtree_first(zd->nsec3_domains);
+        }
+        to = (domain_type*) node->data;
+
+        /* ready to add the NSEC3 record */
+        if (domain_nsecify3(domain, to, zd->default_ttl, klass,
+            nsec3params) != 0) {
+            se_log_error("adding NSEC3s to domain failed");
+            return 1;
+        }
+    }
+
+    return 0;
 }
 
 
