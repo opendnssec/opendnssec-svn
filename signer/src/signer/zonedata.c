@@ -381,11 +381,13 @@ zonedata_domain_entize(zonedata_type* zd, domain_type* domain, ldns_rdf* apex)
             parent_domain->domain_status =
                 (ent2unsigned_deleg?DOMAIN_STATUS_ENT_NS:
                                     DOMAIN_STATUS_ENT_AUTH);
+            parent_domain->inbound_serial = domain->inbound_serial;
             domain->parent = parent_domain;
             /* continue with the parent domain */
             domain = parent_domain;
         } else {
             ldns_rdf_deep_free(parent_rdf);
+            parent_domain->inbound_serial = domain->inbound_serial;
             domain->parent = parent_domain;
             if (domain_count_rrset(parent_domain) <= 0) {
                 parent_domain->domain_status =
@@ -526,6 +528,7 @@ zonedata_nsecify3(zonedata_type* zd, ldns_rr_class klass,
     nsec3params_type* nsec3params)
 {
     ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+    ldns_rbnode_t* nsec3_node = LDNS_RBTREE_NULL;
     domain_type* domain = NULL;
     domain_type* to = NULL;
     domain_type* apex = NULL;
@@ -545,10 +548,15 @@ zonedata_nsecify3(zonedata_type* zd, ldns_rr_class klass,
         if (domain->domain_status == DOMAIN_STATUS_APEX) {
             apex = domain;
         }
+
         /* don't do glue-only domains */
         if (domain->domain_status == DOMAIN_STATUS_NONE ||
             domain->domain_status == DOMAIN_STATUS_OCCLUDED ||
             domain->domain_status == DOMAIN_STATUS_ENT_GLUE) {
+            str = ldns_rdf2str(domain->name);
+            se_log_debug("nsecify3: skip glue domain %s", str);
+            se_free((void*) str);
+
             node = ldns_rbtree_next(node);
             continue;
         }
@@ -570,11 +578,6 @@ zonedata_nsecify3(zonedata_type* zd, ldns_rr_class klass,
                 se_log_debug("nsecify3: opt-out empty non-terminal %s (to "
                     "unsigned delegation)", str);
                 se_free((void*) str);
-                node = ldns_rbtree_next(node);
-                continue;
-            }
-            if (domain->domain_status == DOMAIN_STATUS_ENT_GLUE ||
-                domain->domain_status == DOMAIN_STATUS_OCCLUDED) {
                 node = ldns_rbtree_next(node);
                 continue;
             }
@@ -631,11 +634,11 @@ zonedata_nsecify3(zonedata_type* zd, ldns_rr_class klass,
     node = ldns_rbtree_first(zd->nsec3_domains);
     while (node && node != LDNS_RBTREE_NULL) {
         domain = (domain_type*) node->data;
-        node = ldns_rbtree_next(node);
-        if (!node || node == LDNS_RBTREE_NULL) {
-            node = ldns_rbtree_first(zd->nsec3_domains);
+        nsec3_node = ldns_rbtree_next(node);
+        if (!nsec3_node || nsec3_node == LDNS_RBTREE_NULL) {
+             nsec3_node = ldns_rbtree_first(zd->nsec3_domains);
         }
-        to = (domain_type*) node->data;
+        to = (domain_type*) nsec3_node->data;
 
         /* ready to add the NSEC3 record */
         if (domain_nsecify3(domain, to, zd->default_ttl, klass,
@@ -643,6 +646,7 @@ zonedata_nsecify3(zonedata_type* zd, ldns_rr_class klass,
             se_log_error("adding NSEC3s to domain failed");
             return 1;
         }
+        node = ldns_rbtree_next(node);
     }
 
     return 0;
