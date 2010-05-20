@@ -204,7 +204,7 @@ domain_update(domain_type* domain, uint32_t serial)
     se_log_assert(domain);
     se_log_assert(domain->rrsets);
 
-    if (domain->inbound_serial < serial) {
+    if (domain->outbound_serial < serial) {
         if (domain->rrsets->root != LDNS_RBTREE_NULL) {
             node = ldns_rbtree_first(domain->rrsets);
         }
@@ -221,7 +221,7 @@ domain_update(domain_type* domain, uint32_t serial)
                 rrset = domain_del_rrset(domain, rrset);
             }
         }
-        domain->inbound_serial = serial;
+        domain->outbound_serial = serial;
     }
     return 0;
 }
@@ -308,7 +308,7 @@ domain_nsecify(domain_type* domain, domain_type* to, uint32_t ttl,
     se_log_assert(to);
     se_log_assert(to->name);
 
-    if (domain->nsec_serial < domain->inbound_serial) {
+    if (domain->nsec_serial < domain->outbound_serial) {
         /* create types bitmap */
         if (!domain->nsec_rrset || domain->nsec_bitmap_changed) {
             domain_nsecify_create_bitmap(domain, types, &types_count);
@@ -364,7 +364,7 @@ domain_nsecify(domain_type* domain, domain_type* to, uint32_t ttl,
                 domain->nsec_bitmap_changed = 0;
             }
         }
-        domain->nsec_serial = domain->inbound_serial;
+        domain->nsec_serial = domain->outbound_serial;
     }
     return 0;
 }
@@ -398,7 +398,7 @@ domain_nsecify3(domain_type* domain, domain_type* to, uint32_t ttl,
     se_log_assert(nsec3params);
 
     orig_domain = domain->nsec3; /* use the back reference */
-    if (orig_domain->nsec_serial < orig_domain->inbound_serial) {
+    if (orig_domain->nsec_serial < orig_domain->outbound_serial) {
         /* create types bitmap */
         if (!domain->nsec_rrset || orig_domain->nsec_bitmap_changed) {
             domain_nsecify_create_bitmap(orig_domain, types, &types_count);
@@ -493,7 +493,7 @@ domain_nsecify3(domain_type* domain, domain_type* to, uint32_t ttl,
             }
             orig_domain->nsec_nxt_changed = 0;
         }
-        orig_domain->nsec_serial = orig_domain->inbound_serial;
+        orig_domain->nsec_serial = orig_domain->outbound_serial;
     }
     return 0;
 }
