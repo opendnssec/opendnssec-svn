@@ -35,14 +35,13 @@
 #include "signer/domain.h"
 #include "signer/nsec3params.h"
 #include "signer/zonedata.h"
+#include "util/duration.h"
 #include "util/file.h"
 #include "util/log.h"
 #include "util/se_malloc.h"
 
 #include <ldns/ldns.h> /* ldns_dname_*(), ldns_rbtree_*() */
 
-/* copycode: This define is taken from BIND9 */
-#define DNS_SERIAL_GT(a, b) ((int)(((a) - (b)) & 0xFFFFFFFF) > 0)
 
 /**
  * Compare domains.
@@ -248,12 +247,10 @@ zonedata_add_domain(zonedata_type* zd, domain_type* domain, int at_apex)
     if (!prev_node || prev_node == LDNS_RBTREE_NULL) {
         prev_node = ldns_rbtree_last(zd->domains);
     }
-    if (!prev_node || prev_node == LDNS_RBTREE_NULL) {
-        prev_domain = (domain_type*) prev_node->data;
-    }
-    if (prev_domain) {
-        prev_domain->nsec_nxt_changed = 1;
-    }
+    se_log_assert(prev_node);
+    se_log_assert(prev_node->data);
+    prev_domain = (domain_type*) prev_node->data;
+    prev_domain->nsec_nxt_changed = 1;
     return domain;
 }
 

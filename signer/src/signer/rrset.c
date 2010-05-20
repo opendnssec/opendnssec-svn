@@ -197,7 +197,7 @@ rrset_update(rrset_type* rrset, uint32_t serial)
     se_log_assert(rrset);
     se_log_assert(serial);
 
-    if (rrset->outbound_serial < serial) {
+    if (DNS_SERIAL_GT(serial, rrset->outbound_serial)) {
         /* delete RRs */
         rrs = rrset->del;
         while (rrs) {

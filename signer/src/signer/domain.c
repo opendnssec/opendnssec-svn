@@ -34,6 +34,7 @@
 #include "config.h"
 #include "signer/domain.h"
 #include "signer/rrset.h"
+#include "util/duration.h"
 #include "util/log.h"
 #include "util/se_malloc.h"
 #include "util/util.h"
@@ -204,7 +205,7 @@ domain_update(domain_type* domain, uint32_t serial)
     se_log_assert(domain);
     se_log_assert(domain->rrsets);
 
-    if (domain->outbound_serial < serial) {
+    if (DNS_SERIAL_GT(serial, domain->outbound_serial)) {
         if (domain->rrsets->root != LDNS_RBTREE_NULL) {
             node = ldns_rbtree_first(domain->rrsets);
         }
@@ -308,7 +309,7 @@ domain_nsecify(domain_type* domain, domain_type* to, uint32_t ttl,
     se_log_assert(to);
     se_log_assert(to->name);
 
-    if (domain->nsec_serial < domain->outbound_serial) {
+    if (DNS_SERIAL_GT(domain->outbound_serial, domain->nsec_serial)) {
         /* create types bitmap */
         if (!domain->nsec_rrset || domain->nsec_bitmap_changed) {
             domain_nsecify_create_bitmap(domain, types, &types_count);
@@ -319,6 +320,7 @@ domain_nsecify(domain_type* domain, domain_type* to, uint32_t ttl,
         }
         /* update the NSEC RRset */
         if (!domain->nsec_rrset) {
+            se_log_debug("new nsec");
             nsec_rr = ldns_rr_new();
             if (!nsec_rr) {
                 se_log_alert("failed to create NSEC rr");
@@ -345,6 +347,7 @@ domain_nsecify(domain_type* domain, domain_type* to, uint32_t ttl,
             nsec_rr = domain->nsec_rrset->rrs->rr;
 
             if (domain->nsec_nxt_changed) {
+                se_log_debug("nsec nxt changed");
                 old_rdf = ldns_rr_set_rdf(nsec_rr, ldns_rdf_clone(to->name),
                     SE_NSEC_RDATA_NXT);
                 if (!old_rdf) {
@@ -354,6 +357,7 @@ domain_nsecify(domain_type* domain, domain_type* to, uint32_t ttl,
                 domain->nsec_nxt_changed = 0;
             }
             if (domain->nsec_bitmap_changed) {
+                se_log_debug("nsec bitmap changed");
                 old_rdf = ldns_rr_set_rdf(nsec_rr,
                     ldns_dnssec_create_nsec_bitmap(types, types_count,
                     LDNS_RR_TYPE_NSEC), SE_NSEC_RDATA_BITMAP);
@@ -398,7 +402,8 @@ domain_nsecify3(domain_type* domain, domain_type* to, uint32_t ttl,
     se_log_assert(nsec3params);
 
     orig_domain = domain->nsec3; /* use the back reference */
-    if (orig_domain->nsec_serial < orig_domain->outbound_serial) {
+    if (DNS_SERIAL_GT(orig_domain->outbound_serial, orig_domain->nsec_serial))
+    {
         /* create types bitmap */
         if (!domain->nsec_rrset || orig_domain->nsec_bitmap_changed) {
             domain_nsecify_create_bitmap(orig_domain, types, &types_count);

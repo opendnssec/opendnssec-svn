@@ -48,9 +48,6 @@
 #include <libhsm.h> /* hsm_create_context(), hsm_get_key(), hsm_destroy_context() */
 #include <libhsmdns.h> /* hsm_create_context(), hsm_get_key(), hsm_destroy_context() */
 
-/* copycode: This define is taken from BIND9 */
-#define DNS_SERIAL_GT(a, b) ((int)(((a) - (b)) & 0xFFFFFFFF) > 0)
-
 
 /**
  * Create a new zone.
