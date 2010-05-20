@@ -135,6 +135,87 @@ cmdhandler_handle_cmd_zones(int sockfd, cmdhandler_type* cmdc)
 
 
 /**
+ * Handle the 'zones' command.
+ *
+ */
+static void
+cmdhandler_handle_cmd_sign(int sockfd, cmdhandler_type* cmdc, const char* tbd)
+{
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+    task_type* task = NULL;
+    time_t now = time(NULL);
+    int found = 0, scheduled = 0;
+    char buf[ODS_SE_MAXLINE];
+    size_t i = 0;
+
+    se_log_assert(tbd);
+    se_log_assert(cmdc);
+    se_log_assert(cmdc->engine);
+    se_log_assert(cmdc->engine->tasklist);
+
+    /* lock tasklist */
+    lock_basic_lock(&cmdc->engine->tasklist->tasklist_lock);
+
+    node = ldns_rbtree_first(cmdc->engine->tasklist->tasks);
+    while (node && node != LDNS_RBTREE_NULL) {
+        task = (task_type*) node->key;
+
+        if (se_strcmp(tbd, "--all") == 0) {
+            /* just flush it */
+            task->flush = 1;
+            task->what = TASK_READ;
+        } else if (se_strcmp(tbd, task->who) == 0) {
+            task = tasklist_delete_task(cmdc->engine->tasklist, task);
+            task->when = now;
+            /* NOTE: isn't this counter-intuitive? should we read unsigned
+             * zone on a different command?
+             */
+            task->what = TASK_READ;
+            task = tasklist_schedule_task(cmdc->engine->tasklist, task, 0);
+            if (task) {
+                scheduled = 1;
+            }
+            found = 1;
+            break;
+        }
+        node = ldns_rbtree_next(node);
+    }
+
+    /* unlock tasklist */
+    lock_basic_unlock(&cmdc->engine->tasklist->tasklist_lock);
+
+    if (se_strcmp(tbd, "--all") == 0) {
+        (void)snprintf(buf, ODS_SE_MAXLINE, "All zones scheduled for "
+            "immediate re-sign.\n");
+        se_writen(sockfd, buf, strlen(buf));
+
+        /* wake up sleeping workers */
+        for (i=0; i < (size_t) cmdc->engine->config->num_worker_threads; i++) {
+            worker_wakeup(cmdc->engine->workers[i]);
+        }
+    } else if (found && scheduled) {
+        (void)snprintf(buf, ODS_SE_MAXLINE, "Zone %s scheduled for "
+            "immediate re-sign.\n", tbd);
+        se_writen(sockfd, buf, strlen(buf));
+
+        /* wake up sleeping workers */
+        for (i=0; i < (size_t) cmdc->engine->config->num_worker_threads; i++) {
+            worker_wakeup(cmdc->engine->workers[i]);
+        }
+    } else if (found && !scheduled) {
+        (void)snprintf(buf, ODS_SE_MAXLINE, "Zone %s not scheduled, "
+            "already being signed right now!\n", tbd);
+        se_writen(sockfd, buf, strlen(buf));
+    } else {
+        (void)snprintf(buf, ODS_SE_MAXLINE, "Zone %s not being signed yet, "
+            "updating sign configuration\n", tbd);
+        se_writen(sockfd, buf, strlen(buf));
+        /* cmdhandler_handle_cmd_update(cmdc, tbd, sockfd); */
+    }
+    return;
+}
+
+/**
  * Handle the 'queue' command.
  *
  */
@@ -368,12 +449,13 @@ again:
         } else if (n >= 4 && strncmp(buf, "sign", 4) == 0) {
             se_log_debug("sign zone command");
             if (buf[4] == '\0') {
+                /* NOTE: wouldn't it be nice that we default to --all? */
                 cmdhandler_handle_cmd_error(sockfd, "sign command needs "
                     "an argument (either '--all' or a zone name)");
             } else if (buf[4] != ' ') {
                 cmdhandler_handle_cmd_unknown(sockfd, buf);
             } else {
-                cmdhandler_handle_cmd_notimpl(sockfd, buf);
+                cmdhandler_handle_cmd_sign(sockfd, cmdc, &buf[5]);
             }
         } else if (n >= 5 && strncmp(buf, "clear", 5) == 0) {
             se_log_debug("clear zone command");

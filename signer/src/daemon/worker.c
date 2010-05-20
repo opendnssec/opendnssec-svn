@@ -280,7 +280,6 @@ void
 worker_wakeup(worker_type* worker)
 {
     se_log_assert(worker);
-    se_log_assert(worker->sleeping);
     se_log_assert(!worker->waiting);
     if (worker && worker->sleeping && !worker->waiting) {
         se_log_debug("wake up worker[%i]", worker->thread_num);
@@ -288,8 +287,6 @@ worker_wakeup(worker_type* worker)
         lock_basic_alarm(&worker->worker_alarm);
         worker->sleeping = 0;
         lock_basic_unlock(&worker->worker_lock);
-    } else {
-        se_log_warning("woke up awake worker");
     }
     return;
 }
@@ -304,15 +301,12 @@ worker_notify(worker_type* worker)
 {
     se_log_assert(worker);
     se_log_assert(!worker->sleeping);
-    se_log_assert(worker->waiting);
     if (worker && worker->waiting && !worker->sleeping) {
         se_log_debug("notify worker[%i]", worker->thread_num);
         lock_basic_lock(&worker->worker_lock);
         lock_basic_alarm(&worker->worker_alarm);
         worker->waiting = 0;
         lock_basic_unlock(&worker->worker_lock);
-    } else {
-        se_log_warning("notified active or sleeping worker");
     }
     return;
 }
