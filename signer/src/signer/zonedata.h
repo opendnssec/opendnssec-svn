@@ -36,6 +36,7 @@
 
 #include "config.h"
 #include "signer/domain.h"
+#include "signer/signconf.h"
 
 #include <ldns/ldns.h>
 
@@ -120,10 +121,11 @@ int zonedata_nsecify3(zonedata_type* zd, ldns_rr_class klass,
 /**
  * Update zone data with pending changes.
  * \param[in] zd zone data
+ * \param[in] cd signer configuration
  * \return int 0 on success, 1 on false
  *
  */
-int zonedata_update(zonedata_type* zd);
+int zonedata_update(zonedata_type* zd, signconf_type* sc);
 
 /**
  * Add RR to zone data.

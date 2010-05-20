@@ -362,11 +362,11 @@ zone_update_zonedata(zone_type* zone)
     if (zone->signconf->nsec_type == LDNS_RR_TYPE_NSEC3) {
         error = zone_publish_nsec3params(zone);
         if (error) {
-            se_log_error("error adding NSEC3PARAMS RR to zone %s", zone->name);
+            se_log_error("error adding NSEC3PARAM RR to zone %s", zone->name);
             return error;
         }
     }
-    return zonedata_update(zone->zonedata);
+    return zonedata_update(zone->zonedata, zone->signconf);
 }
 
 
