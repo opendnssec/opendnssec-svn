@@ -197,7 +197,7 @@ rrset_update(rrset_type* rrset, uint32_t serial)
     se_log_assert(rrset);
     se_log_assert(serial);
 
-    if (rrset->inbound_serial < serial) {
+    if (rrset->outbound_serial < serial) {
         /* delete RRs */
         rrs = rrset->del;
         while (rrs) {
@@ -221,7 +221,7 @@ rrset_update(rrset_type* rrset, uint32_t serial)
         rrset->add = NULL;
         rrset->rr_count = rrset->rr_count + addcount;
         rrset->rr_count = rrset->rr_count - delcount;
-        rrset->inbound_serial = serial;
+        rrset->outbound_serial = serial;
     }
     return 0;
 }
@@ -273,8 +273,8 @@ rrset_add_rr(rrset_type* rrset, ldns_rr* rr)
                 rrset_log_rr(rr, "+rr", 1);
                 return 1;
             }
-            rrset_log_rr(rr, "+rr", 5);
         }
+        rrset_log_rr(rr, "+rr", 5);
     }
     return 0;
 }
@@ -314,8 +314,8 @@ rrset_del_rr(rrset_type* rrset, ldns_rr* rr)
                 rrset_log_rr(rr, "-rr", 1);
                 return 1;
             }
-            rrset_log_rr(rr, "-rr", 5);
         }
+        rrset_log_rr(rr, "-rr", 5);
     }
     return 0;
 }

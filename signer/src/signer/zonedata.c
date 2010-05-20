@@ -35,11 +35,14 @@
 #include "signer/domain.h"
 #include "signer/nsec3params.h"
 #include "signer/zonedata.h"
+#include "util/file.h"
 #include "util/log.h"
 #include "util/se_malloc.h"
 
 #include <ldns/ldns.h> /* ldns_dname_*(), ldns_rbtree_*() */
 
+/* copycode: This define is taken from BIND9 */
+#define DNS_SERIAL_GT(a, b) ((int)(((a) - (b)) & 0xFFFFFFFF) > 0)
 
 /**
  * Compare domains.
@@ -225,11 +228,14 @@ zonedata_add_domain(zonedata_type* zd, domain_type* domain, int at_apex)
     new_node = domain2node(domain);
     if (ldns_rbtree_insert(zd->domains, new_node) == NULL) {
         str = ldns_rdf2str(domain->name);
-        se_log_error("unable to add domain %s: already present", domain->name);
+        se_log_error("unable to add domain %s: already present", str);
         se_free((void*)str);
         se_free((void*)new_node);
         return NULL;
     }
+    str = ldns_rdf2str(domain->name);
+    se_log_debug("+DD %s", str);
+    se_free((void*) str);
     domain->domain_status = DOMAIN_STATUS_NONE;
     domain->nsec_bitmap_changed = 1;
     domain->nsec_nxt_changed = 1;
@@ -281,14 +287,14 @@ zonedata_domain_delete(ldns_rbtree_t* tree, domain_type* domain)
             prev_domain->nsec_nxt_changed = 1;
         }
 
-        del_node = ldns_rbtree_search(tree, (const void*)domain->name);
+        del_node = ldns_rbtree_delete(tree, (const void*)domain->name);
         del_domain = (domain_type*) del_node->data;
         domain_cleanup(del_domain);
         se_free((void*)del_node);
         return NULL;
     } else {
         str = ldns_rdf2str(domain->name);
-        se_log_error("unable to delete domain %s: not in tree", domain->name);
+        se_log_error("unable to delete domain %s: not in tree", str);
         se_free((void*)str);
         return domain;
     }
@@ -318,9 +324,13 @@ domain_type*
 zonedata_del_domain(zonedata_type* zd, domain_type* domain)
 {
     domain_type* nsec3_domain = NULL;
+    char* str = NULL;
     se_log_assert(zd);
     se_log_assert(zd->domains);
     se_log_assert(domain);
+    str = ldns_rdf2str(domain->name);
+    se_log_debug("-DD %s", str);
+    se_free((void*) str);
     if (domain->nsec3) {
         nsec3_domain = zonedata_del_domain_nsec3(zd, domain->nsec3);
     }
@@ -381,13 +391,13 @@ zonedata_domain_entize(zonedata_type* zd, domain_type* domain, ldns_rdf* apex)
             parent_domain->domain_status =
                 (ent2unsigned_deleg?DOMAIN_STATUS_ENT_NS:
                                     DOMAIN_STATUS_ENT_AUTH);
-            parent_domain->inbound_serial = domain->inbound_serial;
+            parent_domain->outbound_serial = domain->outbound_serial;
             domain->parent = parent_domain;
             /* continue with the parent domain */
             domain = parent_domain;
         } else {
             ldns_rdf_deep_free(parent_rdf);
-            parent_domain->inbound_serial = domain->inbound_serial;
+            parent_domain->outbound_serial = domain->outbound_serial;
             domain->parent = parent_domain;
             if (domain_count_rrset(parent_domain) <= 0) {
                 parent_domain->domain_status =
@@ -654,21 +664,79 @@ zonedata_nsecify3(zonedata_type* zd, ldns_rr_class klass,
 
 
 /**
+ * Update the serial.
+ *
+ */
+static int
+zonedata_update_serial(zonedata_type* zd, signconf_type* sc)
+{
+    uint32_t soa = 0;
+    uint32_t prev = 0;
+    uint32_t update = 0;
+
+    se_log_assert(zd);
+    se_log_assert(sc);
+
+    prev = zd->outbound_serial;
+    if (se_strcmp(sc->soa_serial, "unixtime") == 0) {
+        soa = (uint32_t) time(NULL);
+        if (!DNS_SERIAL_GT(soa, prev)) {
+            soa = prev + 1;
+        }
+        update = soa - prev;
+    } else if (strncmp(sc->soa_serial, "counter", 7) == 0) {
+        soa = zd->inbound_serial;
+        if (!DNS_SERIAL_GT(soa, prev)) {
+            soa = prev + 1;
+        }
+        update = soa - prev;
+    } else if (strncmp(sc->soa_serial, "datecounter", 11) == 0) {
+        soa = (uint32_t) time_datestamp(0, "%Y%m%d", NULL) * 100;
+        if (!DNS_SERIAL_GT(soa, prev)) {
+            soa = prev + 1;
+        }
+        update = soa - prev;
+    } else if (strncmp(sc->soa_serial, "keep", 4) == 0) {
+        soa = zd->inbound_serial;
+        if (!DNS_SERIAL_GT(soa, prev)) {
+            se_log_error("can not keep SOA SERIAL from input zone "
+                " (%u): output SOA SERIAL is %u", soa, prev);
+            return 1;
+        }
+        prev = soa;
+        update = 0;
+    } else {
+        se_log_error("unknown serial type %s", sc->soa_serial);
+        return 1;
+    }
+
+    /* serial is stored in 32 bits */
+    if (update > 0x7FFFFFFF) {
+        update = 0x7FFFFFFF;
+    }
+    zd->outbound_serial = (prev + update); /* automatically does % 2^32 */
+    return 0;
+}
+
+/**
  * Update zone data with pending changes.
  *
  */
 int
-zonedata_update(zonedata_type* zd)
+zonedata_update(zonedata_type* zd, signconf_type* sc)
 {
     ldns_rbnode_t* node = LDNS_RBTREE_NULL;
     domain_type* domain = NULL;
     domain_type* parent = NULL;
+    int error = 0;
 
+    se_log_assert(sc);
     se_log_assert(zd);
     se_log_assert(zd->domains);
 
-    if (!zd->inbound_serial) {
-        se_log_error("unable to update zonedata: serial is zero");
+    error = zonedata_update_serial(zd, sc);
+    if (error || !zd->outbound_serial) {
+        se_log_error("unable to update zonedata, serial is zero");
         return 1;
     }
 
@@ -677,14 +745,17 @@ zonedata_update(zonedata_type* zd)
     }
     while (node && node != LDNS_RBTREE_NULL) {
         domain = (domain_type*) node->data;
-        if (domain_update(domain, zd->inbound_serial) != 0) {
+        if (domain_update(domain, zd->outbound_serial) != 0) {
             se_log_error("unable to update zonedata to serial %u: failed "
-                "to update domain", zd->inbound_serial);
+                "to update domain", zd->outbound_serial);
             return 1;
         }
         node = ldns_rbtree_next(node);
         /* delete memory of domain if no RRsets exists */
-        if (domain_count_rrset(domain) <= 0) {
+        if (domain_count_rrset(domain) <= 0 &&
+            (domain->domain_status != DOMAIN_STATUS_ENT_AUTH &&
+             domain->domain_status != DOMAIN_STATUS_ENT_NS &&
+             domain->domain_status != DOMAIN_STATUS_ENT_GLUE)) {
             parent = domain->parent;
             domain = zonedata_del_domain(zd, domain);
             while (parent && domain_count_rrset(parent) <= 0) {
