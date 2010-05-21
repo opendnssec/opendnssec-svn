@@ -277,12 +277,10 @@ zonedata_domain_delete(ldns_rbtree_t* tree, domain_type* domain)
         if (!prev_node || prev_node == LDNS_RBTREE_NULL) {
             prev_node = ldns_rbtree_last(tree);
         }
-        if (!prev_node || prev_node == LDNS_RBTREE_NULL) {
-            prev_domain = (domain_type*) prev_node->data;
-        }
-        if (prev_domain) {
-            prev_domain->nsec_nxt_changed = 1;
-        }
+        se_log_assert(prev_node);
+        se_log_assert(prev_node->data);
+        prev_domain = (domain_type*) prev_node->data;
+        prev_domain->nsec_nxt_changed = 1;
 
         del_node = ldns_rbtree_delete(tree, (const void*)domain->name);
         del_domain = (domain_type*) del_node->data;
