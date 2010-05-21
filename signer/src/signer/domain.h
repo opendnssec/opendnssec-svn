@@ -37,6 +37,7 @@
 #include "config.h"
 #include "signer/nsec3params.h"
 #include "signer/rrset.h"
+#include "signer/signconf.h"
 
 #include <ldns/ldns.h>
 #include <time.h>
@@ -160,7 +161,19 @@ int domain_nsecify3(domain_type* domain, domain_type* to, uint32_t ttl,
     ldns_rr_class klass, nsec3params_type* nsec3params);
 
 /**
- * Add RR to domain
+ * Sign domain.
+ * \param[in] domain domain
+ * \param[in] owner owner of the zone
+ * \param[in] sc sign configuration
+ * \param[in] signtime time zone is being signed
+ * \return int 0 on success, 1 on error
+ *
+ */
+int domain_sign(domain_type* domain, ldns_rdf* owner, signconf_type* sc,
+    time_t signtime);
+
+/**
+ * Add RR to domain.
  * \param[in] domain domain
  * \param[in] rr RR
  * \return int 0 on success, 1 on error

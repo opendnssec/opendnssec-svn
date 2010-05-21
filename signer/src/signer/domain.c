@@ -505,6 +505,59 @@ domain_nsecify3(domain_type* domain, domain_type* to, uint32_t ttl,
 
 
 /**
+ * Sign domain.
+ *
+ */
+int
+domain_sign(domain_type* domain, ldns_rdf* owner, signconf_type* sc,
+    time_t signtime)
+{
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+    rrset_type* rrset = NULL;
+    int error = 0;
+
+    se_log_assert(domain);
+    se_log_assert(domain->rrsets);
+    se_log_assert(owner);
+    se_log_assert(sc);
+    se_log_assert(signtime);
+
+    if (domain->domain_status == DOMAIN_STATUS_OCCLUDED) {
+        return error;
+    }
+
+    if (sc->nsec_type == LDNS_RR_TYPE_NSEC3) {
+        se_log_assert(domain->nsec3);
+        error = rrset_sign(domain->nsec3->nsec_rrset, owner, sc, signtime,
+            domain->outbound_serial);
+        if (error) {
+            se_log_error("failed to sign NSEC3 RRset");
+            return error;
+        }
+    }
+
+    if (domain->rrsets->root != LDNS_RBTREE_NULL) {
+        node = ldns_rbtree_first(domain->rrsets);
+    }
+    while (node && node != LDNS_RBTREE_NULL) {
+        rrset = (rrset_type*) node->data;
+
+        /* skip some cases */
+
+        error = rrset_sign(rrset, owner, sc, signtime,
+            domain->outbound_serial);
+        if (error) {
+            se_log_error("failed to sign %i RRset", (int) rrset->rr_type);
+            return error;
+        }
+        node = ldns_rbtree_next(node);
+    }
+
+    return 0;
+}
+
+
+/**
  * Add RR to domain.
  *
  */
