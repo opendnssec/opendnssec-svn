@@ -95,6 +95,16 @@ int rrset_add_rr(rrset_type* rrset, ldns_rr* rr);
 int rrset_del_rr(rrset_type* rrset, ldns_rr* rr);
 
 /**
+ * Sign RRset.
+ * \param[in] rrset RRset
+ * \param[in] sc sign configuration
+ * \param[in] serial version to update to
+ * \return 0 on success, 1 on error
+ *
+ */
+int rrset_sign(rrset_type* rrset, signconf_type* sc, uint32_t serial);
+
+/**
  * Delete all RRs from RRset.
  * \param[in] rrset RRset
  * \return 0 on success, 1 on error

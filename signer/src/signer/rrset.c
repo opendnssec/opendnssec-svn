@@ -322,6 +322,24 @@ rrset_del_rr(rrset_type* rrset, ldns_rr* rr)
 
 
 /**
+ * Sign RRset.
+ *
+ */
+int
+rrset_sign(rrset_type* rrset, signconf_type* sc, uint32_t serial)
+{
+    se_log_assert(rrset);
+    se_log_assert(sc);
+
+    if (DNS_SERIAL_GT(serial, rrset->outbound_serial)) {
+        rrset->outbound_serial = serial;
+    }
+
+    return 0;
+}
+
+
+/**
  * Delete all RRs from RRset.
  *
  */
