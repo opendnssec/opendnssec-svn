@@ -326,7 +326,8 @@ rrset_del_rr(rrset_type* rrset, ldns_rr* rr)
  *
  */
 int
-rrset_sign(rrset_type* rrset, signconf_type* sc, uint32_t serial)
+rrset_sign(rrset_type* rrset, ldns_rdf* owner, signconf_type* sc,
+    time_t signtime, uint32_t serial)
 {
     se_log_assert(rrset);
     se_log_assert(sc);
