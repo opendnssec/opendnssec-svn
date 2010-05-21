@@ -104,12 +104,11 @@ util_dnssec_rrs_add_rr(ldns_dnssec_rrs *rrs, ldns_rr *rr)
     se_log_assert(rrs->rr);
     se_log_assert(rr);
 
-/*    status = util_dnssec_rrs_compare(rrs->rr, rr, &cmp);
+    status = util_dnssec_rrs_compare(rrs->rr, rr, &cmp);
     if (status != LDNS_STATUS_OK) {
         return status;
     }
-*/
-    cmp = ldns_rr_compare(rrs->rr, rr);
+
     if (cmp < 0) {
         if (rrs->next) {
             return util_dnssec_rrs_add_rr(rrs->next, rr);

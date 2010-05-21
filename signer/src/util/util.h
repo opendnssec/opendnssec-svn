@@ -38,6 +38,9 @@
 
 #include <ldns/ldns.h>
 
+/* copycode: This define is taken from BIND9 */
+#define DNS_SERIAL_GT(a, b) ((int)(((a) - (b)) & 0xFFFFFFFF) > 0)
+
 /**
  * Check if a RR is a DNSSEC RR (RRSIG, NSEC, NSEC3 or NSEC3PARAMS).
  * \param[in] rr RR
