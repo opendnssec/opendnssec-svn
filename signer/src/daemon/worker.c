@@ -169,7 +169,7 @@ worker_perform_task(worker_type* worker, task_type* task)
             }
             task->what = TASK_SIGN;
         case TASK_SIGN:
-            if (0) {
+            if (tools_sign(zone) != 0) {
                 se_log_error("task [sign zone %s] failed", task->who);
                 goto task_perform_fail;
                 break;

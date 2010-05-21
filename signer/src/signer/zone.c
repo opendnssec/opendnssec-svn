@@ -77,7 +77,6 @@ zone_create(const char* name, ldns_rr_class klass)
     zone->in_progress = 0;
     zone->zonedata = zonedata_create();
     lock_basic_init(&zone->zone_lock);
-    lock_basic_init(&zone->slhelper_lock);
     return zone;
 }
 
@@ -533,7 +532,6 @@ zone_cleanup(zone_type* zone)
             se_free((void*) zone->name);
 
         lock_basic_destroy(&zone->zone_lock);
-        lock_basic_destroy(&zone->slhelper_lock);
         se_free((void*) zone);
     } else {
         se_log_warning("cleanup emtpy zone");

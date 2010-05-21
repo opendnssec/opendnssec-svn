@@ -76,7 +76,6 @@ struct zone_struct {
     int tobe_removed;
 
     lock_basic_type zone_lock;
-    lock_basic_type slhelper_lock;
 };
 
 /**
