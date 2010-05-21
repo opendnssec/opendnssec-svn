@@ -481,6 +481,23 @@ zone_nsecify(zone_type* zone)
 
 
 /**
+ * Sign zone.
+ *
+ */
+int
+zone_sign(zone_type* zone)
+{
+    int error = 0;
+
+    se_log_assert(zone);
+    se_log_assert(zone->signconf);
+    se_log_assert(zone->zonedata);
+
+    return error;
+}
+
+
+/**
  * Clean up a zone.
  *
  */

@@ -80,7 +80,7 @@ tools_read_input(zone_type* zone)
 
 
 /**
- * Add DNSKEY records to zone.
+ * Add DNSKEY (and NSEC3PARAM) records to zone.
  *
  */
 int
@@ -104,6 +104,20 @@ tools_nsecify(zone_type* zone)
     se_log_assert(zone->signconf);
     se_log_verbose("nsecify zone %s", zone->name);
     return zone_nsecify(zone);
+}
+
+
+/**
+ * Add NSEC(3) records to zone.
+ *
+ */
+int
+tools_sign(zone_type* zone)
+{
+    se_log_assert(zone);
+    se_log_assert(zone->signconf);
+    se_log_verbose("sign zone %s", zone->name);
+    return zone_sign(zone);
 }
 
 

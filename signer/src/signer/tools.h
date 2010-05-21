@@ -46,7 +46,7 @@
 int tools_read_input(zone_type* zone);
 
 /**
- * Add DNSKEY records to zone.
+ * Add DNSKEY (and NSEC3PARAM) records to zone.
  * \param[in] zone zone
  * \return int 0 on success, 1 on fail
  *
@@ -60,6 +60,14 @@ int tools_add_dnskeys(zone_type* zone);
  *
  */
 int tools_nsecify(zone_type* zone);
+
+/**
+ * Add RRSIG records to zone.
+ * \param[in] zone zone
+ * \return int 0 on success, 1 on fail
+ *
+ */
+int tools_sign(zone_type* zone);
 
 /**
  * Write zone to output adapter.

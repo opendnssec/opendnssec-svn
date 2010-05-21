@@ -142,6 +142,14 @@ int zone_del_rr(zone_type* zone, ldns_rr* rr);
 int zone_nsecify(zone_type* zone);
 
 /**
+ * Sign zone.
+ * \param[in] zone zone to sign
+ * \return int 0 on success, 1 on error
+ *
+ */
+int zone_sign(zone_type* zone);
+
+/**
  * Clean up a zone.
  * \param[in] zone zone to cleanup
  *
