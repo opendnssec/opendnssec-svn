@@ -386,13 +386,13 @@ zonedata_domain_entize(zonedata_type* zd, domain_type* domain, ldns_rdf* apex)
             parent_domain->domain_status =
                 (ent2unsigned_deleg?DOMAIN_STATUS_ENT_NS:
                                     DOMAIN_STATUS_ENT_AUTH);
-            parent_domain->outbound_serial = domain->outbound_serial;
+            parent_domain->inbound_serial = domain->inbound_serial;
             domain->parent = parent_domain;
             /* continue with the parent domain */
             domain = parent_domain;
         } else {
             ldns_rdf_deep_free(parent_rdf);
-            parent_domain->outbound_serial = domain->outbound_serial;
+            parent_domain->inbound_serial = domain->inbound_serial;
             domain->parent = parent_domain;
             if (domain_count_rrset(parent_domain) <= 0) {
                 parent_domain->domain_status =
@@ -569,19 +569,14 @@ zonedata_nsecify3(zonedata_type* zd, ldns_rr_class klass,
         if (nsec3params->flags) {
             /* If Opt-Out is being used, owner names of unsigned delegations
                MAY be excluded. */
-            if (domain->domain_status != DOMAIN_STATUS_APEX &&
-                domain_lookup_rrset(domain, LDNS_RR_TYPE_NS) &&
-                !domain_lookup_rrset(domain, LDNS_RR_TYPE_DS)) {
+            if (domain_optout(domain)) {
                 str = ldns_rdf2str(domain->name);
-                se_log_debug("nsecify3: opt-out unsigned delegation %s", str);
-                se_free((void*) str);
-                node = ldns_rbtree_next(node);
-                continue;
-            }
-            if (domain->domain_status == DOMAIN_STATUS_ENT_NS) {
-                str = ldns_rdf2str(domain->name);
-                se_log_debug("nsecify3: opt-out empty non-terminal %s (to "
-                    "unsigned delegation)", str);
+                if (domain->domain_status == DOMAIN_STATUS_ENT_NS) {
+                    se_log_debug("opt-out %s: empty non-terminal (to unsigned "
+                        "delegation)", str);
+                } else {
+                    se_log_debug("opt-out %s: unsigned delegation", str);
+                }
                 se_free((void*) str);
                 node = ldns_rbtree_next(node);
                 continue;
@@ -654,6 +649,44 @@ zonedata_nsecify3(zonedata_type* zd, ldns_rr_class klass,
         node = ldns_rbtree_next(node);
     }
 
+    return 0;
+}
+
+
+/**
+ * Add RRSIG records to zonedata.
+ *
+ */
+int
+zonedata_sign(zonedata_type* zd, ldns_rdf* owner, signconf_type* sc)
+{
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+    domain_type* domain = NULL;
+    time_t now = 0;
+    hsm_ctx_t* ctx = NULL;
+
+    se_log_assert(sc);
+    se_log_assert(zd);
+    se_log_assert(zd->domains);
+
+    now = time(NULL);
+    ctx = hsm_create_context();
+    if (!ctx) {
+        se_log_error("error creating libhsm context");
+        return 2;
+    }
+
+    node = ldns_rbtree_first(zd->domains);
+    while (node && node != LDNS_RBTREE_NULL) {
+        domain = (domain_type*) node->data;
+        if (domain_sign(ctx, domain, owner, sc, now) != 0) {
+            se_log_error("unable to sign zone data: failed to sign domain");
+            hsm_destroy_context(ctx);
+            return 1;
+        }
+        node = ldns_rbtree_next(node);
+    }
+    hsm_destroy_context(ctx);
     return 0;
 }
 
@@ -734,6 +767,8 @@ zonedata_update(zonedata_type* zd, signconf_type* sc)
         se_log_error("unable to update zonedata, serial is zero");
         return 1;
     }
+
+    /* replace serial in SOA RR */
 
     if (zd->domains->root != LDNS_RBTREE_NULL) {
         node = ldns_rbtree_first(zd->domains);

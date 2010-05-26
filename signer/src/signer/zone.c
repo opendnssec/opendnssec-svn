@@ -486,13 +486,10 @@ zone_nsecify(zone_type* zone)
 int
 zone_sign(zone_type* zone)
 {
-    int error = 0;
-
     se_log_assert(zone);
     se_log_assert(zone->signconf);
     se_log_assert(zone->zonedata);
-
-    return error;
+    return zonedata_sign(zone->zonedata, zone->dname, zone->signconf);
 }
 
 

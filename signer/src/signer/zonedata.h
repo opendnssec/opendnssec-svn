@@ -119,9 +119,19 @@ int zonedata_nsecify3(zonedata_type* zd, ldns_rr_class klass,
     nsec3params_type* nsec3params);
 
 /**
+ * Add RRSIG records to zone data.
+ * \param[in] zd zone data
+ * \param[in] owner zone owner
+ * \param[in] sc signer configuration
+ * \return int 0 on success, 1 on false
+ *
+ */
+int zonedata_sign(zonedata_type* zd, ldns_rdf* owner, signconf_type* sc);
+
+/**
  * Update zone data with pending changes.
  * \param[in] zd zone data
- * \param[in] cd signer configuration
+ * \param[in] sc signer configuration
  * \return int 0 on success, 1 on false
  *
  */
