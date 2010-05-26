@@ -33,6 +33,7 @@
 
 #include "config.h"
 #include "signer/domain.h"
+#include "signer/hsm.h"
 #include "signer/rrset.h"
 #include "util/duration.h"
 #include "util/log.h"
@@ -178,6 +179,25 @@ domain_del_rrset(domain_type* domain, rrset_type* rrset)
 
 
 /**
+ * Check if the domain can be opted-out.
+ *
+ */
+int
+domain_optout(domain_type* domain)
+{
+    se_log_assert(domain);
+    if (domain->domain_status != DOMAIN_STATUS_APEX &&
+        domain_lookup_rrset(domain, LDNS_RR_TYPE_NS) &&
+        !domain_lookup_rrset(domain, LDNS_RR_TYPE_DS)) {
+        return 1;
+    } else if (domain->domain_status == DOMAIN_STATUS_ENT_NS) {
+        return 1;
+    }
+    return 0;
+}
+
+
+/**
  * Return the number of RRsets at this domain.
  *
  */
@@ -205,7 +225,7 @@ domain_update(domain_type* domain, uint32_t serial)
     se_log_assert(domain);
     se_log_assert(domain->rrsets);
 
-    if (DNS_SERIAL_GT(serial, domain->outbound_serial)) {
+    if (DNS_SERIAL_GT(serial, domain->inbound_serial)) {
         if (domain->rrsets->root != LDNS_RBTREE_NULL) {
             node = ldns_rbtree_first(domain->rrsets);
         }
@@ -222,7 +242,7 @@ domain_update(domain_type* domain, uint32_t serial)
                 rrset = domain_del_rrset(domain, rrset);
             }
         }
-        domain->outbound_serial = serial;
+        domain->inbound_serial = serial;
     }
     return 0;
 }
@@ -250,6 +270,8 @@ domain_update_status(domain_type* domain)
 
     if (domain_lookup_rrset(domain, LDNS_RR_TYPE_NS)) {
         domain->domain_status = DOMAIN_STATUS_NS;
+    } else { /* else, it is just an authoritative domain */
+        domain->domain_status = DOMAIN_STATUS_AUTH;
     }
 
     parent = domain->parent;
@@ -261,8 +283,6 @@ domain_update_status(domain_type* domain)
         }
         parent = parent->parent;
     }
-    /* else, it is just an authoritative domain */
-    domain->domain_status = DOMAIN_STATUS_AUTH;
     return;
 }
 
@@ -309,7 +329,7 @@ domain_nsecify(domain_type* domain, domain_type* to, uint32_t ttl,
     se_log_assert(to);
     se_log_assert(to->name);
 
-    if (DNS_SERIAL_GT(domain->outbound_serial, domain->nsec_serial)) {
+    if (DNS_SERIAL_GT(domain->inbound_serial, domain->outbound_serial)) {
         /* create types bitmap */
         if (!domain->nsec_rrset || domain->nsec_bitmap_changed) {
             domain_nsecify_create_bitmap(domain, types, &types_count);
@@ -368,14 +388,15 @@ domain_nsecify(domain_type* domain, domain_type* to, uint32_t ttl,
                 domain->nsec_bitmap_changed = 0;
             }
         }
-        domain->nsec_serial = domain->outbound_serial;
+        domain->outbound_serial = domain->inbound_serial;
     }
+    domain->nsec_rrset->inbound_serial = domain->inbound_serial;
     return 0;
 }
 
 
 /**
- * Add NSEC record to domain.
+ * Add NSEC3 record to domain.
  *
  */
 int
@@ -402,7 +423,8 @@ domain_nsecify3(domain_type* domain, domain_type* to, uint32_t ttl,
     se_log_assert(nsec3params);
 
     orig_domain = domain->nsec3; /* use the back reference */
-    if (DNS_SERIAL_GT(orig_domain->outbound_serial, orig_domain->nsec_serial))
+    if (DNS_SERIAL_GT(orig_domain->inbound_serial,
+        orig_domain->outbound_serial))
     {
         /* create types bitmap */
         if (!domain->nsec_rrset || orig_domain->nsec_bitmap_changed) {
@@ -498,8 +520,9 @@ domain_nsecify3(domain_type* domain, domain_type* to, uint32_t ttl,
             }
             orig_domain->nsec_nxt_changed = 0;
         }
-        orig_domain->nsec_serial = orig_domain->outbound_serial;
+        orig_domain->outbound_serial = orig_domain->inbound_serial;
     }
+    domain->nsec_rrset->inbound_serial = orig_domain->inbound_serial;
     return 0;
 }
 
@@ -509,8 +532,8 @@ domain_nsecify3(domain_type* domain, domain_type* to, uint32_t ttl,
  *
  */
 int
-domain_sign(domain_type* domain, ldns_rdf* owner, signconf_type* sc,
-    time_t signtime)
+domain_sign(hsm_ctx_t* ctx, domain_type* domain, ldns_rdf* owner,
+    signconf_type* sc, time_t signtime)
 {
     ldns_rbnode_t* node = LDNS_RBTREE_NULL;
     rrset_type* rrset = NULL;
@@ -522,16 +545,24 @@ domain_sign(domain_type* domain, ldns_rdf* owner, signconf_type* sc,
     se_log_assert(sc);
     se_log_assert(signtime);
 
-    if (domain->domain_status == DOMAIN_STATUS_OCCLUDED) {
+    if (domain->domain_status == DOMAIN_STATUS_OCCLUDED ||
+        domain->domain_status == DOMAIN_STATUS_NONE) {
         return error;
     }
 
     if (sc->nsec_type == LDNS_RR_TYPE_NSEC3) {
-        se_log_assert(domain->nsec3);
-        error = rrset_sign(domain->nsec3->nsec_rrset, owner, sc, signtime,
-            domain->outbound_serial);
+        if (domain->nsec3 && domain->nsec3->nsec_rrset) {
+            error = rrset_sign(ctx, domain->nsec3->nsec_rrset, owner, sc,
+                signtime);
+            if (error) {
+                se_log_error("failed to sign NSEC3 RRset");
+                return error;
+            }
+        }
+    } else if (domain->nsec_rrset) {
+        error = rrset_sign(ctx, domain->nsec_rrset, owner, sc, signtime);
         if (error) {
-            se_log_error("failed to sign NSEC3 RRset");
+            se_log_error("failed to sign NSEC RRset");
             return error;
         }
     }
@@ -542,10 +573,14 @@ domain_sign(domain_type* domain, ldns_rdf* owner, signconf_type* sc,
     while (node && node != LDNS_RBTREE_NULL) {
         rrset = (rrset_type*) node->data;
 
-        /* skip some cases */
+        /* skip delegation RRsets, except for DS records */
+        if (domain->domain_status == DOMAIN_STATUS_NS &&
+           rrset->rr_type != LDNS_RR_TYPE_DS) {
+           node = ldns_rbtree_next(node);
+           continue;
+        }
 
-        error = rrset_sign(rrset, owner, sc, signtime,
-            domain->outbound_serial);
+        error = rrset_sign(ctx, rrset, owner, sc, signtime);
         if (error) {
             se_log_error("failed to sign %i RRset", (int) rrset->rr_type);
             return error;

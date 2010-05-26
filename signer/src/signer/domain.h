@@ -35,6 +35,7 @@
 #define SIGNER_DOMAIN_H
 
 #include "config.h"
+#include "signer/hsm.h"
 #include "signer/nsec3params.h"
 #include "signer/rrset.h"
 #include "signer/signconf.h"
@@ -84,6 +85,14 @@ struct domain_struct {
  *
  */
 domain_type* domain_create(ldns_rdf* dname);
+
+/**
+ * Check if the domain can be opted-out.
+ * \param[in] domain domain
+ * \return int 1 if can be opted-out, 0 otherwise
+ *
+ */
+int domain_optout(domain_type* domain);
 
 /**
  * Lookup a RRset within the domain.
@@ -162,6 +171,7 @@ int domain_nsecify3(domain_type* domain, domain_type* to, uint32_t ttl,
 
 /**
  * Sign domain.
+ * \param[in] ctx HSM context
  * \param[in] domain domain
  * \param[in] owner owner of the zone
  * \param[in] sc sign configuration
@@ -169,8 +179,8 @@ int domain_nsecify3(domain_type* domain, domain_type* to, uint32_t ttl,
  * \return int 0 on success, 1 on error
  *
  */
-int domain_sign(domain_type* domain, ldns_rdf* owner, signconf_type* sc,
-    time_t signtime);
+int domain_sign(hsm_ctx_t* ctx, domain_type* domain, ldns_rdf* owner,
+    signconf_type* sc, time_t signtime);
 
 /**
  * Add RR to domain.
