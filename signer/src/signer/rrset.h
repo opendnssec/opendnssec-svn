@@ -35,6 +35,7 @@
 #define SIGNER_RRSET_H
 
 #include "config.h"
+#include "signer/hsm.h"
 #include "signer/signconf.h"
 
 #include <ldns/ldns.h>
@@ -49,6 +50,7 @@ struct rrset_struct {
     ldns_dnssec_rrs* add;
     ldns_dnssec_rrs* del;
     ldns_dnssec_rrs* rrsigs;
+    int drop_signatures;
 };
 
 /**
@@ -96,16 +98,16 @@ int rrset_del_rr(rrset_type* rrset, ldns_rr* rr);
 
 /**
  * Sign RRset.
+ * \param[in] ctx HSM context
  * \param[in] rrset RRset
  * \param[in] owner owner of the zone
  * \param[in] sc sign configuration
  * \param[in] signtime time when the zone is signd
- * \param[in] serial version to update to
  * \return 0 on success, 1 on error
  *
  */
-int rrset_sign(rrset_type* rrset, ldns_rdf* owner, signconf_type* sc,
-    time_t signtime, uint32_t serial);
+int rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, ldns_rdf* owner,
+    signconf_type* sc, time_t signtime);
 
 /**
  * Delete all RRs from RRset.
