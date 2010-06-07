@@ -60,7 +60,7 @@ util_is_dnssec_rr(ldns_rr* rr)
  * Compare RRs only on RDATA.
  *
  */
-static ldns_status
+ldns_status
 util_dnssec_rrs_compare(ldns_rr* rr1, ldns_rr* rr2, int* cmp)
 {
     ldns_status status = LDNS_STATUS_OK;

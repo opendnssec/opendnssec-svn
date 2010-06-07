@@ -50,6 +50,16 @@
 int util_is_dnssec_rr(ldns_rr* rr);
 
 /**
+ * Compare RRs only on RDATA.
+ * \param[in] rr1 RR
+ * \param[in] rr2 another RR
+ * \param[out] cmp compare value
+ * \return status compare status
+ *
+ */
+ldns_status util_dnssec_rrs_compare(ldns_rr* rr1, ldns_rr* rr2, int* cmp);
+
+/**
  * A more efficient ldns_dnssec_rrs_add_rr(), get rid of ldns_rr_compare().
  * \param[in] rrs RRset
  * \param[in] rr to add
