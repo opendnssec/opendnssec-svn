@@ -122,6 +122,21 @@ tools_sign(zone_type* zone)
 
 
 /**
+ * Audit zone.
+ *
+ */
+int
+tools_audit(zone_type* zone)
+{
+    se_log_assert(zone);
+    se_log_assert(zone->signconf);
+    se_log_verbose("audit zone %s", zone->name);
+
+    return 0;
+}
+
+
+/**
  * Write zone to output adapter.
  * \param[in] zone zone
  * \return int 0 on success, 1 on fail

@@ -176,7 +176,7 @@ worker_perform_task(worker_type* worker, task_type* task)
             }
             task->what = TASK_AUDIT;
         case TASK_AUDIT:
-            if (0) {
+            if (tools_audit(zone) != 0) {
                 se_log_error("task [audit zone %s] failed", task->who);
                 task->what = TASK_SIGN;
                 goto task_perform_fail;
