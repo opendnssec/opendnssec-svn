@@ -60,7 +60,7 @@ start = element Configuration {
 			element Syslog {
 				# syslog facility
 				element Facility { syslogFacility }
-			}
+			}?
 		}?,
 
 		# Location to find the KASP file
