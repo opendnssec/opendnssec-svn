@@ -249,8 +249,7 @@ interface_start(char* cmd)
         sizeof(servaddr));
     if (ret != 0) {
         if (cmd && se_strcmp(cmd, "start\n") == 0) {
-            usage(stdout);
-/*            ret = system(SE_SIGNER_DAEMON); */
+            ret = system("OPENDNSSEC_SIGNER_ENGINE -d -vvvvv");
             return;
         }
 
