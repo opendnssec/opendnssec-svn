@@ -509,7 +509,7 @@ engine_run(engine_type* engine)
  * Update zone list.
  *
  */
-static int
+int
 engine_update_zonelist(engine_type* engine, char* buf)
 {
     zonelist_type* new_zlist = NULL;
@@ -541,7 +541,7 @@ engine_update_zonelist(engine_type* engine, char* buf)
  * Update zones.
  *
  */
-static void
+void
 engine_update_zones(engine_type* engine, const char* zone_name, char* buf)
 {
     ldns_rbnode_t* node = LDNS_RBTREE_NULL;

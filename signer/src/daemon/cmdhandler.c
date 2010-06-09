@@ -143,6 +143,7 @@ cmdhandler_handle_cmd_update(int sockfd, cmdhandler_type* cmdc, const char* tbd)
 {
     char buf[ODS_SE_MAXLINE];
     size_t i = 0;
+    int ret = 0;
 
     se_log_assert(tbd);
     se_log_assert(cmdc);
@@ -155,7 +156,7 @@ cmdhandler_handle_cmd_update(int sockfd, cmdhandler_type* cmdc, const char* tbd)
         tbd = NULL;
     }
     engine_update_zones(cmdc->engine, tbd, buf);
-    se_writen_(sockfd, buf, strlen(buf));
+    se_writen(sockfd, buf, strlen(buf));
 
     /* wake up sleeping workers */
     for (i=0; i < (size_t) cmdc->engine->config->num_worker_threads; i++) {

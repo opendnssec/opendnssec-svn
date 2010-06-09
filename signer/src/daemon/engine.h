@@ -94,6 +94,25 @@ void engine_start(const char* cfgfile, int cmdline_verbosity,
     int daemonize, int info);
 
 /**
+ * Update zone list.
+ * \param[in] the signer engine
+ * \param[in] buf response message
+ * \return int 0 if zonelist changed, 1 otherwise
+ *
+ */
+int engine_update_zonelist(engine_type* engine, char* buf);
+
+/**
+ * Update zones.
+ * \param[in] the signer engine
+ * \paran[in] zone_name update only this zone
+ * \param[in] buf response message
+ *
+ */
+void engine_update_zones(engine_type* engine, const char* zone_name, char* buf);
+
+
+/**
  * Clean up engine.
  * \param[in] engine engine
  *
