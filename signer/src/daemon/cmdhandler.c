@@ -135,7 +135,38 @@ cmdhandler_handle_cmd_zones(int sockfd, cmdhandler_type* cmdc)
 
 
 /**
- * Handle the 'zones' command.
+ * Handle the 'update' command.
+ *
+ */
+static void
+cmdhandler_handle_cmd_update(int sockfd, cmdhandler_type* cmdc, const char* tbd)
+{
+    char buf[ODS_SE_MAXLINE];
+    size_t i = 0;
+
+    se_log_assert(tbd);
+    se_log_assert(cmdc);
+    se_log_assert(cmdc->engine);
+    se_log_assert(cmdc->engine->tasklist);
+
+    if (se_strcmp(tbd, "--all") == 0) {
+        ret = engine_update_zonelist(cmdc->engine, buf);
+        se_writen(sockfd, buf, strlen(buf));
+        tbd = NULL;
+    }
+    engine_update_zones(cmdc->engine, tbd, buf);
+    se_writen_(sockfd, buf, strlen(buf));
+
+    /* wake up sleeping workers */
+    for (i=0; i < (size_t) cmdc->engine->config->num_worker_threads; i++) {
+        worker_wakeup(cmdc->engine->workers[i]);
+    }
+    return;
+}
+
+
+/**
+ * Handle the 'sign' command.
  *
  */
 static void
@@ -210,7 +241,7 @@ cmdhandler_handle_cmd_sign(int sockfd, cmdhandler_type* cmdc, const char* tbd)
         (void)snprintf(buf, ODS_SE_MAXLINE, "Zone %s not being signed yet, "
             "updating sign configuration\n", tbd);
         se_writen(sockfd, buf, strlen(buf));
-        /* cmdhandler_handle_cmd_update(cmdc, tbd, sockfd); */
+        cmdhandler_handle_cmd_update(sockfd, cmdc, tbd);
     }
     return;
 }
@@ -476,11 +507,11 @@ again:
         } else if (n >= 6 && strncmp(buf, "update", 6) == 0) {
             se_log_debug("update command");
             if (buf[6] == '\0') {
-                cmdhandler_handle_cmd_notimpl(sockfd, buf);
+                cmdhandler_handle_cmd_update(sockfd, cmdc, "--all");
             } else if (buf[6] != ' ') {
                 cmdhandler_handle_cmd_unknown(sockfd, buf);
             } else {
-                cmdhandler_handle_cmd_notimpl(sockfd, buf);
+                cmdhandler_handle_cmd_update(sockfd, cmdc, &buf[5]);
             }
         } else if (n == 4 && strncmp(buf, "stop", n) == 0) {
             se_log_debug("shutdown command");
