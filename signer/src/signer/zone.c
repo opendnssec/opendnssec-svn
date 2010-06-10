@@ -338,11 +338,28 @@ zone_publish_nsec3params(zone_type* zone)
 
 
 /**
- * Publish DNSKEYs and update the pending zone data changes.
+ * Update zone with pending changes.
  *
  */
 int
 zone_update_zonedata(zone_type* zone)
+{
+    int error = 0;
+
+    se_log_assert(zone);
+    se_log_assert(zone->signconf);
+    se_log_assert(zone->zonedata);
+
+    return zonedata_update(zone->zonedata, zone->signconf);
+}
+
+
+/**
+ * Publish DNSKEY and NSEC3PARAM records to the zone.
+ *
+ */
+int
+zone_add_dnskeys(zone_type* zone)
 {
     int error = 0;
 
@@ -362,7 +379,7 @@ zone_update_zonedata(zone_type* zone)
             return error;
         }
     }
-    return zonedata_update(zone->zonedata, zone->signconf);
+    return error;
 }
 
 

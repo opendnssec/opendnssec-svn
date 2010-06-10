@@ -115,6 +115,14 @@ int zone_update_signconf(zone_type* zone, struct tasklist_struct* tl,
 int zone_update_zonedata(zone_type* zone);
 
 /**
+ * Add DNSKEY and NSEC3PARAM records to the zone.
+ * \param[in] zone corresponding zone
+ * \return int 0 on success, 1 on error
+ *
+ */
+int zone_add_dnskeys(zone_type* zone);
+
+/**
  * Add a RR to the zone.
  * \param[in] zone zone structure
  * \param[in] rr RR

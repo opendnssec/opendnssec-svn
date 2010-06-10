@@ -89,6 +89,19 @@ tools_add_dnskeys(zone_type* zone)
     se_log_assert(zone);
     se_log_assert(zone->signconf);
     se_log_verbose("publish dnskeys to zone %s", zone->name);
+    return zone_add_dnskeys(zone);
+}
+
+/**
+ * Update zone with pending changes.
+ *
+ */
+int
+tools_update(zone_type* zone)
+{
+    se_log_assert(zone);
+    se_log_assert(zone->signconf);
+    se_log_verbose("update zone %s", zone->name);
     return zone_update_zonedata(zone);
 }
 

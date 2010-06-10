@@ -140,11 +140,14 @@ taskid2str(int taskid)
         case TASK_ADDKEYS:
             return "add keys and sign";
             break;
+        case TASK_UPDATE:
+            return "prepare and sign";
+            break;
         case TASK_NSECIFY:
-            return "rensec and resign";
+            return "nsecify and sign";
             break;
         case TASK_SIGN:
-            return "resign";
+            return "sign";
             break;
         case TASK_AUDIT:
             return "audit";

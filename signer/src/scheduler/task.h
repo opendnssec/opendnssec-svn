@@ -47,6 +47,7 @@ enum task_id_enum {
     TASK_NONE = 0,
     TASK_READ,
     TASK_ADDKEYS,
+    TASK_UPDATE,
     TASK_NSECIFY,
     TASK_SIGN,
     TASK_AUDIT,

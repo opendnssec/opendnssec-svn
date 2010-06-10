@@ -727,7 +727,7 @@ zonedata_update_serial(zonedata_type* zd, signconf_type* sc)
     } else if (strncmp(sc->soa_serial, "keep", 4) == 0) {
         soa = zd->inbound_serial;
         if (!DNS_SERIAL_GT(soa, prev)) {
-            se_log_error("can not keep SOA SERIAL from input zone "
+            se_log_error("cannot keep SOA SERIAL from input zone "
                 " (%u): output SOA SERIAL is %u", soa, prev);
             return 1;
         }

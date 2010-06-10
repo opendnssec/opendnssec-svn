@@ -160,6 +160,14 @@ worker_perform_task(worker_type* worker, task_type* task)
                 goto task_perform_fail;
                 break;
             }
+            task->what = TASK_UPDATE;
+        case TASK_UPDATE:
+            if (tools_update(zone) != 0) {
+                se_log_error("task [update zone %s] failed",
+                    task->who);
+                goto task_perform_fail;
+                break;
+            }
             task->what = TASK_NSECIFY;
         case TASK_NSECIFY:
             if (tools_nsecify(zone) != 0) {
