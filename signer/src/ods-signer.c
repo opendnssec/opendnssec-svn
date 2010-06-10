@@ -249,7 +249,7 @@ interface_start(char* cmd)
         sizeof(servaddr));
     if (ret != 0) {
         if (cmd && se_strcmp(cmd, "start\n") == 0) {
-            ret = system("OPENDNSSEC_SIGNER_ENGINE -d -vvvvv");
+            ret = system(ODS_SE_ENGINE);
             return;
         }
 
