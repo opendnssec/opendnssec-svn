@@ -36,7 +36,7 @@
 #include "util/se_malloc.h"
 
 #include <stdio.h> /* snprintf() */
-#include <stdlib.h> /* atoi(), atol(), [arc4]random[_uniform]() */
+#include <stdlib.h> /* atoi(), strtoul(), [arc4]random[_uniform]() */
 #include <string.h> /* strncat(), strchr() */
 #include <time.h> /* time(), localtime(), strftime() */
 
@@ -359,7 +359,7 @@ time_datestamp(time_t tt, const char* format, char** str)
         return 0;
     }
 
-    ut = (uint32_t) atol(outstr);
+    ut = (uint32_t) strtoul(outstr, NULL, 10);
     if (str) {
         *str = se_strdup(outstr);
     }
