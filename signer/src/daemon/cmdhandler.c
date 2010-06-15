@@ -512,7 +512,7 @@ again:
             } else if (buf[6] != ' ') {
                 cmdhandler_handle_cmd_unknown(sockfd, buf);
             } else {
-                cmdhandler_handle_cmd_update(sockfd, cmdc, &buf[5]);
+                cmdhandler_handle_cmd_update(sockfd, cmdc, &buf[7]);
             }
         } else if (n == 4 && strncmp(buf, "stop", n) == 0) {
             se_log_debug("shutdown command");
