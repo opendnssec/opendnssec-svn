@@ -65,6 +65,7 @@ zonedata_create(void)
 {
     zonedata_type* zd = (zonedata_type*) se_malloc(sizeof(zonedata_type));
     zd->domains = ldns_rbtree_create(domain_compare);
+    zd->initialized = 0;
     zd->nsec3_domains = NULL;
     zd->inbound_serial = 0;
     zd->outbound_serial = 0;
@@ -726,6 +727,11 @@ zonedata_update_serial(zonedata_type* zd, signconf_type* sc)
         update = soa - prev;
     } else if (strncmp(sc->soa_serial, "keep", 4) == 0) {
         soa = zd->inbound_serial;
+        if (!zd->initialized) {
+            zd->outbound_serial = soa;
+            zd->initialized = 1;
+            return 0;
+        }
         if (!DNS_SERIAL_GT(soa, prev)) {
             se_log_error("cannot keep SOA SERIAL from input zone "
                 " (%u): output SOA SERIAL is %u", soa, prev);
@@ -736,6 +742,12 @@ zonedata_update_serial(zonedata_type* zd, signconf_type* sc)
     } else {
         se_log_error("unknown serial type %s", sc->soa_serial);
         return 1;
+    }
+
+    if (!zd->initialized) {
+        zd->outbound_serial = soa;
+        zd->initialized = 1;
+        return 0;
     }
 
     /* serial is stored in 32 bits */
