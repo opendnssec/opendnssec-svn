@@ -181,4 +181,20 @@ void zonedata_cleanup(zonedata_type* zonedata);
  */
 void zonedata_print(FILE* fd, zonedata_type* zd, int skip_soa);
 
+/**
+ * Print NSEC(3)s in zone data.
+ * \param[in] out file descriptor
+ * \param[in] zd zone data to print
+ *
+ */
+void zonedata_print_nsec(FILE* fd, zonedata_type* zd);
+
+/**
+ * Print RRSIGs in zone data.
+ * \param[in] out file descriptor
+ * \param[in] zd zone data to print
+ *
+ */
+void zonedata_print_rrsig(FILE* fd, zonedata_type* zd);
+
 #endif /* SIGNER_ZONEDATA_H */

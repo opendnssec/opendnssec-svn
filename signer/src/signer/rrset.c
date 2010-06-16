@@ -623,15 +623,27 @@ rrset_cleanup(rrset_type* rrset)
  *
  */
 void
-rrset_print(FILE* fd, rrset_type* rrset)
+rrset_print(FILE* fd, rrset_type* rrset, int skip_rrsigs)
 {
     if (rrset->rrs) {
         ldns_dnssec_rrs_print(fd, rrset->rrs);
     }
+    if (rrset->rrsigs && !skip_rrsigs) {
+        ldns_dnssec_rrs_print(fd, rrset->rrsigs);
+    }
+    return;
+}
+
+
+/**
+ * Print RRSIGs from RRset.
+ *
+ */
+void
+rrset_print_rrsig(FILE* fd, rrset_type* rrset)
+{
     if (rrset->rrsigs) {
         ldns_dnssec_rrs_print(fd, rrset->rrsigs);
-    } else {
-        fprintf(fd, "; no RRSIGs\n");
     }
     return;
 }

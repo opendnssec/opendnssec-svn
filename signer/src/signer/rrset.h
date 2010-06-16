@@ -136,8 +136,17 @@ void rrset_cleanup(rrset_type* rrset);
  * Print RRset.
  * \param[in] fd file descriptor
  * \param[in] rrset RRset to be printed
+ * \param[in] skip_rrsigs if true, don't print RRSIG records
  *
  */
-void rrset_print(FILE* fd, rrset_type* rrset);
+void rrset_print(FILE* fd, rrset_type* rrset, int skip_rrsigs);
+
+/**
+ * Print RRSIGs from RRset.
+ * \param[in] fd file descriptor
+ * \param[in] rrset RRset to be printed
+ *
+ */
+void rrset_print_rrsig(FILE* fd, rrset_type* rrset);
 
 #endif /* SIGNER_RRSET_H */

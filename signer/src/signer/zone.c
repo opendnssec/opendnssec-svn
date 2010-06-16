@@ -464,6 +464,8 @@ int
 zone_nsecify(zone_type* zone)
 {
     int error = 0;
+    FILE* fd = NULL;
+    char* filename = NULL;
 
     se_log_assert(zone);
     se_log_assert(zone->signconf);
@@ -490,6 +492,18 @@ zone_nsecify(zone_type* zone)
             zone->signconf->nsec_type);
         error = 1;
     }
+    if (!error) {
+        filename = se_build_path(zone->name, ".denial", 0);
+        fd = se_fopen(filename, NULL, "w");
+        if (fd) {
+            zonedata_print_nsec(fd, zone->zonedata);
+            se_fclose(fd);
+        } else {
+            se_log_warning("cannot backup NSEC(3) records: cannot open file "
+            "%s for writing", filename);
+        }
+        se_free((void*)filename);
+    }
     return error;
 }
 
@@ -501,10 +515,27 @@ zone_nsecify(zone_type* zone)
 int
 zone_sign(zone_type* zone)
 {
+    int error = 0;
+    FILE* fd = NULL;
+    char* filename = NULL;
+
     se_log_assert(zone);
     se_log_assert(zone->signconf);
     se_log_assert(zone->zonedata);
-    return zonedata_sign(zone->zonedata, zone->dname, zone->signconf);
+    error = zonedata_sign(zone->zonedata, zone->dname, zone->signconf);
+    if (!error) {
+        filename = se_build_path(zone->name, ".rrsigs", 0);
+        fd = se_fopen(filename, NULL, "w");
+        if (fd) {
+            zonedata_print_rrsig(fd, zone->zonedata);
+            se_fclose(fd);
+        } else {
+            se_log_warning("cannot backup RRSIG records: cannot open file "
+            "%s for writing", filename);
+        }
+        se_free((void*)filename);
+    }
+    return error;
 }
 
 

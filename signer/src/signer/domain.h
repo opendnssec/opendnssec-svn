@@ -224,4 +224,20 @@ void domain_cleanup(domain_type* domain);
  */
 void domain_print(FILE* fd, domain_type* domain, int internal);
 
+/**
+ * Print NSEC(3)s at domain.
+ * \param[in] out file descriptor
+ * \param[in] domain domain to print
+ *
+ */
+void domain_print_nsec(FILE* fd, domain_type* domain);
+
+/**
+ * Print RRSIGs at domain.
+ * \param[in] out file descriptor
+ * \param[in] domain domain to print
+ *
+ */
+void domain_print_rrsig(FILE* fd, domain_type* domain);
+
 #endif /* SIGNER_DOMAIN_H */

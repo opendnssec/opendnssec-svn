@@ -754,24 +754,72 @@ domain_print(FILE* fd, domain_type* domain, int internal)
     /* print soa */
     soa_rrset = domain_lookup_rrset(domain, LDNS_RR_TYPE_SOA);
     if (soa_rrset && !internal) {
-        rrset_print(fd, soa_rrset);
+        rrset_print(fd, soa_rrset, 0);
     }
 
     while (node && node != LDNS_RBTREE_NULL) {
         rrset = (rrset_type*) node->data;
         if (rrset->rr_type != LDNS_RR_TYPE_SOA || internal) {
-            rrset_print(fd, rrset);
+            rrset_print(fd, rrset, 0);
         }
         node = ldns_rbtree_next(node);
     }
 
     /* print nsec */
     if (domain->nsec_rrset) {
-        rrset_print(fd, domain->nsec_rrset);
+        rrset_print(fd, domain->nsec_rrset, 0);
     } else if (domain->nsec3 && domain->nsec3->nsec_rrset) {
-        rrset_print(fd, domain->nsec3->nsec_rrset);
+        rrset_print(fd, domain->nsec3->nsec_rrset, 0);
     } else if (internal) {
         fprintf(fd, "; NO NSEC(3)\n");
+    }
+    return;
+}
+
+
+/**
+ * Print NSEC(3)s at this domain.
+ *
+ */
+void
+domain_print_nsec(FILE* fd, domain_type* domain)
+{
+    /* print nsec */
+    if (domain->nsec_rrset) {
+        rrset_print(fd, domain->nsec_rrset, 1);
+    } else if (domain->nsec3 && domain->nsec3->nsec_rrset) {
+        rrset_print(fd, domain->nsec3->nsec_rrset, 1);
+    }
+    return;
+}
+
+
+/**
+ * Print RRSIGs at this domain.
+ *
+ */
+void
+domain_print_rrsig(FILE* fd, domain_type* domain)
+{
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+    rrset_type* rrset = NULL;
+    rrset_type* soa_rrset = NULL;
+
+    if (domain->rrsets && domain->rrsets->root != LDNS_RBTREE_NULL) {
+        node = ldns_rbtree_first(domain->rrsets);
+    }
+
+    while (node && node != LDNS_RBTREE_NULL) {
+        rrset = (rrset_type*) node->data;
+        rrset_print_rrsig(fd, rrset);
+        node = ldns_rbtree_next(node);
+    }
+
+    /* print nsec */
+    if (domain->nsec_rrset) {
+        rrset_print_rrsig(fd, domain->nsec_rrset);
+    } else if (domain->nsec3 && domain->nsec3->nsec_rrset) {
+        rrset_print_rrsig(fd, domain->nsec3->nsec_rrset);
     }
     return;
 }

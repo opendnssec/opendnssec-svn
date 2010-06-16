@@ -52,7 +52,7 @@ int
 tools_read_input(zone_type* zone)
 {
     char* tmpname = NULL;
-    int result = 0;
+    int error = 0;
 
     se_log_assert(zone);
     se_log_assert(zone->inbound_adapter);
@@ -61,21 +61,21 @@ tools_read_input(zone_type* zone)
 
     /* make a copy (slooooooow, use system(cp) ?) */
     tmpname = se_build_path(zone->name, ".unsorted", 0);
-    result = se_file_copy(zone->inbound_adapter->filename, tmpname);
+    error = se_file_copy(zone->inbound_adapter->filename, tmpname);
     se_free((void*)tmpname);
 
     switch (zone->inbound_adapter->type) {
         case ADAPTER_FILE:
-            result = adfile_read(zone);
+            error = adfile_read(zone);
             break;
         case ADAPTER_UNKNOWN:
         default:
             se_log_error("read zone %s failed: unknown inbound adapter type %i",
                 zone->name, (int) zone->inbound_adapter->type);
-            result = 1;
+            error = 1;
             break;
     }
-    return result;
+    return error;
 }
 
 
@@ -113,10 +113,13 @@ tools_update(zone_type* zone)
 int
 tools_nsecify(zone_type* zone)
 {
+    int error = 0;
+
     se_log_assert(zone);
     se_log_assert(zone->signconf);
     se_log_verbose("nsecify zone %s", zone->name);
-    return zone_nsecify(zone);
+    error = zone_nsecify(zone);
+    return error;
 }
 
 
@@ -143,7 +146,7 @@ tools_audit(zone_type* zone, engineconfig_type* config)
 {
     char* finalized = NULL;
     char str[SYSTEM_MAXLEN];
-    int result = 0;
+    int error = 0;
 
     se_log_assert(zone);
     se_log_assert(zone->signconf);
@@ -151,8 +154,8 @@ tools_audit(zone_type* zone, engineconfig_type* config)
     if (zone->signconf->audit) {
         se_log_verbose("audit zone %s", zone->name);
         finalized = se_build_path(zone->name, ".finalized", 0);
-        result = adfile_write(zone, finalized);
-        if (result != 0) {
+        error = adfile_write(zone, finalized);
+        if (error != 0) {
             se_log_error("audit zone %s failed: unable to write zone");
             se_free((void*)finalized);
             return 1;
@@ -183,7 +186,7 @@ tools_audit(zone_type* zone, engineconfig_type* config)
  */
 int tools_write_output(zone_type* zone)
 {
-    int result = 0;
+    int error = 0;
 
     se_log_assert(zone);
     se_log_assert(zone->outbound_adapter);
@@ -191,14 +194,14 @@ int tools_write_output(zone_type* zone)
 
     switch (zone->outbound_adapter->type) {
         case ADAPTER_FILE:
-            result = adfile_write(zone, NULL);
+            error = adfile_write(zone, NULL);
             break;
         case ADAPTER_UNKNOWN:
         default:
             se_log_error("write zone %s failed: unknown outbound adapter "
                 "type %i", zone->name, (int) zone->inbound_adapter->type);
-            result = 1;
+            error = 1;
             break;
     }
-    return result;
+    return error;
 }

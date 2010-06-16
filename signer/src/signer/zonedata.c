@@ -963,3 +963,61 @@ zonedata_print(FILE* fd, zonedata_type* zd, int internal)
     }
     return;
 }
+
+
+/**
+ * Print NSEC(3)s in zone data.
+ *
+ */
+void
+zonedata_print_nsec(FILE* fd, zonedata_type* zd)
+{
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+    domain_type* domain = NULL;
+
+    se_log_assert(fd);
+    se_log_assert(zd);
+    se_log_assert(zd->domains);
+
+    node = ldns_rbtree_first(zd->domains);
+    if (!node || node == LDNS_RBTREE_NULL) {
+        fprintf(fd, "; zone empty\n");
+        return;
+    }
+
+    while (node && node != LDNS_RBTREE_NULL) {
+        domain = (domain_type*) node->data;
+        domain_print_nsec(fd, domain);
+        node = ldns_rbtree_next(node);
+    }
+    return;
+}
+
+
+/**
+ * Print RRSIGs zone data.
+ *
+ */
+void
+zonedata_print_rrsig(FILE* fd, zonedata_type* zd)
+{
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+    domain_type* domain = NULL;
+
+    se_log_assert(fd);
+    se_log_assert(zd);
+    se_log_assert(zd->domains);
+
+    node = ldns_rbtree_first(zd->domains);
+    if (!node || node == LDNS_RBTREE_NULL) {
+        fprintf(fd, "; zone empty\n");
+        return;
+    }
+
+    while (node && node != LDNS_RBTREE_NULL) {
+        domain = (domain_type*) node->data;
+        domain_print_rrsig(fd, domain);
+        node = ldns_rbtree_next(node);
+    }
+    return;
+}
