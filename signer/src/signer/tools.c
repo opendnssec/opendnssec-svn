@@ -41,6 +41,8 @@
 #include "util/log.h"
 #include "util/se_malloc.h"
 
+#define SYSTEM_MAXLEN 255
+
 
 /**
  * Read zone's input adapter.
@@ -58,11 +60,9 @@ tools_read_input(zone_type* zone)
     se_log_verbose("read zone %s", zone->name);
 
     /* make a copy (slooooooow, use system(cp) ?) */
-    if (zone->signconf->audit) {
-        tmpname = se_build_path(zone->name, ".unsorted", 0);
-        result = se_file_copy(zone->inbound_adapter->filename, tmpname);
-        se_free((void*)tmpname);
-    }
+    tmpname = se_build_path(zone->name, ".unsorted", 0);
+    result = se_file_copy(zone->inbound_adapter->filename, tmpname);
+    se_free((void*)tmpname);
 
     switch (zone->inbound_adapter->type) {
         case ADAPTER_FILE:
@@ -139,12 +139,38 @@ tools_sign(zone_type* zone)
  *
  */
 int
-tools_audit(zone_type* zone)
+tools_audit(zone_type* zone, engineconfig_type* config)
 {
+    char* finalized = NULL;
+    char str[SYSTEM_MAXLEN];
+    int result = 0;
+
     se_log_assert(zone);
     se_log_assert(zone->signconf);
-    se_log_verbose("audit zone %s", zone->name);
 
+    if (zone->signconf->audit) {
+        se_log_verbose("audit zone %s", zone->name);
+        finalized = se_build_path(zone->name, ".finalized", 0);
+        result = adfile_write(zone, finalized);
+        if (result != 0) {
+            se_log_error("audit zone %s failed: unable to write zone");
+            se_free((void*)finalized);
+            return 1;
+        }
+
+        if (config->working_dir) {
+            snprintf(str, SYSTEM_MAXLEN, "%s -c %s -s %s/%s -z %s",
+                ODS_SE_AUDITOR, config->cfg_filename, config->working_dir,
+                finalized, zone->name);
+        } else {
+            snprintf(str, SYSTEM_MAXLEN, "%s -c %s -s %s -z %s",
+                ODS_SE_AUDITOR, config->cfg_filename, finalized, zone->name);
+        }
+
+        se_log_debug("system call: %s", str);
+        se_free((void*)finalized);
+        return system(str);
+    }
     return 0;
 }
 
@@ -165,12 +191,12 @@ int tools_write_output(zone_type* zone)
 
     switch (zone->outbound_adapter->type) {
         case ADAPTER_FILE:
-            result = adfile_write(zone);
+            result = adfile_write(zone, NULL);
             break;
         case ADAPTER_UNKNOWN:
         default:
-            se_log_error("write zone %s failed: unknown outbound adapter type %i",
-                zone->name, (int) zone->inbound_adapter->type);
+            se_log_error("write zone %s failed: unknown outbound adapter "
+                "type %i", zone->name, (int) zone->inbound_adapter->type);
             result = 1;
             break;
     }

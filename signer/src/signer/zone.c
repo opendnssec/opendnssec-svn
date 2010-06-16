@@ -344,8 +344,6 @@ zone_publish_nsec3params(zone_type* zone)
 int
 zone_update_zonedata(zone_type* zone)
 {
-    int error = 0;
-
     se_log_assert(zone);
     se_log_assert(zone->signconf);
     se_log_assert(zone->zonedata);

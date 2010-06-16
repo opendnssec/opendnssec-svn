@@ -345,7 +345,7 @@ signconf_cleanup(signconf_type* sc)
 
 
 /**
- * Print engine configuration.
+ * Print sign configuration.
  *
  */
 void

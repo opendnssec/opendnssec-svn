@@ -35,6 +35,7 @@
 #define SIGNER_TOOLS_H
 
 #include "config.h"
+#include "daemon/config.h"
 #include "signer/zone.h"
 
 /**
@@ -76,6 +77,15 @@ int tools_nsecify(zone_type* zone);
  *
  */
 int tools_sign(zone_type* zone);
+
+/**
+ * Audit zone.
+ * \param[in] zone zone
+ * \param[in] config configuration settings
+ * \return int 0 on success, 1 on fail
+ *
+ */
+int tools_audit(zone_type* zone, engineconfig_type* config);
 
 /**
  * Write zone to output adapter.
