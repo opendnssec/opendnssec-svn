@@ -247,6 +247,51 @@ cmdhandler_handle_cmd_sign(int sockfd, cmdhandler_type* cmdc, const char* tbd)
     return;
 }
 
+
+/**
+ * Handle the 'clear' command.
+ *
+ */
+static void
+cmdhandler_handle_cmd_clear(int sockfd, cmdhandler_type* cmdc, const char* tbd)
+{
+    char buf[ODS_SE_MAXLINE];
+    size_t i = 0;
+    int ret = 0;
+    char* tmpname = NULL;
+
+    se_log_assert(tbd);
+    se_log_assert(cmdc);
+    se_log_assert(cmdc->engine);
+    se_log_assert(cmdc->engine->tasklist);
+
+    /* lock tasklist */
+    lock_basic_lock(&cmdc->engine->tasklist->tasklist_lock);
+
+    tmpname = se_build_path(tbd, ".unsorted", 0);
+    unlink(tmpname);
+    se_free((void*)tmpname);
+
+    tmpname = se_build_path(tbd, ".denial", 0);
+    unlink(tmpname);
+    se_free((void*)tmpname);
+
+    tmpname = se_build_path(tbd, ".rrsigs", 0);
+    unlink(tmpname);
+    se_free((void*)tmpname);
+
+    /* unlock tasklist */
+    lock_basic_unlock(&cmdc->engine->tasklist->tasklist_lock);
+
+
+    (void)snprintf(buf, ODS_SE_MAXLINE, "Internal information about "
+        "%s cleared", tbd);
+    se_writen(sockfd, buf, strlen(buf));
+
+    return;
+}
+
+
 /**
  * Handle the 'queue' command.
  *
@@ -272,8 +317,8 @@ cmdhandler_handle_cmd_queue(int sockfd, cmdhandler_type* cmdc)
     /* how many tasks scheduled */
     now = time(NULL);
     strtime = ctime(&now);
-    (void)sprintf(buf, "I have %i tasks scheduled\nIt is now %s",
-        cmdc->engine->tasklist->tasks->count, strtime);
+    (void)snprintf(buf, ODS_SE_MAXLINE, "I have %i tasks scheduled\nIt is "
+        "now %s", cmdc->engine->tasklist->tasks->count, strtime);
     se_writen(sockfd, buf, strlen(buf));
 
     /* list tasks */
@@ -497,7 +542,7 @@ again:
             } else if (buf[5] != ' ') {
                 cmdhandler_handle_cmd_unknown(sockfd, buf);
             } else {
-                cmdhandler_handle_cmd_notimpl(sockfd, buf);
+                cmdhandler_handle_cmd_clear(sockfd, cmdc, &buf[6]);
             }
         } else if (n == 5 && strncmp(buf, "queue", n) == 0) {
             se_log_debug("list tasks command");
