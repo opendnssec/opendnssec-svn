@@ -165,7 +165,7 @@ module KASPAuditor
               last_signed_rr = load_signed_subdomain(signedfile, last_signed_rr, unsigned_domain_rrs)
 
             end
-            if (last_unsigned_rr)
+            if (last_unsigned_rr && (!last_signed_rr || (compare_return != 0) ) )
               process_additional_unsigned_rr(last_unsigned_rr)
             end
           }
@@ -358,7 +358,7 @@ module KASPAuditor
       #  c) inception date in past by at least interval specified by config
       rrset.sigs.each {|sig|
         time_now = Time.now.to_i
-        if (sig.inception >= (time_now + @config.signatures.inception_offset))
+        if (sig.inception > (time_now + @config.signatures.inception_offset))
           log(LOG_ERR, "Inception error for #{sig.name}, #{sig.type_covered} : Signature inception is #{sig.inception}, time now is #{time_now}, inception offset is #{@config.signatures.inception_offset}, difference = #{time_now - sig.inception}")
         else
           #                      print "OK : Signature inception is #{sig.inception}, time now is #{time_now}, inception offset is #{@config.signatures.inception_offset}, difference = #{time_now - sig.inception}\n"
@@ -735,7 +735,7 @@ module KASPAuditor
 
         end
         # Check if the record exists in both zones - if not, print an error
-        if (unsigned_domain_rrs  &&  !delete_rr(unsigned_domain_rrs, l_rr)) # delete the record from the unsigned
+        if (unsigned_domain_rrs  &&  !(unsigned_domain_rrs.delete(l_rr))) # delete the record from the unsigned
           # ADDITIONAL SIGNED RECORD!! Check if we should error on it
           process_additional_signed_rr(l_rr)
           if (l_rr.type == Types::SOA)
@@ -784,31 +784,6 @@ module KASPAuditor
       return l_rr
     end
 
-    # Delete a processed RR from the unsigned domain cache
-    def delete_rr(unsigned_domain_rrs, l_rr)
-      if (l_rr.type == Types::AAAA)
-        # We need to inspect the data here - old versions of Dnsruby::RR#==
-        # compare the rdata as well as the instance variables.
-        unsigned_domain_rrs.each {|u_rr|
-          if ((u_rr.name == l_rr.name) && (u_rr.type == l_rr.type) &&
-                (u_rr.address == l_rr.address))
-            return unsigned_domain_rrs.delete(u_rr)
-          end
-        }
-      elsif (l_rr.type == Types::DS)
-        # Dnsruby 1.39 fails to compare DS RRs correctly - this is fixed for future versions
-        unsigned_domain_rrs.each {|u_rr|
-          if ((u_rr.name == l_rr.name) && (u_rr.type == l_rr.type) &&
-                (u_rr.key_tag == l_rr.key_tag) && (u_rr.digestbin == l_rr.digestbin) &&
-                (u_rr.algorithm == l_rr.algorithm) && (u_rr.digest_type == l_rr.digest_type))
-            return unsigned_domain_rrs.delete(u_rr)
-          end
-        }
-      else
-        return unsigned_domain_rrs.delete(l_rr)
-      end
-    end
-
     # This method is called if an NSEC3-sgned zone is being audited.
     # It records the types actually seen at the owner name, and the hashed
     # owner name. At the end of the auditing run, this is checked against
@@ -820,6 +795,7 @@ module KASPAuditor
     #
     # It is passed the domain, and the types seen at the domain
     def write_types_to_file(domain, types_covered, last_name, is_glue)
+      return if (is_glue && ( types_covered.clone.delete_if{|t| t == Types::A || t == Types::AAAA}.empty? ))
       return if (types_covered.include?Types::NSEC3) # Only interested in real domains
       #      return if (out_of_zone(domain)) # Only interested in domains which should be here!
       types_string = get_types_string(types_covered)
@@ -1080,7 +1056,7 @@ module KASPAuditor
       end
       def check_nsec3_types_and_opt_out(unknown_nsecs)
         # First of all we will have to sort the types file.
-        system("sort -t' ' #{@working}#{File::SEPARATOR}audit.types.#{Process.pid} > #{@working}#{File::SEPARATOR}audit.types.sorted.#{Process.pid}")
+        system("#{Commands.sort} -t' ' #{@working}#{File::SEPARATOR}audit.types.#{Process.pid} > #{@working}#{File::SEPARATOR}audit.types.sorted.#{Process.pid}")
 
         # Go through each name in the files and check them
         # We want to check two things :

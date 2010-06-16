@@ -234,7 +234,7 @@ module KASPAuditor
 
       # First, sort the @nsec_temp_file
       
-      system("sort #{@nsec_temp_file} > #{@nsec_temp_file}.tmp")
+      system("#{Commands.sort} #{@nsec_temp_file} > #{@nsec_temp_file}.tmp")
       system("mv #{@nsec_temp_file}.tmp #{@nsec_temp_file}")
       # Then simply follow it line by line.
       next_name = nil
@@ -462,39 +462,27 @@ module KASPAuditor
           grep_for_domains_of_interest(file, domain_filename)
         }
         first = true
-        if (!File.exists?(domain_filename))
-          File.new(domain_filename, "w")
-        end
-        File.open(domain_filename, "w") {|domain_file|
-          IO.foreach((file.to_s+"").untaint) {|line|
-            next if (line[0,1] == ";")
-            next if (line.strip.length == 0)
-            if (first)
-              first = false
-              # Check that SOA record is first record in output zone
-              rr = RR.create(line)
-              if (rr.type != Types::SOA)
-                @parent.log(LOG_ERR, "Expected SOA RR as first record in #{file}, but got RR : #{rr}")
-              end
+        IO.foreach((file.to_s+"").untaint) {|line|
+          next if (line[0,1] == ";")
+          next if (line.strip.length == 0)
+          if (first)
+            first = false
+            # Check that SOA record is first record in output zone
+            rr = RR.create(line)
+            if (rr.type != Types::SOA)
+              @parent.log(LOG_ERR, "Expected SOA RR as first record in #{file}, but got RR : #{rr}")
             end
-            # Read the line in and split it
-            # We know that signed line will always be in canonical form. So, type will always be at line.split()[3]
+          end
+          # Read the line in and split it
+          # We know that signed line will always be in canonical form. So, type will always be at line.split()[3]
 
-            # See if it contains an RR type of interest - if so, then process the standard checks that apply for that type
-            test_rr_type(line)
-            #            # See if it contains a domain name of interest - only if we are looking for any!
-            #            if (@parent.scan_options.num_domains)
-            #              if (@parent.name_in_list(line.split()[0]))
-            #                # if so, then save it to the temp file for that domain name
-            #                domain_file.write(line)
-            #              end
-            #            end
-          }
+          # See if it contains an RR type of interest - if so, then process the standard checks that apply for that type
+          test_rr_type(line)
         }
 
         ret_id, ret_status = Process.wait2(pid)
         if (ret_status != 0)
-          @parent.log(LOG_WARNING, "Egrep failed on #{file} - #{ret_status}")
+          @parent.log(LOG_WARNING, "Grep failed on #{file} - #{ret_status}")
         else
           scan_temp_domain_files(domain_filename)
         end
@@ -504,7 +492,7 @@ module KASPAuditor
       def grep_for_domains_of_interest(file, domain_filename)
         # Use the parent.domain_list to grep for all the instances of the domains we're after.
         list = @parent.domain_list + @parent.hashed_domain_list
-        grep_command = "grep -G '"
+        grep_command = "#{Commands.grep} '"
         first = true
         list.each {|domain|
           if first
@@ -833,7 +821,7 @@ module KASPAuditor
       time_now = Time.now.to_i
       split = line.split
       sig_inception = RR::RRSIG.get_time(split[9])
-      if (sig_inception >= (time_now + @config.signatures.inception_offset))
+      if (sig_inception > (time_now + @config.signatures.inception_offset))
         log(LOG_ERR, "Inception error for #{split[0].chop}, #{split[4]} : Signature inception is #{sig_inception}, time now is #{time_now}, inception offset is #{@config.signatures.inception_offset}, difference = #{time_now - sig_inception}")
       else
         #                      print "OK : Signature inception is #{sig.inception}, time now is #{time_now}, inception offset is #{@config.signatures.inception_offset}, difference = #{time_now - sig.inception}\n"
