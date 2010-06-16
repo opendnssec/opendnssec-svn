@@ -341,6 +341,7 @@ engine_start_workers(engine_type* engine)
         engine->workers[i]->need_to_exit = 0;
         se_thread_create(&engine->workers[i]->thread_id, worker_thread_start,
             engine->workers[i]);
+        engine->workers[i]->engineptr = (struct engine_struct*) engine;
     }
     return;
 }
@@ -367,6 +368,7 @@ engine_stop_workers(engine_type* engine)
     /* head count */
     for (i=0; i < (size_t) engine->config->num_worker_threads; i++) {
         se_thread_join(engine->workers[i]->thread_id);
+        engine->workers[i]->engineptr = NULL;
     }
     return;
 }

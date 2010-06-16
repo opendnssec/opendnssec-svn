@@ -31,6 +31,7 @@
  *
  */
 
+#include "daemon/engine.h"
 #include "daemon/worker.h"
 #include "scheduler/locks.h"
 #include "scheduler/task.h"
@@ -52,6 +53,7 @@ worker_create(int num, int type)
     worker_type* worker = (worker_type*) se_malloc(sizeof(worker_type));
     se_log_debug("create worker[%i]", num +1);
     worker->thread_num = num +1;
+    worker->engineptr = NULL;
     worker->need_to_exit = 0;
     worker->type = type;
     worker->sleeping = 0;
@@ -131,6 +133,7 @@ void
 worker_perform_task(worker_type* worker, task_type* task)
 {
     zone_type* zone = NULL;
+    engine_type* engine = (engine_type*) worker->engineptr;
 
     se_log_assert(worker);
     se_log_assert(task);
@@ -184,7 +187,7 @@ worker_perform_task(worker_type* worker, task_type* task)
             }
             task->what = TASK_AUDIT;
         case TASK_AUDIT:
-            if (tools_audit(zone) != 0) {
+            if (tools_audit(zone, engine->config) != 0) {
                 se_log_error("task [audit zone %s] failed", task->who);
                 task->what = TASK_SIGN;
                 goto task_perform_fail;

@@ -44,9 +44,7 @@ struct zone_struct;
 
 /**
  * Read zone file.
- * \param[in] fd file descriptor
  * \param[in] zone zone structure
- * \param[in] include if set: an include file, otherwise: main zone file
  * \return 0 on success, 1 on error
  *
  */
@@ -54,11 +52,11 @@ int adfile_read(struct zone_struct* zone);
 
 /**
  * Write zone file.
- * \param[in] fd file descriptor
  * \param[in] zone zone structure
+ * \param[in] filename write to this specific file
  * \return 0 on success, 1 on error
  *
  */
-int adfile_write(struct zone_struct* zone);
+int adfile_write(struct zone_struct* zone, const char* filename);
 
 #endif /* ADAPTER_ADFILE_H */

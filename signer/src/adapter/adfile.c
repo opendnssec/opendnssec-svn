@@ -467,7 +467,7 @@ adfile_read(struct zone_struct* zone)
  *
  */
 int
-adfile_write(struct zone_struct* zone)
+adfile_write(struct zone_struct* zone, const char* filename)
 {
     FILE* fd = NULL;
     zone_type* zone_out = zone;
@@ -478,7 +478,11 @@ adfile_write(struct zone_struct* zone)
     se_log_debug("write to output file adapter zone %s file %s",
         zone_out->name, zone_out->outbound_adapter->filename);
 
-    fd = se_fopen(zone_out->outbound_adapter->filename, NULL, "w");
+    if (filename != NULL) {
+        fd = se_fopen(filename, NULL, "w");
+    } else {
+        fd = se_fopen(zone_out->outbound_adapter->filename, NULL, "w");
+    }
     if (fd) {
         zone_print(fd, zone_out, 0);
         se_fclose(fd);

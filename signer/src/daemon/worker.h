@@ -42,11 +42,14 @@
 
 #define WORKER_WORKER 1
 
+struct engine_struct;
+
 typedef struct worker_struct worker_type;
 struct worker_struct {
     int thread_num;
     se_thread_type thread_id;
     tasklist_type* tasklist;
+    struct engine_struct* engineptr;
     int type;
     int sleeping;
     int waiting;
