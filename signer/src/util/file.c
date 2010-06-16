@@ -38,9 +38,12 @@
 
 #include <errno.h>
 #include <stdio.h> /* fgetc(), fopen(), fclose(), ferror() */
+#include <stdlib.h> /* system() */
 #include <string.h> /* strlen(), strncmp(), strncat(), strncpy(), strerror() */
 #include <sys/stat.h> /* stat() */
 #include <unistd.h> /* chown() */
+
+#define SYSTEM_MAXLEN 255
 
 
 /**
@@ -278,51 +281,14 @@ se_strcmp(const char* s1, const char* s2)
 int
 se_file_copy(const char* file1, const char* file2)
 {
-    FILE *from, *to;
-    char ch;
+    char str[SYSTEM_MAXLEN];
 
     se_log_assert(file1);
     se_log_assert(file2);
 
-    /* open source file */
-    if((from = se_fopen(file1, NULL, "r"))==NULL) {
-        se_log_error("cannot copy file %s to %s: %s",
-            file1, file2, strerror(errno));
-        return 1;
-    }
-
-    /* open destination file */
-    if((to = se_fopen(file2, NULL, "w"))==NULL) {
-        se_log_error("cannot copy file %s to %s: %s",
-            file1, file2, strerror(errno));
-        se_fclose(from);
-        return 1;
-    }
-
-    /* copy the file */
-    while(!feof(from)) {
-        ch = fgetc(from);
-        if (ferror(from)) {
-            se_log_error("ferror() reading file '%s'", file1);
-            se_fclose(from);
-            se_fclose(to);
-            return 1;
-        }
-
-        if (!feof(from)) {
-            fputc(ch, to);
-        }
-        if (ferror(to)) {
-            se_log_error("ferror() reading file '%s'", file1);
-            se_fclose(from);
-            se_fclose(to);
-            return 1;
-        }
-    }
-
-    se_fclose(from);
-    se_fclose(to);
-    return 0;
+    snprintf(str, SYSTEM_MAXLEN, "cp %s %s", file1, file2);
+    se_log_debug("system call: %s", str);
+    return system(str);
 }
 
 /**
