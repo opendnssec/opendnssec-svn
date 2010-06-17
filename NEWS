@@ -1,5 +1,10 @@
 $Id$
 
+OpenDNSSEC 1.2-matje branch
+
+* Removed python and python-4suite-xml dependencies, rewrite of signer.
+
+
 OpenDNSSEC 1.1 branch
 
 * Partial Auditor added
@@ -44,6 +49,8 @@ Bugfixes:
 * Bugreport #113: zone fetcher started before dropping privileges, so that
   it can bind to socket.
 * Signer Engine defaults to working directory if missing.
+* libhsm: fixed incorrect label length for wildcards (leftmost wildcard label was
+  included in count).
 
 OpenDNSSEC 1.0.0 - 2010-02-09
 

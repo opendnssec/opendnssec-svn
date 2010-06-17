@@ -101,8 +101,3 @@ same as any other key rollover. This is not sufficient; and so rolling between
 algorithms is broken and should not be done with the current system.
 
 
-Quicksorter does not allow certain owner names
-------------------------------------------------
-
-If a RR owner name looks like a directive, for example, \$ORIGIN or $TTLexample, 
-the quicksorter filters them away as being incorrect directives.
