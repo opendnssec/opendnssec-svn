@@ -83,7 +83,7 @@ cmdhandler_handle_cmd_help(int sockfd)
         "update <zone>   update this zone signer configurations.\n"
         "update [--all]  update zone list and all signer configurations.\n"
         "start           start the engine.\n"
-        "reload          reload the engine (notimpl).\n"
+        "reload          reload the engine.\n"
         "stop            stop the engine.\n"
         "verbosity <nr>  set verbosity.\n"
     );
@@ -256,8 +256,6 @@ static void
 cmdhandler_handle_cmd_clear(int sockfd, cmdhandler_type* cmdc, const char* tbd)
 {
     char buf[ODS_SE_MAXLINE];
-    size_t i = 0;
-    int ret = 0;
     char* tmpname = NULL;
 
     se_log_assert(tbd);
@@ -482,7 +480,6 @@ cmdhandler_handle_cmd_unknown(int sockfd, const char* str)
 /**
  * Handle not implemented.
  *
- */
 static void
 cmdhandler_handle_cmd_notimpl(int sockfd, const char* str)
 {
@@ -491,6 +488,7 @@ cmdhandler_handle_cmd_notimpl(int sockfd, const char* str)
     se_writen(sockfd, buf, strlen(buf));
     return;
 }
+ */
 
 
 /**
