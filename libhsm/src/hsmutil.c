@@ -70,6 +70,7 @@ cmd_list (int argc, char *argv[])
     char *repository = NULL;
 
     size_t key_count = 0;
+    size_t key_count_valid = 0;
     hsm_key_t **keys;
     hsm_ctx_t *ctx = NULL;
 
@@ -107,19 +108,42 @@ cmd_list (int argc, char *argv[])
 
     for (i = 0; i < key_count; i++) {
         hsm_key_info_t *key_info;
-        hsm_key_t *key = keys[i];
+        hsm_key_t *key = NULL;
         char key_type[HSM_MAX_ALGONAME + 8];
+        char *key_id = NULL;
+
+        key = keys[i];
+        if (key == NULL) {
+            /* Skip NULL key for now */
+            continue;
+        }
+        
+        key_count_valid++;
 
         key_info = hsm_get_key_info(NULL, key);
-        snprintf(key_type, sizeof(key_type),
-            "%s/%lu",
-            key_info->algorithm_name, key_info->keysize);
+        
+        if (key_info) {
+            snprintf(key_type, sizeof(key_type), "%s/%lu",
+                key_info->algorithm_name, key_info->keysize);
+            key_id = key_info->id;
+        } else {
+            snprintf(key_type, sizeof(key_type), "UNKNOWN");
+            key_id = "UNKNOWN";
+        }
 
-        printf(key_info_format, key->module->name, key_info->id, key_type);
+        printf(key_info_format, key->module->name, key_id, key_type);
 
         hsm_key_info_free(key_info);
     }
     hsm_key_list_free(keys, key_count);
+    
+    if (key_count != key_count_valid) {
+        size_t invalid_keys;
+        invalid_keys = key_count - key_count_valid;
+        printf("\n");
+        printf("Warning: %u %s not usable by OpenDNSSEC was found.\n",
+            invalid_keys, invalid_keys > 1 ? "keys" : "key");
+    }
 
     return 0;
 }
@@ -161,7 +185,8 @@ cmd_generate (int argc, char *argv[])
             hsm_key_info_t *key_info;
 
             key_info = hsm_get_key_info(NULL, key);
-            printf("Key generation successful: %s\n", key_info->id);
+            printf("Key generation successful: %s\n",
+                key_info ? key_info->id : "NULL");
             hsm_key_info_free(key_info);
             if (verbose) hsm_print_key(key);
             hsm_key_free(key);
@@ -274,9 +299,11 @@ cmd_purge (int argc, char *argv[])
         result = hsm_remove_key(NULL, key);
 
         if (!result) {
-            printf("Key remove successful: %s\n", key_info->id);
+            printf("Key remove successful: %s\n",
+                key_info ? key_info->id : "NULL");
         } else {
-            printf("Key remove failed: %s\n", key_info->id);
+            printf("Key remove failed: %s\n",
+                key_info ? key_info->id : "NULL");
             final_result++;
         }
 

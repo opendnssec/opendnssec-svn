@@ -46,7 +46,6 @@
 #include "CUnit/Automated.h"
 #include "CUnit/Basic.h"
 #include "CUnit/Console.h"
-#include "CUnit/CUCurses.h"
 
 #include "test_routines.h"
 
@@ -69,7 +68,6 @@ void TcuInitialize(void)
         fprintf(stderr, "Failed to initialize the CUnit registry.\n");
         exit(1);
     }
-
     return;
 }
 
@@ -99,9 +97,6 @@ void TcuExecute(void)
     }
     else if (TestGetConsole()) {
         CU_console_run_tests();
-    }
-    else if (TestGetCurses()) {
-        CU_curses_run_tests();
     }
     else if (TestGetList()) {
         if (TestGetFilename()) {

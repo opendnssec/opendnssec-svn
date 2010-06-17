@@ -2,10 +2,8 @@
 
 m4_sinclude([version.m4])
 
-define([EPPCLIENT_VERSION], [0.0])
-
 AC_PREREQ(2.61)
-AC_INIT([opendnssec-eppclient], EPPCLIENT_VERSION)
+AC_INIT([opendnssec-eppclient], OPENDNSSEC_VERSION)
 
 AM_INIT_AUTOMAKE
 AC_CONFIG_MACRO_DIR([m4])
@@ -47,7 +45,7 @@ AC_SEARCH_LIBS(nanosleep, rt posix4, AC_DEFINE(HAVE_NANOSLEEP, 1,
 ACX_LIBXML2
 ACX_LDNS(1,6,4)
 ACX_LIBSQLITE3
-ACX_LIBCURL
+LIBCURL_CHECK_CONFIG([yes], [7.18.2], [], [AC_MSG_ERROR(["libcurl not found"])])
 
 EPPCLIENTD_CONF=$OPENDNSSEC_SYSCONF_DIR/eppclientd.conf
 EPPCLIENTD_DB=$OPENDNSSEC_LOCALSTATE_DIR/eppclientd.sqlite

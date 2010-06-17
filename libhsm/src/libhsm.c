@@ -728,7 +728,7 @@ hsm_get_key_algorithm(hsm_ctx_t *ctx, const hsm_session_t *session,
                                       template,
                                       1);
     if (hsm_pkcs11_check_error(ctx, rv,
-                               "Get attr value algorithm type\n")) {
+                               "Get attr value algorithm type")) {
         /* this is actually not a good return value;
          * CKK_RSA is also 0. But we can't return a negative
          * value. Should we #define a specific 'key type' that
@@ -768,7 +768,7 @@ hsm_get_key_size_rsa(hsm_ctx_t *ctx, const hsm_session_t *session,
                                       template,
                                       1);
     if (hsm_pkcs11_check_error(ctx, rv,
-                               "Get attr value algorithm type\n")) {
+                               "Get attr value algorithm type")) {
         return 0;
     }
 
@@ -872,7 +872,7 @@ hsm_hex_parse(const char *hex, size_t *len)
  * dst must have allocated enough space (len*2 + 1)
  */
 static void
-hsm_hex_unparse(char *dst, unsigned char *src, size_t len)
+hsm_hex_unparse(char *dst, const unsigned char *src, size_t len)
 {
     size_t dst_len = len*2 + 1;
     size_t i;
@@ -906,12 +906,13 @@ hsm_get_id_for_object(hsm_ctx_t *ctx,
                                       object,
                                       template,
                                       1);
-    if (hsm_pkcs11_check_error(ctx, rv, "Get attr value\n")) {
+    if (hsm_pkcs11_check_error(ctx, rv, "Get attr value")) {
         *len = 0;
         return NULL;
     }
 
     if ((CK_LONG)template[0].ulValueLen < 1) {
+        /* No CKA_ID found, return NULL */
         *len = 0;
         return NULL;
     }
@@ -922,7 +923,7 @@ hsm_get_id_for_object(hsm_ctx_t *ctx,
                                       object,
                                       template,
                                       1);
-    if (hsm_pkcs11_check_error(ctx, rv, "Get attr value 2\n")) {
+    if (hsm_pkcs11_check_error(ctx, rv, "Get attr value 2")) {
         *len = 0;
         free(template[0].pValue);
         return NULL;
@@ -1466,6 +1467,14 @@ hsm_sign_buffer(hsm_ctx_t *ctx,
 
 }
 
+static int
+hsm_dname_is_wildcard(const ldns_rdf* dname)
+{
+    return ( ldns_dname_label_count(dname) > 0 &&
+             ldns_rdf_data(dname)[0] == 1 &&
+             ldns_rdf_data(dname)[1] == '*');
+}
+
 static ldns_rr *
 hsm_create_empty_rrsig(const ldns_rr_list *rrset,
                        const hsm_sign_params_t *sign_params)
@@ -1478,6 +1487,10 @@ hsm_create_empty_rrsig(const ldns_rr_list *rrset,
 
     label_count = ldns_dname_label_count(
                        ldns_rr_owner(ldns_rr_list_rr(rrset, 0)));
+    /* RFC 4035 section 2.2: dnssec label length and wildcards */
+    if (hsm_dname_is_wildcard(ldns_rr_owner(ldns_rr_list_rr(rrset, 0)))) {
+        label_count--;
+    }
 
     rrsig = ldns_rr_new_frm_type(LDNS_RR_TYPE_RRSIG);
 
@@ -2259,7 +2272,7 @@ hsm_nsec3_hash_name(hsm_ctx_t *ctx,
     status = ldns_str2rdf_dname(&hashed_owner, hashed_owner_b32);
     if (status != LDNS_STATUS_OK) {
         hsm_ctx_set_error(ctx, -1, "hsm_nsec3_hash_name()",
-            "Error creating rdf from %s\n", hashed_owner_b32);
+            "Error creating rdf from %s", hashed_owner_b32);
         LDNS_FREE(hashed_owner_b32);
         return NULL;
     }
@@ -2278,8 +2291,15 @@ hsm_get_dnskey(hsm_ctx_t *ctx,
     ldns_rr *dnskey;
     hsm_session_t *session;
 
-    if (!sign_params) return NULL;
     if (!ctx) ctx = _hsm_ctx;
+    if (!key) {
+        hsm_ctx_set_error(ctx, -1, "hsm_get_dnskey()", "Got NULL key");
+        return NULL;
+    }
+    if (!sign_params) {
+        hsm_ctx_set_error(ctx, -1, "hsm_get_dnskey()", "Got NULL sign_params");
+        return NULL;
+    }
     session = hsm_find_key_session(ctx, key);
     if (!session) return NULL;
 
@@ -2507,15 +2527,19 @@ hsm_print_key(hsm_key_t *key) {
     hsm_key_info_t *key_info;
     if (key) {
         key_info = hsm_get_key_info(NULL, key);
-        printf("key:\n");
-        printf("\tmodule: %p\n", (void *) key->module);
-        printf("\tprivkey handle: %u\n", (unsigned int) key->private_key);
-        printf("\tpubkey handle: %u\n", (unsigned int) key->public_key);
-        printf("\trepository: %s\n", key->module->name);
-        printf("\talgorithm: %s\n", key_info->algorithm_name);
-        printf("\tsize: %lu\n", key_info->keysize);
-        printf("\tid: %s\n", key_info->id);
-        hsm_key_info_free(key_info);
+        if (key_info) {
+            printf("key:\n");
+            printf("\tmodule: %p\n", (void *) key->module);
+            printf("\tprivkey handle: %u\n", (unsigned int) key->private_key);
+            printf("\tpubkey handle: %u\n", (unsigned int) key->public_key);
+            printf("\trepository: %s\n", key->module->name);
+            printf("\talgorithm: %s\n", key_info->algorithm_name);
+            printf("\tsize: %lu\n", key_info->keysize);
+            printf("\tid: %s\n", key_info->id);
+            hsm_key_info_free(key_info);
+        } else {
+            printf("key: hsm_get_key_info() returned NULL\n");
+        }
     } else {
         printf("key: <void>\n");
     }
