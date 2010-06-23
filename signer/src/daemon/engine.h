@@ -87,11 +87,12 @@ engine_type* engine_create(void);
  * \param[in] cfgfile configuration file
  * \param[in] cmdline_verbosity how many -v on the command line
  * \param[in] daemonize to run as daemon or not
- * \param[in] print info and exit
+ * \param[in] info print info and exit
+ * \param[in] single_run run once
  *
  */
 void engine_start(const char* cfgfile, int cmdline_verbosity,
-    int daemonize, int info);
+    int daemonize, int info, int single_run);
 
 /**
  * Update zone list.

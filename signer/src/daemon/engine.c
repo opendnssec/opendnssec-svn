@@ -474,7 +474,7 @@ engine_setup(engine_type* engine)
  *
  */
 static void
-engine_run(engine_type* engine)
+engine_run(engine_type* engine, int single_run)
 {
     se_log_assert(engine);
 
@@ -499,7 +499,9 @@ engine_run(engine_type* engine)
                 break;
         }
 
-        if (engine->signal == SIGNAL_RUN) {
+        if (single_run) {
+                engine->need_to_exit = 1;
+        } else if (engine->signal == SIGNAL_RUN) {
            se_log_debug("engine taking a break");
            lock_basic_sleep(&engine->signal_cond, &engine->signal_lock, 3600);
         }
@@ -624,7 +626,7 @@ engine_update_zones(engine_type* engine, const char* zone_name, char* buf)
  */
 void
 engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
-    int info)
+    int info, int single_run)
 {
     engine_type* engine = NULL;
     int use_syslog = 0;
@@ -678,7 +680,7 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
         }
 
         engine_start_workers(engine);
-        engine_run(engine);
+        engine_run(engine, single_run);
         engine_stop_workers(engine);
     }
 

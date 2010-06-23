@@ -71,10 +71,12 @@ main(int argc, char* argv[])
     int c;
     int options_index = 0;
     int info = 0;
+    int single_run = 0;
     int daemonize = 1;
     int cmdline_verbosity = 0;
     const char* cfgfile = ODS_SE_CFGFILE;
     static struct option long_options[] = {
+        {"single-run", no_argument, 0, '1'},
         {"config", required_argument, 0, 'c'},
         {"no-daemon", no_argument, 0, 'd'},
         {"help", no_argument, 0, 'h'},
@@ -84,11 +86,11 @@ main(int argc, char* argv[])
     };
 
     /* parse the commandline */
-    while ((c=getopt_long(argc, argv, "c:dhiv",
+    while ((c=getopt_long(argc, argv, "1c:dhiv",
         long_options, &options_index)) != -1) {
         switch (c) {
-            case 'c':
-                cfgfile = optarg;
+            case '1':
+                single_run = 1;
                 break;
             case 'd':
                 daemonize = 0;
@@ -119,7 +121,7 @@ main(int argc, char* argv[])
 
     /* main stuff */
     fprintf(stdout, "OpenDNSSEC signer engine version %s\n", PACKAGE_VERSION);
-    engine_start(cfgfile, cmdline_verbosity, daemonize, info);
+    engine_start(cfgfile, cmdline_verbosity, daemonize, info, single_run);
 
     /* done */
     return 0;

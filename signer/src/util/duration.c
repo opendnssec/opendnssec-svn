@@ -337,10 +337,6 @@ se_rand(time_t mod)
 time_t
 time_now(void)
 {
-#ifdef ENFORCER_TIMESHIFT
-    se_log_debug("timeshift not yet implemented");
-#endif /* ENFORCER_TIMESHIFT */
-
     return time(NULL);
 }
 
