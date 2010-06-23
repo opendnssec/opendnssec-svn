@@ -397,6 +397,8 @@ engine_setup(engine_type* engine)
     /* privdrop */
     engine->uid = privuid(engine->config->username); /* LEAKS */
     engine->gid = privgid(engine->config->group); /* LEAKS */
+    /* TODO: does piddir exists? */
+    /* remove the chown stuff: piddir? */
     se_chown(engine->config->pid_filename, engine->uid, engine->gid, 1); /* chown pidfile directory */
     se_chown(engine->config->clisock_filename, engine->uid, engine->gid, 0); /* chown sockfile */
     se_chown(engine->config->working_dir, engine->uid, engine->gid, 0); /* chown workdir */
@@ -436,6 +438,7 @@ engine_setup(engine_type* engine)
         }
     }
     engine->pid = getpid();
+    /* make common with enforcer */
     if (write_pidfile(engine->config->pid_filename, engine->pid) == -1) {
         se_log_error("setup failed: unable to write pid file");
         return 1;
@@ -453,7 +456,7 @@ engine_setup(engine_type* engine)
     /* set up hsm */
     result = hsm_open(engine->config->cfg_filename, hsm_prompt_pin, NULL); /* LEAKS */
    if (result != HSM_OK) {
-        se_log_error("Error initializing libhsm");
+        se_log_error("Error initializing libhsm (errno %i)", result);
         return 1;
     }
 
