@@ -157,6 +157,7 @@ case "${host_cpu}-${host_os}" in
         # we'll just look for -pthreads and -lpthread first:
 
         acx_pthread_flags="-pthreads pthread -mt -pthread $acx_pthread_flags"
+        AC_DEFINE(_POSIX_PTHREAD_SEMANTICS, 1,[Use POSIX pthread semantics])
         ;;
 esac
 
