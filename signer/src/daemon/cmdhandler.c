@@ -55,6 +55,10 @@
 
 #define SE_CMDH_CMDLEN 7
 
+#ifndef SUN_LEN
+#define SUN_LEN(su)  (sizeof(*(su)) - sizeof((su)->sun_path) + strlen((su)->sun_path))
+#endif
+
 static int count = 0;
 
 
