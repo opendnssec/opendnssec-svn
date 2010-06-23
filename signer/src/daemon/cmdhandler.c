@@ -635,7 +635,7 @@ cmdhandler_create(const char* filename)
     se_log_debug("create command handler to socket %s", filename);
 
     /* new socket */
-    listenfd = socket(AF_LOCAL, SOCK_STREAM, 0);
+    listenfd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (listenfd <= 0) {
         se_log_error("unable to create command handler, socket() failed: %s",
             strerror(errno));
@@ -660,7 +660,7 @@ cmdhandler_create(const char* filename)
     /* no suprises */
     unlink(filename);
     bzero(&servaddr, sizeof(servaddr));
-    servaddr.sun_family = AF_LOCAL;
+    servaddr.sun_family = AF_UNIX;
     strncpy(servaddr.sun_path, filename, sizeof(servaddr.sun_path) - 1);
 
     /* bind and listen... */

@@ -231,7 +231,7 @@ interface_start(char* cmd)
     const char* servsock_filename = ODS_SE_SOCKFILE;
 
     /* new socket */
-    sockfd = socket(AF_LOCAL, SOCK_STREAM, 0);
+    sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (sockfd <= 0) {
         fprintf(stderr, "Unable to connect to engine. "
             "socket() failed: %s\n", strerror(errno));
@@ -240,7 +240,7 @@ interface_start(char* cmd)
 
     /* no suprises */
     bzero(&servaddr, sizeof(servaddr));
-    servaddr.sun_family = AF_LOCAL;
+    servaddr.sun_family = AF_UNIX;
     strncpy(servaddr.sun_path, servsock_filename,
         sizeof(servaddr.sun_path) - 1);
 
