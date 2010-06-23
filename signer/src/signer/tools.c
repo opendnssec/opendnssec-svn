@@ -41,6 +41,8 @@
 #include "util/log.h"
 #include "util/se_malloc.h"
 
+#include <unistd.h> /* unlink() */
+
 #define SYSTEM_MAXLEN 255
 
 
