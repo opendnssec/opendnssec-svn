@@ -217,7 +217,8 @@ int
 keylist_compare(keylist_type* a, keylist_type* b)
 {
     key_type* ka, *kb;
-    int ret, i;
+    int ret = 0;
+    size_t i = 0;
 
     se_log_assert(a);
     se_log_assert(b);
