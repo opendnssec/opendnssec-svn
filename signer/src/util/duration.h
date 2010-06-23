@@ -131,6 +131,14 @@ void time_itoa(time_t n, char* s);
 uint32_t time_datestamp(time_t tt, const char* format, char** str);
 
 /**
+ * Return the time since Epoch, measured in seconds.
+ * If the timeshift is enabled, return the environment variable.
+ * \return time_t now, or what we considered as now.
+ *
+ */
+time_t time_now(void);
+
+/**
  * Clean up duration.
  * \param[in] duration duration to be cleaned up
  *

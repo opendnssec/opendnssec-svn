@@ -36,7 +36,7 @@
 #include "util/se_malloc.h"
 
 #include <stdio.h> /* snprintf() */
-#include <stdlib.h> /* atoi(), strtoul(), [arc4]random[_uniform]() */
+#include <stdlib.h> /* atoi(), strtoul(), [arc4]random[_uniform](), getenv() */
 #include <string.h> /* strncat(), strchr() */
 #include <time.h> /* time(), localtime(), strftime() */
 
@@ -331,6 +331,21 @@ se_rand(time_t mod)
 
 
 /**
+ * Return the time since Epoch, measured in seconds.
+ *
+ */
+time_t
+time_now(void)
+{
+#ifdef ENFORCER_TIMESHIFT
+    se_log_debug("timeshift not yet implemented");
+#endif /* ENFORCER_TIMESHIFT */
+
+    return time(NULL);
+}
+
+
+/**
  * copycode: This code is based on the EXAMPLE in the strftime manual.
  *
  */
@@ -345,7 +360,7 @@ time_datestamp(time_t tt, const char* format, char** str)
     if (tt) {
         t = tt;
     } else {
-        t = time(NULL);
+        t = time_now();
     }
 
     tmp = localtime(&t);

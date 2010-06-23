@@ -670,7 +670,7 @@ zonedata_sign(zonedata_type* zd, ldns_rdf* owner, signconf_type* sc)
     se_log_assert(zd);
     se_log_assert(zd->domains);
 
-    now = time(NULL);
+    now = time_now();
     ctx = hsm_create_context();
     if (!ctx) {
         se_log_error("error creating libhsm context");
@@ -708,7 +708,7 @@ zonedata_update_serial(zonedata_type* zd, signconf_type* sc)
 
     prev = zd->outbound_serial;
     if (se_strcmp(sc->soa_serial, "unixtime") == 0) {
-        soa = (uint32_t) time(NULL);
+        soa = (uint32_t) time_now();
         if (!DNS_SERIAL_GT(soa, prev)) {
             soa = prev + 1;
         }

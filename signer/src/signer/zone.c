@@ -199,7 +199,7 @@ zone_update_signconf(zone_type* zone, struct tasklist_struct* tl, char* buf)
         se_log_debug("zone %s now has signconf", zone->name);
         /* zone state? */
         /* create task for new zone */
-        now = time(NULL);
+        now = time_now();
         zone->task = task_create(TASK_READ, now, zone->name, zone);
         task = tasklist_schedule_task(tl, zone->task, 0);
         if (!task) {

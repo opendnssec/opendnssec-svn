@@ -110,7 +110,7 @@ worker_start(worker_type* worker)
             timeout = 1;
         } else {
             task = tasklist_first_task(worker->tasklist);
-            now = time(NULL);
+            now = time_now();
             if (task && !worker->tasklist->loading) {
                 timeout = (task->when - now);
             } else {
@@ -202,14 +202,14 @@ worker_perform_task(worker_type* worker, task_type* task)
                 break;
             }
             task->what = TASK_SIGN;
-            task->when = time(NULL) +
+            task->when = time_now() +
                 duration2time(zone->signconf->sig_resign_interval);
             break;
         default:
             se_log_warning("unknown task[id %i zone %s], "
                 "trying full sign", task->what, task->who);
             task->what = TASK_READ;
-            task->when = time(NULL);
+            task->when = time_now();
             break;
     }
     return;

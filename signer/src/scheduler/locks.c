@@ -98,6 +98,8 @@ se_thread_wait(cond_basic_type* cond, lock_basic_type* lock, time_t wait)
     struct timespec ts;
     int ret = 0;
 
+    /* If timeshift is enabled, we don't care about threads. No need
+     & to take the timeshift into account here */
     if (clock_gettime(CLOCK_REALTIME, &ts) < 0) {
         se_log_error("clock_gettime() error: %s", strerror(errno));
         return 1;

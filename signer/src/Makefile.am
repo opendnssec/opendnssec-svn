@@ -43,6 +43,7 @@ ods_signerd_LDADD=		@LDNS_LIBS@ @XML2_LIBS@ @LIBHSM_LIBS@ @PTHREAD_LIBS@
 ods_signerd_DEPENDENCIES=	@BUILD_LIBHSM@
 
 ods_signer_SOURCES=		ods-signer.c \
+				util/duration.c util/duration.h \
 				util/file.c util/file.h \
 				util/log.c util/log.h \
 				util/se_malloc.c util/se_malloc.h

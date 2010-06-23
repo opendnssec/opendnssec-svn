@@ -179,7 +179,7 @@ cmdhandler_handle_cmd_sign(int sockfd, cmdhandler_type* cmdc, const char* tbd)
 {
     ldns_rbnode_t* node = LDNS_RBTREE_NULL;
     task_type* task = NULL;
-    time_t now = time(NULL);
+    time_t now = time_now();
     int found = 0, scheduled = 0;
     char buf[ODS_SE_MAXLINE];
     size_t i = 0;
@@ -317,7 +317,7 @@ cmdhandler_handle_cmd_queue(int sockfd, cmdhandler_type* cmdc)
     lock_basic_lock(&cmdc->engine->tasklist->tasklist_lock);
 
     /* how many tasks scheduled */
-    now = time(NULL);
+    now = time_now();
     strtime = ctime(&now);
     (void)snprintf(buf, ODS_SE_MAXLINE, "I have %i tasks scheduled\nIt is "
         "now %s", cmdc->engine->tasklist->tasks->count, strtime);

@@ -125,6 +125,7 @@ parse_file_check(const char* cfgfile, const char* rngfile)
     return 0;
 }
 
+/* TODO: look how the enforcer reads this now */
 
 /**
  * Parse elements from the configuration file.

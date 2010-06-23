@@ -103,6 +103,7 @@ main(int argc, char* argv[])
             case 'v':
                 cmdline_verbosity++;
                 break;
+            /* version */
             default:
                 usage(stderr);
                 exit(2);

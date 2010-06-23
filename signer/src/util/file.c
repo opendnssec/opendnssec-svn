@@ -109,7 +109,7 @@ se_skip_whitespace(FILE* fd, unsigned int* line_nr)
 
 
 /**
- * Construct file name.
+ * Construct file name. (StrAppend?, snprintf?)
  *
  */
 char*

@@ -39,7 +39,7 @@
 #include "util/se_malloc.h"
 
 #include <ldns/ldns.h> /* ldns_dname_*(), ldns_rdf_*(), ldns_rbtree_*() */
-#include <time.h> /* time(), ctime() */
+#include <time.h> /* ctime() */
 #include <stdio.h> /* fprintf(), snprintf() */
 #include <stdlib.h>
 #include <string.h> /* strlen() */
@@ -171,7 +171,7 @@ taskid2str(int taskid)
 char*
 task2str(task_type* task, char* buftask)
 {
-    time_t now = time(NULL);
+    time_t now = time_now();
     char* strtime = NULL;
     char* strtask = NULL;
 
@@ -208,7 +208,7 @@ task2str(task_type* task, char* buftask)
 void
 task_print(FILE* out, task_type* task)
 {
-    time_t now = time(NULL);
+    time_t now = time_now();
     char* strtime = NULL;
 
     se_log_assert(out);
@@ -235,7 +235,7 @@ task_print(FILE* out, task_type* task)
 static void
 log_task(task_type* task)
 {
-    time_t now = time(NULL);
+    time_t now = time_now();
     char* strtime = NULL;
 
     se_log_assert(task);
@@ -455,7 +455,7 @@ tasklist_pop_task(tasklist_type* list)
         return NULL;
     }
 
-    now = time(NULL);
+    now = time_now();
     pop = (task_type*) first_node->key;
     if (pop && (pop->flush || pop->when <= now)) {
         if (pop->flush) {

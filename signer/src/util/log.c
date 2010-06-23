@@ -32,6 +32,7 @@
  */
 
 #include "config.h"
+#include "util/duration.h"
 #include "util/file.h"
 #include "util/log.h"
 
@@ -39,7 +40,6 @@
 #include <stdio.h> /* fflush, fprintf(), vsnprintf() */
 #include <stdlib.h> /* exit() */
 #include <string.h> /* strlen() */
-#include <time.h> /* time() */
 
 #ifdef HAVE_SYSLOG_H
 #include <strings.h> /* strncasecmp() */
@@ -58,6 +58,15 @@ static int logging_to_syslog = 0;
 
 static FILE* logfile = NULL;
 static int log_level = LOG_CRIT;
+
+
+/* TODO:
+   - prepend ods_ in common library
+   - log_init should have program_name variable)
+   - wrap special case logging onto generic one
+   - check if xml-specific logging functions are still neeeded (enforcer)
+   -
+*/
 
 
 /**
@@ -121,6 +130,9 @@ se_log_close(void)
 
 /**
  * Get facility by string.
+ * ods_log_get_user
+ * ods_log_get_facility
+ * return error, LOG_*** as a parameter
  *
  */
 #ifdef HAVE_SYSLOG_H
@@ -181,7 +193,7 @@ static void
 se_log_vmsg(int priority, const char* t, const char* s, va_list args)
 {
     char message[ODS_SE_MAXLINE];
-    time_t now = time(NULL);
+    time_t now = time_now();
     char* strtime = NULL;
 
     vsnprintf(message, sizeof(message), s, args);

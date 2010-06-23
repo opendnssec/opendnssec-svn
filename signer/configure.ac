@@ -54,9 +54,9 @@ case "$host" in
     ;;
 esac
 
-ACX_LDNS(1,6,4)
 ACX_LIBXML2
 ACX_LIBHSM
+ACX_LDNS(1,6,4)
 ACX_PTHREAD
 
 LIBS="$PTHREAD_LIBS $LIBS"
@@ -94,6 +94,16 @@ AC_CHECK_FUNCS([pthread_create pthread_detach pthread_self pthread_join pthread_
 AC_CHECK_HEADERS([errno.h getopt.h pthread.h signal.h stdarg.h stdint.h stdio.h stdlib.h string.h strings.h syslog.h time.h unistd.h])
 AC_CHECK_HEADERS([libxml/parser.h libxml/relaxng.h libxml/xmlreader.h libxml/xpath.h])
 AC_CHECK_HEADERS([sys/select.h sys/socket.h sys/stat.h sys/time.h sys/types.h sys/wait.h])
+
+AC_ARG_ENABLE(timeshift,
+        AC_HELP_STRING([--enable-timeshift], [Enable timeshift debug]),
+                [enable_timeshift="${enableval}"],
+                [enable_timeshift="no"])
+if test "x${enable_timeshift}" = "xyes"; then
+        AC_DEFINE_UNQUOTED(ENFORCER_TIMESHIFT, 1, [timeshift debug])
+        AC_MSG_CHECKING(if we should do timeshift debugging)
+        AC_MSG_RESULT(yes)
+fi
 
 AH_BOTTOM([
 
