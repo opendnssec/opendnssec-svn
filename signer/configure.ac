@@ -54,6 +54,32 @@ case "$host" in
     ;;
 esac
 
+AC_DEFUN([AC_CHECK_STRPTIME],
+[AC_REQUIRE([AC_PROG_CC])
+AC_MSG_CHECKING(whether strptime needs defines)
+AC_CACHE_VAL(ac_cv_c_strptime_needs_defs,
+[
+cat >conftest.c <<EOF
+#include <time.h>
+void testing (void) { struct tm t; char *timestr; strptime(timestr, "%Y%m", &t); }
+EOF
+if test -z "`$CC -Wall -Werror -c conftest.c 2>&1`"; then
+eval "ac_cv_c_strptime_needs_defs=no"
+else
+eval "ac_cv_c_strptime_needs_defs=yes"
+fi
+rm -f conftest*
+])
+
+AC_MSG_RESULT($ac_cv_c_strptime_needs_defs)
+if test $ac_cv_c_strptime_needs_defs = yes; then
+AC_DEFINE_UNQUOTED([STRPTIME_NEEDS_DEFINES], 1, [strptime is available from time.h with some defines.])
+fi
+])dnl
+
+AC_CHECK_STRPTIME
+
+
 ACX_LIBXML2
 ACX_LIBHSM
 ACX_LDNS(1,6,4)
@@ -106,6 +132,29 @@ if test "x${enable_timeshift}" = "xyes"; then
 fi
 
 AH_BOTTOM([
+/* define before includes as it specifies what standard to use. */
+#if (defined(HAVE_PSELECT) && !defined (HAVE_PSELECT_PROTO)) \
+        || !defined (HAVE_CTIME_R_PROTO) \
+        || defined (STRPTIME_NEEDS_DEFINES)
+#  ifndef _XOPEN_SOURCE
+#    define _XOPEN_SOURCE 600
+#  endif
+#  ifndef _POSIX_C_SOURCE
+#    define _POSIX_C_SOURCE 200112
+#  endif
+#  ifndef _BSD_SOURCE
+#    define _BSD_SOURCE 1
+#  endif
+#  ifndef __EXTENSIONS__
+#    define __EXTENSIONS__ 1
+#  endif
+#  ifndef _STDC_C99
+#    define _STDC_C99 1
+#  endif
+#  ifndef _ALL_SOURCE
+#    define _ALL_SOURCE 1
+#  endif
+#endif
 
 #define ODS_SE_MAXLINE 1024
 #define ODS_SE_SIGNERTHREADS 1

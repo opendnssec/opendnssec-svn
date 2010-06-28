@@ -98,7 +98,7 @@ time_t se_rand(time_t mod);
  * Return the shortest time.
  * \param[in] a one time
  * \param[in] b another time
- * \return the shortest time
+ * \return time_t the shortest time
  *
  */
 time_t time_minimum(time_t a, time_t b);
@@ -107,7 +107,7 @@ time_t time_minimum(time_t a, time_t b);
  * Return the longest time.
  * \param[in] a one time
  * \param[in] b another time
- * \return the shortest time
+ * \return time_t the shortest time
  *
  */
 time_t time_maximum(time_t a, time_t b);
@@ -125,15 +125,22 @@ void time_itoa(time_t n, char* s);
  * \param[in] tt time
  * \param[in] format stamp format
  * \param[out] str store string
- * \return integer based datestamp.
+ * \return uint32_t integer based datestamp.
  *
  */
 uint32_t time_datestamp(time_t tt, const char* format, char** str);
 
 /**
+ * Convert time iin string format into seconds.
+ * \param[in] time time in string format
+ * return time_t time in seconds
+ */
+time_t timeshift2time(const char *time);
+
+/**
  * Return the time since Epoch, measured in seconds.
  * If the timeshift is enabled, return the environment variable.
- * \return time_t now, or what we considered as now.
+ * \return time_t now (or timeshift).
  *
  */
 time_t time_now(void);

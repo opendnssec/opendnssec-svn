@@ -119,6 +119,19 @@ main(int argc, char* argv[])
         exit(2);
     }
 
+#ifdef ENFORCER_TIMESHIFT
+    fprintf(stdout, "DEBUG: timeshift mode enabled...\n");
+    if (getenv("ENFORCER_TIMESHIFT")) {
+        fprintf(stdout, "WARNING: timeshift %s detected, running once only\n",
+            getenv("ENFORCER_TIMESHIFT"));
+        single_run = 1;
+    } else {
+        fprintf(stdout, "DEBUG: timeshift mode not set: %s\n",
+            getenv("ENFORCER_TIMESHIFT"));
+    }
+#endif /* ENFORCER_TIMESHIFT */
+
+
     /* main stuff */
     fprintf(stdout, "OpenDNSSEC signer engine version %s\n", PACKAGE_VERSION);
     engine_start(cfgfile, cmdline_verbosity, daemonize, info, single_run);
