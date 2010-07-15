@@ -67,6 +67,7 @@ struct engine_struct {
     lock_basic_type signal_lock;
 
     pid_t pid;
+    pid_t zfpid;
     uid_t uid;
     gid_t gid;
 

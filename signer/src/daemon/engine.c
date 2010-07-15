@@ -41,6 +41,7 @@
 #include "scheduler/task.h"
 #include "signer/zone.h"
 #include "signer/zonelist.h"
+#include "tools/zone_fetcher.h"
 #include "util/file.h"
 #include "util/log.h"
 #include "util/privdrop.h"
@@ -49,13 +50,13 @@
 #include <errno.h>
 #include <libhsm.h> /* hsm_open(), hsm_close() */
 #include <libxml/parser.h> /* xmlInitParser(), xmlCleanupParser(), xmlCleanupThreads() */
-#include <signal.h> /* sigfillset(), sigaction() */
+#include <signal.h> /* sigfillset(), sigaction(), kill() */
 #include <stdio.h> /* snprintf() */
 #include <stdlib.h> /* exit(), fwrite() */
 #include <string.h> /* strlen(), strncpy(), strerror() */
 #include <strings.h> /* bzero() */
 #include <sys/socket.h> /* socket(), connect(), close()  */
-#include <sys/types.h> /* getpid() */
+#include <sys/types.h> /* getpid(), kill() */
 #include <sys/un.h> /* unix socket */
 #include <time.h> /* tzset() */
 #include <unistd.h> /* fork(), setsid(), getpid(), chdir() */
@@ -79,6 +80,7 @@ engine_create(void)
     engine->cmdhandler = NULL;
     engine->cmdhandler_done = 0;
     engine->pid = -1;
+    engine->zfpid = -1;
     engine->uid = -1;
     engine->gid = -1;
     engine->need_to_exit = 0;
@@ -621,6 +623,91 @@ engine_update_zones(engine_type* engine, const char* zone_name, char* buf)
 
 
 /**
+ * Start zonefetcher.
+ *
+ */
+static int
+start_zonefetcher(engine_type* engine)
+{
+    pid_t zfpid = 0;
+    int result;
+
+    se_log_assert(engine);
+    se_log_assert(engine->config);
+
+    if (!engine->config->zonefetch_filename) {
+        /* zone fetcher disabled */
+        return 0;
+    }
+
+    switch ((zfpid = fork())) {
+        case -1: /* error */
+            se_log_error("failed to fork zone fetcher: %s",
+                strerror(errno));
+            return 1;
+        case 0: /* child */
+            break;
+        default: /* parent */
+            engine->zfpid = zfpid;
+            return 0;
+    }
+
+    if (setsid() == -1) {
+        se_log_error("failed to setsid zone fetcher: %s",
+            strerror(errno));
+        exit(1);
+    }
+
+    se_log_verbose("zone fetcher started (pid=%i)", getpid());
+
+    result = tools_zone_fetcher(engine->config->zonefetch_filename,
+        engine->config->zonelist_filename, engine->config->group,
+        engine->config->username, engine->config->chroot,
+        engine->config->log_filename, engine->config->use_syslog,
+        engine->config->verbosity);
+
+    se_log_verbose("zone fetcher stopped", result);
+
+    parent_cleanup(engine, 0);
+    xmlCleanupParser();
+    xmlCleanupThreads();
+    exit(result);
+
+    return 0;
+}
+
+
+/**
+ * Stop zonefetcher.
+ *
+ */
+static void
+stop_zonefetcher(engine_type* engine)
+{
+    int result = 0;
+
+    se_log_assert(engine);
+    se_log_assert(engine->config);
+
+    if (engine->config->zonefetch_filename) {
+        if (engine->zfpid > 0) {
+            result = kill(engine->zfpid, SIGHUP);
+            if (result == -1) {
+                se_log_error("cannot stop zone fetcher: %s", strerror(errno));
+            } else {
+                se_log_verbose("zone fetcher stopped (pid=%i)", engine->zfpid);
+            }
+            engine->zfpid = -1;
+        } else {
+            se_log_error("zone fetcher process id unknown, unable to "
+                "stop zone fetcher");
+        }
+    }
+    return;
+}
+
+
+/**
  * Start engine.
  *
  */
@@ -679,9 +766,17 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
             engine_update_zones(engine, NULL, NULL);
         }
 
+        if (start_zonefetcher(engine) != 0) {
+            se_log_error("cannot start zonefetcher");
+            engine->need_to_exit = 1;
+            break;
+        }
+
         engine_start_workers(engine);
         engine_run(engine, single_run);
         engine_stop_workers(engine);
+
+	stop_zonefetcher(engine);
     }
 
     /* shutdown */
