@@ -38,7 +38,6 @@
 
 #include "config.h"
 
-#define PID_FILENAME_STRING OPENDNSSEC_FETCH_PIDFILE
 #define DNS_PORT_STRING "53"
 #define INBUF_SIZE      4096 /* max size for incoming queries */
 #define MAX_INTERFACES  128

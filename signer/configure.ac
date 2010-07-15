@@ -96,11 +96,13 @@ AC_PROG_INSTALL
 AC_PROG_LIBTOOL
 
 AC_DEFINE_UNQUOTED(ODS_SE_PIDFILE,  ["$OPENDNSSEC_SIGNER_PIDFILE"],    [Path to the OpenDNSSEC signer engine pid file])
+AC_DEFINE_UNQUOTED(ODS_ZF_PIDFILE,  ["$OPENDNSSEC_FETCH_PIDFILE"],    [Path to the OpenDNSSEC signer engine pid file])
 AC_DEFINE_UNQUOTED(ODS_SE_SOCKFILE, ["$OPENDNSSEC_SIGNER_SOCKET"],     [Path to the OpenDNSSEC signer engine socket file])
 AC_DEFINE_UNQUOTED(ODS_SE_WORKDIR,  ["$OPENDNSSEC_SIGNER_WORKINGDIR"], [Path to the OpenDNSSEC signer engine working directory])
 AC_DEFINE_UNQUOTED(ODS_SE_CFGFILE,  ["$OPENDNSSEC_CONFIG_FILE"],       [Path to the OpenDNSSEC config file])
 AC_DEFINE_UNQUOTED(ODS_SE_RNGDIR,   ["$OPENDNSSEC_SCHEMA_DIR"],        [Path to the OpenDNSSEC data files])
 AC_DEFINE_UNQUOTED(ODS_SE_ENGINE,   ["$OPENDNSSEC_SIGNER_ENGINE -d -vvvvv"], [Path to the OpenDNSSEC signer engine binary])
+AC_DEFINE_UNQUOTED(ODS_SE_CLI,   ["$OPENDNSSEC_SIGNER_CLI"], [Path to the OpenDNSSEC signer client binary])
 AC_DEFINE_UNQUOTED(ODS_SE_AUDITOR,  ["$OPENDNSSEC_SIGNER_AUDITOR"],    [Path to the OpenDNSSEC auditor binary])
 
 AC_CHECK_FUNCS([arc4random arc4random_uniform])

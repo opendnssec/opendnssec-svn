@@ -880,7 +880,7 @@ odd_xfer(zfzonelist_type* zone, uint32_t serial, config_type* config)
             snprintf(dest_file, sizeof(dest_file), "%s.axfr", zone->input_file);
             if(rename(axfr_file, dest_file) == 0) {
                 snprintf(engine_sign_cmd, sizeof(engine_sign_cmd),
-                    "%s sign %s", OPENDNSSEC_SIGNER_CLI, zone->name);
+                    "%s sign %s", ODS_SE_CLI, zone->name);
                 if (system(engine_sign_cmd) != 0) {
                     se_log_error("zone fetcher could not kick "
                         "the signer engine to sign zone %s", zone->name);
@@ -1322,7 +1322,7 @@ tools_zone_fetcher(const char* config_file, const char* zonelist_file,
     /* read transfer configuration */
     xmlInitParser();
     config = new_config();
-    config->pidfile = strdup(PID_FILENAME_STRING); /* not freed */
+    config->pidfile = strdup(ODS_ZF_PIDFILE); /* not freed */
     c = read_axfr_config(config_file, config);
     config->zonelist = read_zonelist(zonelist_file);
     config->xfrd = init_xfrd(config);
