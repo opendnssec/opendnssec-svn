@@ -289,6 +289,7 @@ adfile_read_rr:
                     break;
                 }
 
+                /* don't put the default ttl here, but the latest explicit one */
                 *status = ldns_rr_new_frm_str(&rr, line, new_ttl, *orig, prev);
                 if (*status == LDNS_STATUS_OK) {
                     ldns_rr2canonical(rr); /* TODO: canonicalize or not? */

@@ -118,13 +118,9 @@ engine_start_cmdhandler(engine_type* engine)
     se_log_assert(engine->config);
     se_log_debug("start command handler");
 
-    engine->cmdhandler = cmdhandler_create(engine->config->clisock_filename);
-    if (!engine->cmdhandler) {
-        return 1;
-    }
-    engine->cmdhandler->engine = engine;
     se_thread_create(&engine->cmdhandler->thread_id,
         cmdhandler_thread_start, engine->cmdhandler);
+    engine->cmdhandler->engine = engine;
     return 0;
 }
 
@@ -390,26 +386,31 @@ engine_setup(engine_type* engine)
     se_log_assert(engine->config);
     se_log_debug("perform setup");
 
-    /* start command handler (before chowning socket file) */
-    if (engine_start_cmdhandler(engine) != 0) {
-        se_log_error("setup failed: unable to start command handler");
+    /* create command handler (before chowning socket file) */
+    engine->cmdhandler = cmdhandler_create(engine->config->clisock_filename);
+    if (!engine->cmdhandler) {
         return 1;
     }
 
     /* privdrop */
     engine->uid = privuid(engine->config->username); /* LEAKS */
     engine->gid = privgid(engine->config->group); /* LEAKS */
+
     /* TODO: does piddir exists? */
     /* remove the chown stuff: piddir? */
-    se_chown(engine->config->pid_filename, engine->uid, engine->gid, 1); /* chown pidfile directory */
-    se_chown(engine->config->clisock_filename, engine->uid, engine->gid, 0); /* chown sockfile */
-    se_chown(engine->config->working_dir, engine->uid, engine->gid, 0); /* chown workdir */
+    /* chown pidfile directory */
+    se_chown(engine->config->pid_filename, engine->uid, engine->gid, 1);
+    /* chown sockfile */
+    se_chown(engine->config->clisock_filename, engine->uid, engine->gid, 0);
+    /* chown workdir */
+    se_chown(engine->config->working_dir, engine->uid, engine->gid, 0);
     if (engine->config->log_filename && !engine->config->use_syslog) {
-        se_chown(engine->config->log_filename, engine->uid, engine->gid, 0); /* chown logfile */
+        /* chown logfile */
+        se_chown(engine->config->log_filename, engine->uid, engine->gid, 0);
     }
     if (chdir(engine->config->working_dir) != 0) {
-        se_log_error("setup failed: chdir to %s failed: %s", engine->config->working_dir,
-            strerror(errno));
+        se_log_error("setup failed: chdir to %s failed: %s",
+            engine->config->working_dir, strerror(errno));
         return 1;
     }
 
@@ -446,6 +447,12 @@ engine_setup(engine_type* engine)
         return 1;
     }
     se_log_verbose("running as pid %lu", (unsigned long) engine->pid);
+
+    /* start up command handler */
+    if (engine_start_cmdhandler(engine) != 0) {
+        se_log_error("setup failed: unable to start command handler");
+        return 1;
+    }
 
     /* catch signals */
     signal_set_engine(engine);
