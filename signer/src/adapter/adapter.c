@@ -55,11 +55,6 @@ adapter_init(const char* str, adapter_mode type, int inbound)
         case ADAPTER_FILE:
             return adfile_init();
             break;
-        case ADAPTER_MYSQL:
-            ods_log_error("[%s] unable to initialize MySQL adapter: "
-                "notimpl yet", adapter_str);
-            return ODS_STATUS_ERR;
-            break;
         default:
             ods_log_error("[%s] unable to initialize adapter: "
                 "unknown adapter", adapter_str);
@@ -135,11 +130,6 @@ adapter_read(struct zone_struct* zone)
             status = adfile_read(zone, adzone->adinbound->configstr);
             return status;
             break;
-        case ADAPTER_MYSQL:
-            ods_log_error("[%s] unable to read zone %s from adapter: MySQL "
-                "adapter notimpl yet", adapter_str, adzone->name);
-            return ODS_STATUS_ERR;
-            break;
         default:
             ods_log_error("[%s] unable to read zone %s from adapter: unknown "
                 "adapter", adapter_str, adzone->name);
@@ -184,11 +174,6 @@ adapter_write(struct zone_struct* zone)
                 adzone->adinbound->configstr);
             status = adfile_write(zone, adzone->adoutbound->configstr);
             return status;
-            break;
-        case ADAPTER_MYSQL:
-            ods_log_error("[%s] unable to write zone %s to adapter: MySQL "
-                "adapter notimpl yet", adapter_str, adzone->name);
-            return ODS_STATUS_ERR;
             break;
         default:
             ods_log_error("[%s] unable to write zone %s to adapter: unknown "

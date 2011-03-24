@@ -46,7 +46,7 @@ struct zone_struct;
 enum adapter_mode_enum
 {
     ADAPTER_FILE = 1,
-    ADAPTER_MYSQL
+    ADAPTER_DUMMY
 };
 typedef enum adapter_mode_enum adapter_mode;
 
