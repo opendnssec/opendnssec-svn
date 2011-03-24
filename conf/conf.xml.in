@@ -70,6 +70,13 @@
 		<SignerThreads>4</SignerThreads>
 -->
 
+<!--
+		<Adapters>
+			<Adapter>Dummy</Adapter>
+		</Adapters>
+-->
+
+
 		<!-- the <NotifyCommmand> will expand the following variables:
 
 		     %zone      the name of the zone that was signed
