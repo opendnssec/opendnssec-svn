@@ -49,5 +49,8 @@ start = element ZoneList {
 	}*
 }
 
-# for now, only the file adapter is defined
-adapter = element File { xsd:string }
+# adapters
+adapter = adfile
+
+# file adapter
+adfile = element File { xsd:string }

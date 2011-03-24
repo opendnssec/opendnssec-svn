@@ -17,4 +17,18 @@
 		</Adapters>
 	</Zone>
 -->
+<!--
+	<Zone name="example.net">
+		<Policy>default</Policy>
+		<SignerConfiguration>@OPENDNSSEC_STATE_DIR@/signconf/example.com.xml</SignerConfiguration>
+		<Adapters>
+			<Input>
+				<Dummy>@OPENDNSSEC_STATE_DIR@/dummy/example.com.in</Dummy>
+			</Input>
+			<Output>
+				<Dummy>@OPENDNSSEC_STATE_DIR@/dummy/example.com.out</Dummy>
+			</Output>
+		</Adapters>
+	</Zone>
+-->
 </ZoneList>
