@@ -72,6 +72,10 @@ parse_zonelist_element(xmlXPathContextPtr xpathCtx, xmlChar* expr)
 }
 
 
+/**
+ * Create adapter from configuration.
+ *
+ */
 static adapter_type*
 zlp_adapter(xmlNode* curNode, adapter_mode type, int inbound)
 {
@@ -92,10 +96,10 @@ zlp_adapter(xmlNode* curNode, adapter_mode type, int inbound)
 
 
 /**
- * Parse the adapters.
+ * Parse adapter.
  *
  */
-static adapter_type*
+adapter_type*
 parse_zonelist_adapter(xmlXPathContextPtr xpathCtx, xmlChar* expr, int inbound)
 {
     xmlXPathObjectPtr xpathObj = NULL;
@@ -134,7 +138,7 @@ parse_zonelist_adapter(xmlXPathContextPtr xpathCtx, xmlChar* expr, int inbound)
 
 
 /**
- * Get the next zone from the zonelist file.
+ * Parse the adapters.
  *
  */
 static void
