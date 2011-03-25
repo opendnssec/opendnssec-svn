@@ -53,7 +53,7 @@ adapter_init(const char* str, adapter_mode type, int inbound)
 {
     switch(type) {
         case ADAPTER_FILE:
-            return adfile_init();
+            return adfile_init(str);
             break;
         default:
             ods_log_error("[%s] unable to initialize adapter: "
