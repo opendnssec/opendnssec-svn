@@ -55,8 +55,11 @@ static ods_status adfile_read_file(FILE* fd, zone_type* zone);
  *
  */
 ods_status
-adfile_init(void)
+adfile_init(const char* str)
 {
+    if (!str) {
+        return ODS_STATUS_OK;
+    }
     /* nothing to initialize */
     return ODS_STATUS_OK;
 }
