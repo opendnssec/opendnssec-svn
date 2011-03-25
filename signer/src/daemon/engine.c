@@ -755,13 +755,9 @@ set_notify_ns(zone_type* zone, const char* cmd)
     ods_log_assert(zone->name);
     ods_log_assert(zone->adoutbound);
 
-    if (zone->adoutbound->type == ADAPTER_FILE) {
-        str = ods_replace(cmd, "%zonefile", zone->adoutbound->configstr);
-    } else {
-        str = cmd;
-    }
-
+    str = ods_replace(cmd, "%zonefile", zone->adoutbound->configstr);
     str2 = ods_replace(str, "%zone", zone->name);
+
     free((void*)str);
     zone->notify_ns = (const char*) str2;
     ods_log_debug("[%s] set notify ns: %s", engine_str, zone->notify_ns);
