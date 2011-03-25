@@ -55,6 +55,9 @@ adapter_init(const char* str, adapter_mode type, int inbound)
         case ADAPTER_FILE:
             return adfile_init(str);
             break;
+        case ADAPTER_DUMMY:
+            return addummy_init(str);
+            break;
         default:
             ods_log_error("[%s] unable to initialize adapter: "
                 "unknown adapter", adapter_str);
@@ -125,9 +128,15 @@ adapter_read(struct zone_struct* zone)
 
     switch(adzone->adinbound->type) {
         case ADAPTER_FILE:
-            ods_log_verbose("[%s] read zone %s from input file %s",
+            ods_log_verbose("[%s] read zone %s from file input adapter %s",
                 adapter_str, adzone->name, adzone->adinbound->configstr);
             status = adfile_read(zone, adzone->adinbound->configstr);
+            return status;
+            break;
+        case ADAPTER_DUMMY:
+            ods_log_verbose("[%s] read zone %s from dummy input adapter %s",
+                adapter_str, adzone->name, adzone->adinbound->configstr);
+            status = addummy_read(zone, adzone->adinbound->configstr);
             return status;
             break;
         default:
@@ -169,10 +178,19 @@ adapter_write(struct zone_struct* zone)
 
     switch(adzone->adoutbound->type) {
         case ADAPTER_FILE:
-            ods_log_verbose("[%s] write zone %s serial %u to output file %s",
-                adapter_str, adzone->name, adzone->zonedata->outbound_serial,
+            ods_log_verbose("[%s] write zone %s serial %u to output file "
+                "adapter %s", adapter_str, adzone->name,
+                adzone->zonedata->outbound_serial,
                 adzone->adinbound->configstr);
             status = adfile_write(zone, adzone->adoutbound->configstr);
+            return status;
+            break;
+        case ADAPTER_DUMMY:
+            ods_log_verbose("[%s] write zone %s serial %u to output dummy "
+                "adapter %s", adapter_str, adzone->name,
+                adzone->zonedata->outbound_serial,
+                adzone->adinbound->configstr);
+            status = addummy_write(zone, adzone->adoutbound->configstr);
             return status;
             break;
         default:
