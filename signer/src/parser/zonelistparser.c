@@ -72,30 +72,20 @@ parse_zonelist_element(xmlXPathContextPtr xpathCtx, xmlChar* expr)
 }
 
 
-/**
- * MySQL adapter.
- *
- */
-
-
-/**
- * File adapter.
- *
- */
 static adapter_type*
-parse_zonelist_adapter_file(xmlNode* curNode, int inbound)
+zlp_adapter(xmlNode* curNode, adapter_mode type, int inbound)
 {
     const char* file = NULL;
     adapter_type* adapter = NULL;
 
     file = (const char*) xmlNodeGetContent(curNode);
     if (!file) {
-        ods_log_error("[%s] unable to read %s file adapter", parser_str,
+        ods_log_error("[%s] unable to read %s adapter", parser_str,
             inbound?"input":"output");
         return NULL;
     }
 
-    adapter = adapter_create(file, ADAPTER_FILE, inbound);
+    adapter = adapter_create(file, type, inbound);
     free((void*)file);
     return adapter;
 }
@@ -106,8 +96,7 @@ parse_zonelist_adapter_file(xmlNode* curNode, int inbound)
  *
  */
 static adapter_type*
-parse_zonelist_adapter(xmlXPathContextPtr xpathCtx, xmlChar* expr,
-    int inbound)
+parse_zonelist_adapter(xmlXPathContextPtr xpathCtx, xmlChar* expr, int inbound)
 {
     xmlXPathObjectPtr xpathObj = NULL;
     xmlNode* curNode = NULL;
@@ -130,7 +119,7 @@ parse_zonelist_adapter(xmlXPathContextPtr xpathCtx, xmlChar* expr,
             curNode = xpathObj->nodesetval->nodeTab[i]->xmlChildrenNode;
             while (curNode) {
                 if (xmlStrEqual(curNode->name, (const xmlChar*)"File")) {
-                    adapter = parse_zonelist_adapter_file(curNode, inbound);
+                    adapter = zlp_adapter(curNode, ADAPTER_FILE, inbound);
                 }
                 if (adapter) {
                     break;
