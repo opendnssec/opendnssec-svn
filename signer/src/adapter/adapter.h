@@ -36,6 +36,7 @@
 
 #include "config.h"
 #include "adapter/adfile.h"
+#include "adapter/addummy.h"
 #include "shared/status.h"
 
 #include <stdio.h>
@@ -51,14 +52,12 @@ enum adapter_mode_enum
 typedef enum adapter_mode_enum adapter_mode;
 
 /** Adapter mode specific. */
-/*
 union adapter_data_union
 {
-    adfile_type* file;
-    admysql_type* mysql;
+    void* file;
+    addummy_type* dummy;
 };
 typedef union adapter_data_union adapter_data;
-*/
 
 /**
  * Adapter.
@@ -70,16 +69,14 @@ struct adapter_struct {
     adapter_mode type;
     int inbound;
     allocator_type* allocator;
-/*
     adapter_data* data;
-*/
 };
 
 /**
  * Initialize adapter.
  * \param[in] str configuration string
  * \param[in] type type of adapter
- * \param[in] inbound inbound or not (outbound)
+ * \param[in] inbound inbound or not (thus outbound)
  * /return ods_status stats
  *
  */
@@ -89,7 +86,7 @@ ods_status adapter_init(const char* str, adapter_mode type, int inbound);
  * Create new adapter.
  * \param[in] str configuration string
  * \param[in] type type of adapter
- * \param[in] inbound inbound or not (outbound)
+ * \param[in] inbound inbound or not (thus outbound)
  * \return adapter_type* created adapter
  *
  */

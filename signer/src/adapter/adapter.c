@@ -100,9 +100,7 @@ adapter_create(const char* str, adapter_mode type, int inbound)
     adapter->configstr = allocator_strdup(allocator, str);
     adapter->type = type;
     adapter->inbound = inbound;
-/*
     adapter->data = allocator_alloc(allocator, sizeof(adapter_data));
-*/
     return adapter;
 }
 
@@ -243,6 +241,7 @@ adapter_cleanup(adapter_type* adapter)
     }
     allocator = adapter->allocator;
     allocator_deallocate(allocator, (void*) adapter->configstr);
+    allocator_deallocate(allocator, (void*) adapter->data);
     allocator_deallocate(allocator, (void*) adapter);
     allocator_cleanup(allocator);
     return;

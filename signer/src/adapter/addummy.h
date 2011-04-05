@@ -46,7 +46,11 @@ struct zone_struct;
  * Dummy adapter.
  *
  */
-/** NULL */
+typedef struct addummy_struct addummy_type;
+struct addummy_struct
+{
+    char* welcomemsg;
+};
 
 /**
  * Initialize dummy adapters.

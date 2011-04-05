@@ -62,6 +62,7 @@ struct engineconfig_struct {
     const char* group;
     const char* chroot;
     int use_syslog;
+    int num_adapters;
     int num_worker_threads;
     int num_signer_threads;
     int verbosity;

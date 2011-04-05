@@ -148,11 +148,13 @@ parse_file_check(const char* cfgfile, const char* rngfile)
  *
  */
 adapter_type**
-parse_conf_adapters(allocator_type* allocator, const char* cfgfile)
+parse_conf_adapters(allocator_type* allocator, const char* cfgfile,
+    int* count)
 {
     char* tag_name = NULL;
-    adapter_type* new_adapter = NULL;
+    adapter_type** adapters = NULL;
     int ret = 0;
+    size_t adcount = 0;
 
     xmlTextReaderPtr reader = NULL;
     xmlDocPtr doc = NULL;
@@ -170,10 +172,20 @@ parse_conf_adapters(allocator_type* allocator, const char* cfgfile)
     }
 
     ret = xmlTextReaderRead(reader);
+    adapters = (adapter_type**) allocator_alloc(allocator,
+        ADMAX * sizeof(adapter_type*));
     while (ret == XML_READER_TYPE_ELEMENT) {
+        if (adcount >= ADMAX) {
+            ods_log_warning("[%s] too many adapters in config file %s, "
+                "skipping additional adapters", parser_str, cfgfile);
+            break;
+        }
+
         tag_name = (char*) xmlTextReaderLocalName(reader);
 
-        /* This assumes that there is no other <Adapters> element in conf.xml */
+        /* This assumes that there is no other <Adapters> element in
+         * conf.xml
+         */
         if (ods_strcmp(tag_name, "Adapter") == 0 &&
             ods_strcmp(tag_name, "Adapters") != 0 &&
             xmlTextReaderNodeType(reader) == XML_READER_TYPE_ELEMENT) {
@@ -186,23 +198,22 @@ parse_conf_adapters(allocator_type* allocator, const char* cfgfile)
                 xpathCtx = xmlXPathNewContext(doc);
             }
             if (doc == NULL || xpathCtx == NULL) {
-                ods_log_error("[%s] unable to read adapter; skipping", parser_str);
+                ods_log_error("[%s] unable to read adapter; skipping",
+                    parser_str);
                 ret = xmlTextReaderRead(reader);
                 free((void*) tag_name);
                 continue;
             }
-            /* That worked, reuse the parse_zonelist_adapter() function... */
-            new_adapter = parse_zonelist_adapter(xpathCtx, expr, 1);
-
-            /* ...and add it to the list [TODO] */
-            new_adapter = NULL;
-
+            /* That worked, reuse the parse_zonelist_adapter() function */
+            adapters[adcount] = parse_zonelist_adapter(xpathCtx, expr, 1);
+            adcount++;
             ods_log_debug("[%s] adapter added", parser_str);
             xmlXPathFreeContext(xpathCtx);
         }
         free((void*) tag_name);
         ret = xmlTextReaderRead(reader);
     }
+
     /* no more adapters */
     ods_log_debug("[%s] no more adapters", parser_str);
     xmlFreeTextReader(reader);
@@ -213,7 +224,8 @@ parse_conf_adapters(allocator_type* allocator, const char* cfgfile)
         ods_log_error("[%s] error parsing file %s", parser_str, cfgfile);
         return NULL;
     }
-    return NULL;
+    *count = (int) adcount;
+    return adapters;
 }
 
 

@@ -109,7 +109,8 @@ engine_config(allocator_type* allocator, const char* cfgfile,
         ecfg->num_worker_threads = parse_conf_worker_threads(cfgfile);
         ecfg->num_signer_threads = parse_conf_signer_threads(cfgfile);
         ecfg->verbosity = cmdline_verbosity;
-        ecfg->adapters = parse_conf_adapters(allocator, cfgfile);
+        ecfg->adapters = parse_conf_adapters(allocator, cfgfile,
+            &ecfg->num_adapters);
 
         /* done */
         ods_fclose(cfgfd);
@@ -239,11 +240,19 @@ engine_config_print(FILE* out, engineconfig_type* config)
 void
 engine_config_cleanup(engineconfig_type* config)
 {
+    size_t i = 0;
+
     allocator_type* allocator;
     if (!config) {
         return;
     }
     allocator = config->allocator;
+    if (config->adapters) {
+        for (i=0; i < (size_t) config->num_adapters; i++) {
+            adapter_cleanup(config->adapters[i]);
+        }
+        allocator_deallocate(allocator, (void*) config->adapters);
+    }
     allocator_deallocate(allocator, (void*) config->cfg_filename);
     allocator_deallocate(allocator, (void*) config->zonelist_filename);
     allocator_deallocate(allocator, (void*) config->zonefetch_filename);
@@ -258,4 +267,3 @@ engine_config_cleanup(engineconfig_type* config)
     allocator_deallocate(allocator, (void*) config);
     return;
 }
-
