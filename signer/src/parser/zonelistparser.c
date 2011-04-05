@@ -100,7 +100,8 @@ zlp_adapter(xmlNode* curNode, adapter_mode type, int inbound)
  *
  */
 adapter_type*
-parse_zonelist_adapter(xmlXPathContextPtr xpathCtx, xmlChar* expr, int inbound)
+parse_zonelist_adapter(xmlXPathContextPtr xpathCtx, xmlChar* expr,
+    int inbound)
 {
     xmlXPathObjectPtr xpathObj = NULL;
     xmlNode* curNode = NULL;
@@ -210,8 +211,8 @@ parse_zonelist_zones(struct zonelist_struct* zlist, const char* zlfile)
             zone_name = (char*) xmlTextReaderGetAttribute(reader,
                 name_expr);
             if (!zone_name || strlen(zone_name) <= 0) {
-                ods_log_error("[%s] unable to extract zone name from zonelist",
-                    parser_str);
+                ods_log_error("[%s] unable to extract zone name from "
+                    "zonelist", parser_str);
                 if (zone_name) {
                     free((void*) zone_name);
                 }
@@ -235,7 +236,7 @@ parse_zonelist_zones(struct zonelist_struct* zlist, const char* zlfile)
                 continue;
             }
 
-            /* That worked, now read out the contents */
+            /* That worked, now read out the contents... */
             new_zone = zone_create(zone_name, LDNS_RR_CLASS_IN);
             new_zone->policy_name = parse_zonelist_element(xpathCtx,
                 policy_expr);
@@ -243,7 +244,7 @@ parse_zonelist_zones(struct zonelist_struct* zlist, const char* zlfile)
                 signconf_expr);
             parse_zonelist_adapters(xpathCtx, new_zone);
 
-            /* and add it to the list */
+            /* ...and add it to the list */
             if (zonelist_add_zone((zonelist_type*) zlist, new_zone) == NULL) {
                 ods_log_error("[%s] unable to add zone %s", parser_str,
                     zone_name);

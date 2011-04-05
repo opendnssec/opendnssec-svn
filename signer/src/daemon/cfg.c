@@ -59,7 +59,8 @@ engine_config(allocator_type* allocator, const char* cfgfile,
     FILE* cfgfd = NULL;
 
     if (!allocator) {
-        ods_log_error("[%s] failed to read: no allocator available", conf_str);
+        ods_log_error("[%s] failed to read: no allocator available",
+            conf_str);
         return NULL;
     }
     ods_log_assert(allocator);
@@ -108,6 +109,7 @@ engine_config(allocator_type* allocator, const char* cfgfile,
         ecfg->num_worker_threads = parse_conf_worker_threads(cfgfile);
         ecfg->num_signer_threads = parse_conf_signer_threads(cfgfile);
         ecfg->verbosity = cmdline_verbosity;
+        ecfg->adapters = parse_conf_adapters(allocator, cfgfile);
 
         /* done */
         ods_fclose(cfgfd);
