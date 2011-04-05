@@ -43,16 +43,6 @@
 struct zone_struct;
 
 /**
- * Dummy adapter.
- *
- */
-typedef struct addummy_struct addummy_type;
-struct addummy_struct
-{
-    char* welcomemsg;
-};
-
-/**
  * Initialize dummy adapters.
  * \param[in] str configuration string
  * \return ods_status status

@@ -50,11 +50,10 @@ struct zone_struct;
 
 /**
  * Initialize file adapters.
- * \param[in] str configuration string
  * \return ods_status status
  *
  */
-ods_status adfile_init(const char* str);
+ods_status adfile_init(void);
 
 /**
  * Read zone from input file adapter.

@@ -55,7 +55,7 @@ typedef enum adapter_mode_enum adapter_mode;
 union adapter_data_union
 {
     void* file;
-    addummy_type* dummy;
+    void* dummy;
 };
 typedef union adapter_data_union adapter_data;
 
@@ -74,13 +74,11 @@ struct adapter_struct {
 
 /**
  * Initialize adapter.
- * \param[in] str configuration string
- * \param[in] type type of adapter
- * \param[in] inbound inbound or not (thus outbound)
+ * \param[in] adapter adapter
  * /return ods_status stats
  *
  */
-ods_status adapter_init(const char* str, adapter_mode type, int inbound);
+ods_status adapter_init(adapter_type* adapter);
 
 /**
  * Create new adapter.

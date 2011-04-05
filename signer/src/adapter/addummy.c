@@ -62,13 +62,12 @@ addummy_init(const char* str)
     int len = 0;
     unsigned int l = 0;
 
-    if (!str) {
-        return ODS_STATUS_OK;
-    }
+    ods_log_assert(str);
+
     fd = ods_fopen(str, NULL, "r");
     if (!fd) {
-        ods_log_error("[%s] unable to initialize dummy adapter: fopen failed",
-            adapter_str);
+        ods_log_error("[%s] unable to initialize dummy adapter: failed to",
+            "open file %s", adapter_str, str);
         return ODS_STATUS_FOPEN_ERR;
     }
     ods_log_assert(fd);

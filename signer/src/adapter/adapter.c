@@ -49,14 +49,18 @@ static const char* adapter_str = "adapter";
  *
  */
 ods_status
-adapter_init(const char* str, adapter_mode type, int inbound)
+adapter_init(adapter_type* adapter)
 {
-    switch(type) {
+    ods_log_assert(adapter);
+    ods_log_assert(adapter->type);
+    ods_log_assert(adapter->configstr);
+
+    switch(adapter->type) {
         case ADAPTER_FILE:
-            return adfile_init(str);
+            return adfile_init();
             break;
         case ADAPTER_DUMMY:
-            return addummy_init(str);
+            return addummy_init(adapter->configstr);
             break;
         default:
             ods_log_error("[%s] unable to initialize adapter: "
