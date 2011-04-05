@@ -72,7 +72,9 @@
 
 <!--
 		<Adapters>
-			<Adapter>Dummy</Adapter>
+			<Adapter>
+				<Dummy>@OPENDNSSEC_CONFIG_DIR@/adapters/dummy.cg</Dummy>
+			</Adapter>
 		</Adapters>
 -->
 
