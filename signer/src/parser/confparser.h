@@ -39,7 +39,7 @@
 #include "shared/allocator.h"
 #include "shared/status.h"
 
-#define ADMAX 6
+#define ADMAX 6 /* Maximum number of adapters that can be initialized */
 
 /**
  * Check config file with rng file.

@@ -31,6 +31,9 @@
  * Adapter utilities.
  */
 
+#ifndef ADAPTER_ADUTIL_H
+#define ADAPTER_ADUTIL_H
+
 #include "config.h"
 
 #include <stdio.h>
@@ -72,3 +75,4 @@ void adutil_rtrim_line(char* line, int* line_len);
  */
 int adutil_whitespace_line(char* line, int line_len);
 
+#endif /* ADAPTER_ADUTIL_H */
