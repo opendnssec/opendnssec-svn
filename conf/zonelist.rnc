@@ -50,10 +50,10 @@ start = element ZoneList {
 }
 
 # adapters
-adapter = adfile | addummy
+adapter = adfile | addns
 
 # file adapter
 adfile = element File { xsd:string }
 
-# dummy adapter
-addummy = element Dummy { xsd:string }
+# DNS adapter
+addns = element DNS { xsd:string }

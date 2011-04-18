@@ -10,6 +10,7 @@
 			<Module>@pkcs11_softhsm_module@</Module>
 			<TokenLabel>OpenDNSSEC</TokenLabel>
 			<PIN>1234</PIN>
+			<SkipPublicKey/>
 		</Repository>
 
 <!--
@@ -73,7 +74,7 @@
 <!--
 		<Adapters>
 			<Adapter>
-				<Dummy>@OPENDNSSEC_CONFIG_DIR@/adapters/dummy.cg</Dummy>
+				<DNS>@OPENDNSSEC_CONFIG_DIR@/adapters/dummy.cg</DNS>
 			</Adapter>
 		</Adapters>
 -->

@@ -27,12 +27,12 @@
  */
 
 /**
- * Dummy Adapters.
+ * DNS Adapters.
  *
  */
 
-#ifndef ADAPTER_ADDUMMY_H
-#define ADAPTER_ADDUMMY_H
+#ifndef ADAPTER_ADDNS_H
+#define ADAPTER_ADDNS_H
 
 #include "config.h"
 #include "shared/allocator.h"
@@ -43,29 +43,29 @@
 struct zone_struct;
 
 /**
- * Initialize dummy adapters.
+ * Initialize DNS adapters.
  * \param[in] str configuration string
  * \return ods_status status
  *
  */
-ods_status addummy_init(const char* str);
+ods_status addns_init(const char* str);
 
 /**
- * Read zone from input dummy adapter.
+ * Read zone from input DNS adapter.
  * \param[in] zone zone structure
  * \param[in] str configuration string
  * \return ods_status status
  *
  */
-ods_status addummy_read(struct zone_struct* zone, const char* str);
+ods_status addns_read(struct zone_struct* zone, const char* str);
 
 /**
- * Write zone to output dummy adapter.
+ * Write zone to output DNS adapter.
  * \param[in] zone zone structure
  * \param[in] str configuration string
  * \return ods_status status
  *
  */
-ods_status addummy_write(struct zone_struct* zone, const char* str);
+ods_status addns_write(struct zone_struct* zone, const char* str);
 
-#endif /* ADAPTER_ADDUMMY_H */
+#endif /* ADAPTER_ADDNS_H */

@@ -36,7 +36,7 @@
 
 #include "config.h"
 #include "adapter/adfile.h"
-#include "adapter/addummy.h"
+#include "adapter/addns.h"
 #include "shared/status.h"
 
 #include <stdio.h>
@@ -47,7 +47,7 @@ struct zone_struct;
 enum adapter_mode_enum
 {
     ADAPTER_FILE = 1,
-    ADAPTER_DUMMY
+    ADAPTER_DNS
 };
 typedef enum adapter_mode_enum adapter_mode;
 
@@ -55,7 +55,7 @@ typedef enum adapter_mode_enum adapter_mode;
 union adapter_data_union
 {
     void* file;
-    void* dummy;
+    void* dns;
 };
 typedef union adapter_data_union adapter_data;
 

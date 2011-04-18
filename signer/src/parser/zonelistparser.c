@@ -126,8 +126,8 @@ parse_zonelist_adapter(xmlXPathContextPtr xpathCtx, xmlChar* expr,
                 if (xmlStrEqual(curNode->name, (const xmlChar*)"File")) {
                     adapter = zlp_adapter(curNode, ADAPTER_FILE, inbound);
                 } else if (xmlStrEqual(curNode->name,
-                    (const xmlChar*)"Dummy")) {
-                    adapter = zlp_adapter(curNode, ADAPTER_DUMMY, inbound);
+                    (const xmlChar*)"DNS")) {
+                    adapter = zlp_adapter(curNode, ADAPTER_DNS, inbound);
                 }
                 if (adapter) {
                     break;

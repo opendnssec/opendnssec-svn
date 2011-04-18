@@ -174,12 +174,12 @@ mysql = element MySQL {
 sqlite = element SQLite { xsd:string }
 
 # adapters
-adapter = adfile | addummy
+adapter = adfile | addns
 
 # file adapter
 adfile = element File { xsd:string }
 
-# dummy adapter
-addummy = element Dummy { xsd:string }
+# dns adapter
+addns = element DNS { xsd:string }
 
 

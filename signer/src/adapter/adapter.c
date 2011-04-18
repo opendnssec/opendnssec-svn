@@ -59,8 +59,8 @@ adapter_init(adapter_type* adapter)
         case ADAPTER_FILE:
             return adfile_init();
             break;
-        case ADAPTER_DUMMY:
-            return addummy_init(adapter->configstr);
+        case ADAPTER_DNS:
+            return addns_init(adapter->configstr);
             break;
         default:
             ods_log_error("[%s] unable to initialize adapter: "
@@ -135,10 +135,10 @@ adapter_read(struct zone_struct* zone)
             status = adfile_read(zone, adzone->adinbound->configstr);
             return status;
             break;
-        case ADAPTER_DUMMY:
-            ods_log_verbose("[%s] read zone %s from dummy input adapter %s",
+        case ADAPTER_DNS:
+            ods_log_verbose("[%s] read zone %s from dns input adapter %s",
                 adapter_str, adzone->name, adzone->adinbound->configstr);
-            status = addummy_read(zone, adzone->adinbound->configstr);
+            status = addns_read(zone, adzone->adinbound->configstr);
             return status;
             break;
         default:
@@ -187,12 +187,12 @@ adapter_write(struct zone_struct* zone)
             status = adfile_write(zone, adzone->adoutbound->configstr);
             return status;
             break;
-        case ADAPTER_DUMMY:
-            ods_log_verbose("[%s] write zone %s serial %u to output dummy "
+        case ADAPTER_DNS:
+            ods_log_verbose("[%s] write zone %s serial %u to output dns "
                 "adapter %s", adapter_str, adzone->name,
                 adzone->zonedata->outbound_serial,
                 adzone->adinbound->configstr);
-            status = addummy_write(zone, adzone->adoutbound->configstr);
+            status = addns_write(zone, adzone->adoutbound->configstr);
             return status;
             break;
         default:
