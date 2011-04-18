@@ -789,7 +789,11 @@ set_notify_ns(zone_type* zone, const char* cmd)
     if (zone->adoutbound->type == ADAPTER_FILE) {
         str = ods_replace(cmd, "%zonefile", zone->adoutbound->configstr);
     } else {
-        str = cmd;
+        str = strdup(cmd);
+    }
+    if (!str) {
+        ods_log_error("[%s] failed to set notify ns for zone %s",
+            engine_str, zone->name);
     }
 
     str2 = ods_replace(str, "%zone", zone->name);

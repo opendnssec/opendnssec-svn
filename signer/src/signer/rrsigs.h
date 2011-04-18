@@ -68,6 +68,12 @@ rrsigs_type* rrsigs_create(void);
 ods_status rrsigs_add_sig(rrsigs_type* rrsigs, ldns_rr* rr, const char* l,
     uint32_t f);
 
+/**
+ * Delete RRSIG from signature set is defined in rrset.h.
+ *
+ */
+ods_status rrsigs_del_sig(rrsigs_type* rrsigs, ldns_rr* rr);
+
 /*
  * Clean up signature set.
  * \param[in] rrsigs signature set to clean up
