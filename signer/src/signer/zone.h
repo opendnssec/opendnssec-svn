@@ -83,6 +83,7 @@ struct zone_struct {
 
     /* zone data */
     zonedata_type* zonedata;
+    journal_type* journal;
 
     /* worker variables */
     void* task; /* next assigned task */

@@ -43,6 +43,7 @@
 #include "shared/status.h"
 #include "shared/util.h"
 #include "signer/backup.h"
+#include "signer/journal.h"
 #include "signer/nsec3params.h"
 #include "signer/signconf.h"
 #include "signer/zone.h"
@@ -115,6 +116,14 @@ zone_create(char* name, ldns_rr_class klass)
     zone->zonedata = zonedata_create(zone->allocator);
     if (!zone->zonedata) {
         ods_log_error("[%s] unable to create zone %s: create zonedata "
+            "failed", zone_str, name);
+        zone_cleanup(zone);
+        return NULL;
+    }
+
+    zone->journal = journal_create(zone->allocator);
+    if (!zone->journal) {
+        ods_log_error("[%s] unable to create zone %s: create journal "
             "failed", zone_str, name);
         zone_cleanup(zone);
         return NULL;
@@ -1190,6 +1199,7 @@ zone_cleanup(zone_type* zone)
     adapter_cleanup(zone->adinbound);
     adapter_cleanup(zone->adoutbound);
     zonedata_cleanup(zone->zonedata);
+    journal_cleanup(zone->journal);
     signconf_cleanup(zone->signconf);
     nsec3params_cleanup(zone->nsec3params);
     stats_cleanup(zone->stats);
