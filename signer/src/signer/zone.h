@@ -40,6 +40,7 @@
 #include "shared/allocator.h"
 #include "shared/locks.h"
 #include "shared/status.h"
+#include "signer/journal.h"
 #include "signer/nsec3params.h"
 #include "signer/signconf.h"
 #include "signer/stats.h"
@@ -83,7 +84,7 @@ struct zone_struct {
 
     /* zone data */
     zonedata_type* zonedata;
-    journal_type* journal;
+    transaction_type* transaction;
 
     /* worker variables */
     void* task; /* next assigned task */

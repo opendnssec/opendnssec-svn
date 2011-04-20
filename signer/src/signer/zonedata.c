@@ -38,6 +38,7 @@
 #include "shared/util.h"
 #include "signer/backup.h"
 #include "signer/domain.h"
+#include "signer/journal.h"
 #include "signer/nsec3params.h"
 #include "signer/zonedata.h"
 

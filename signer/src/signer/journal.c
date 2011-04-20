@@ -32,7 +32,11 @@
  */
 
 #include "config.h"
+#include "shared/allocator.h"
+#include "shared/log.h"
 #include "signer/journal.h"
+
+#include <stdio.h>
 
 static const char* journal_str = "journal";
 
@@ -42,7 +46,7 @@ static const char* journal_str = "journal";
  *
  */
 transaction_type*
-transaction_create(allocator_type* allocator, uint32_t from, uint32_t to)
+transaction_create(allocator_type* allocator)
 {
     transaction_type* transaction;
 
@@ -58,8 +62,8 @@ transaction_create(allocator_type* allocator, uint32_t from, uint32_t to)
     }
     transaction->allocator = allocator;
 
-    transaction->serial_from = from;
-    transaction->serial_to = to;
+    transaction->serial_from = 0;
+    transaction->serial_to = 0;
     transaction->next = NULL;
 
     transaction->add = ldns_dnssec_rrs_new();
@@ -112,15 +116,73 @@ transaction_del_rr(transaction_type* transaction, ldns_rr* rr)
     if (!transaction || !rr) {
         return ODS_STATUS_ASSERT_ERR;
     }
-    ods_log_assert(transaction->del);
+    ods_log_assert(transaction->remove);
 
-    status = ldns_dnssec_rrs_add_rr(transaction->del, rr);
+    status = ldns_dnssec_rrs_add_rr(transaction->remove, rr);
     if (status != LDNS_STATUS_OK) {
         ods_log_error("[%s] unable to add -RR to transaction: %s",
             journal_str, ldns_get_errorstr_by_id(status));
         return ODS_STATUS_ERR;
     }
     return ODS_STATUS_OK;
+}
+
+
+/**
+ * Print transaction.
+ *
+ */
+void
+transaction_print(FILE* fd, transaction_type* transaction)
+{
+    if (!fd || !transaction) {
+        return;
+    }
+    fprintf(fd, ";;IXFR from %u to %u\n", transaction->serial_from,
+        transaction->serial_to);
+
+    /* print first soa */
+    /* print from soa */
+    if (transaction->remove) {
+        ldns_dnssec_rrs_print(fd, transaction->remove);
+    }
+    /* print to soa */
+    if (transaction->add) {
+        ldns_dnssec_rrs_print(fd, transaction->add);
+    }
+    /* print final soa */
+
+    fprintf(fd, ";;\n");
+    return;
+}
+
+
+
+/**
+ * Clean up transaction.
+ *
+ */
+void
+transaction_cleanup(transaction_type* transaction)
+{
+    allocator_type* allocator;
+
+    if (!transaction) {
+        return;
+    }
+    transaction_cleanup(transaction->next);
+
+    allocator = transaction->allocator;
+    if (transaction->add) {
+        ldns_dnssec_rrs_deep_free(transaction->add);
+        transaction->add = NULL;
+    }
+    if (transaction->remove) {
+        ldns_dnssec_rrs_deep_free(transaction->remove);
+        transaction->remove = NULL;
+    }
+    allocator_deallocate(allocator, (void*) transaction);
+    return;
 }
 
 
@@ -138,7 +200,8 @@ journal_create(allocator_type* allocator)
     }
     ods_log_assert(allocator);
 
-    journal = (journal_type*) allocator_alloc(allocator, sizeof(journal_type));
+    journal = (journal_type*) allocator_alloc(allocator,
+        sizeof(journal_type));
     if (!journal) {
         return NULL;
     }
@@ -156,8 +219,15 @@ journal_create(allocator_type* allocator)
 ods_status
 journal_add_transaction(journal_type* journal, transaction_type* transaction)
 {
+    if (!journal || !transaction) {
+        return ODS_STATUS_ASSERT_ERR;
+    }
 
+    transaction->next = journal->transactions;
+    journal->transactions = transaction;
+    return ODS_STATUS_OK;
 }
+
 
 /**
  * Purge journal.
@@ -168,31 +238,6 @@ journal_purge(journal_type* journal)
 {
     /* no purging strategy for now */
     return ODS_STATUS_OK;
-}
-
-
-/**
- * Clean up transaction.
- *
- */
-void
-transaction_cleanup(transaction_type* transaction)
-{
-    if (!transaction) {
-        return;
-    }
-    transaction_cleanup(transaction->next);
-
-    if (transaction->add) {
-        ldns_dnssec_rrs_deep_free(transaction->add);
-        transaction->add = NULL;
-    }
-    if (transaction->remove) {
-        ldns_dnssec_rrs_deep_free(transaction->remove);
-        transaction->remove = NULL;
-    }
-    allocator_deallocate(allocator, (void*) transaction);
-    return;
 }
 
 

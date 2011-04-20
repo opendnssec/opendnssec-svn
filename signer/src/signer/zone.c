@@ -120,14 +120,7 @@ zone_create(char* name, ldns_rr_class klass)
         zone_cleanup(zone);
         return NULL;
     }
-
-    zone->journal = journal_create(zone->allocator);
-    if (!zone->journal) {
-        ods_log_error("[%s] unable to create zone %s: create journal "
-            "failed", zone_str, name);
-        zone_cleanup(zone);
-        return NULL;
-    }
+    zone->transaction = NULL;
 
     zone->signconf = signconf_create();
     if (!zone->signconf) {
@@ -415,6 +408,8 @@ zone_load_signconf(zone_type* zone, task_id* tbs)
                 "signconf %s: failed to delete DNSKEY from RRset",
                 zone_str, zone->name, zone->signconf_filename);
             zonedata_rollback(zone->zonedata);
+            transaction_cleanup(zone->transaction);
+            zone->transaction = NULL;
             return status;
         }
 
@@ -564,6 +559,8 @@ zone_publish_dnskeys(zone_type* zone, int recover)
 
     if (status != ODS_STATUS_OK) {
         zonedata_rollback(zone->zonedata);
+        transaction_cleanup(zone->transaction);
+        zone->transaction = NULL;
     }
 
     hsm_destroy_context(ctx);
@@ -664,6 +661,8 @@ zone_prepare_nsec3(zone_type* zone, int recover)
             nsec3params_cleanup(zone->nsec3params);
             zone->nsec3params = NULL;
             zonedata_rollback(zone->zonedata);
+            transaction_cleanup(zone->transaction);
+            zone->transaction = NULL;
             return ODS_STATUS_ASSERT_ERR;
         }
         ods_log_assert(apex);
@@ -1199,7 +1198,7 @@ zone_cleanup(zone_type* zone)
     adapter_cleanup(zone->adinbound);
     adapter_cleanup(zone->adoutbound);
     zonedata_cleanup(zone->zonedata);
-    journal_cleanup(zone->journal);
+    transaction_cleanup(zone->transaction);
     signconf_cleanup(zone->signconf);
     nsec3params_cleanup(zone->nsec3params);
     stats_cleanup(zone->stats);

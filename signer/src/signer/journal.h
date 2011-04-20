@@ -73,13 +73,10 @@ struct journal_struct {
 /**
  * Create transaction.
  * \param[in] allocator memory allocator
- * \param[in] from SOA serial number of current known zone
- * \param[in] to SOA serial number of zone after transaction
  * \return the created transaction
  *
  */
-transaction_type* transaction_create(allocator_type* allocator,
-    uint32_t from, uint32_t to);
+transaction_type* transaction_create(allocator_type* allocator);
 
 /**
  * Add RR addition to transaction.
@@ -98,6 +95,14 @@ ods_status transaction_add_rr(transaction_type* transaction, ldns_rr* rr);
  *
  */
 ods_status transaction_del_rr(transaction_type* transaction, ldns_rr* rr);
+
+/**
+ * Print transaction.
+ * \param[in] fd file descriptor
+ * \param[in] transaction the transaction
+ *
+ */
+void transaction_print(FILE* fd, transaction_type* transaction);
 
 /**
  * Clean up transaction.
