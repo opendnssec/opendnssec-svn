@@ -189,8 +189,6 @@ worker_perform_task(worker_type* worker)
                 task->interrupt = TASK_NONE;
                 task->halted = TASK_NONE;
             } else {
-                transaction_cleanup(zone->transaction);
-                zone->transaction = NULL;
                 if (task->halted == TASK_NONE) {
                     goto task_perform_fail;
                 }

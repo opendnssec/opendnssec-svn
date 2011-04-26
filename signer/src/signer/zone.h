@@ -84,7 +84,6 @@ struct zone_struct {
 
     /* zone data */
     zonedata_type* zonedata;
-    transaction_type* transaction;
 
     /* worker variables */
     void* task; /* next assigned task */

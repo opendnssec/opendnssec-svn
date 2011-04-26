@@ -94,14 +94,6 @@ tools_input(zone_type* zone)
         }
     }
 
-    /* create transaction */
-    zone->transaction = transaction_create(zone->allocator);
-    if (!zone->transaction) {
-        ods_log_error("[%s] unable to read zone %s: create transaction failed",
-            tools_str, zone->name?zone->name:"(null)");
-        return ODS_STATUS_MALLOC_ERR;
-    }
-
     start = time(NULL);
     status = adapter_read(zone);
     if (status == ODS_STATUS_OK) {
@@ -119,8 +111,6 @@ tools_input(zone_type* zone)
         ods_log_warning("[%s] rollback updates for zone %s", tools_str,
                 zone->name?zone->name:"(null)");
         zonedata_rollback(zone->zonedata);
-        transaction_cleanup(zone->transaction);
-        zone->transaction = NULL;
     }
     end = time(NULL);
 
@@ -357,8 +347,6 @@ tools_output(zone_type* zone)
 
     /* initialize zonedata */
     zone->zonedata->initialized = 1;
-    transaction_cleanup(zone->transaction);
-    zone->transaction = NULL;
 
     /* kick the nameserver */
     if (zone->notify_ns) {
