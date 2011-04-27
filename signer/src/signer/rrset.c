@@ -101,7 +101,7 @@ log_rr(ldns_rr* rr, const char* pre, int level)
  *
  */
 rrset_type*
-rrset_create(ldns_rr_type rrtype)
+rrset_create(ldns_rr_type rrtype, journal_type* journal)
 {
     allocator_type* allocator = NULL;
     rrset_type* rrset = NULL;
@@ -140,6 +140,7 @@ rrset_create(ldns_rr_type rrtype)
     rrset->add = NULL;
     rrset->del = NULL;
     rrset->rrsigs = NULL;
+    rrset->journal = journal;
     return rrset;
 }
 
@@ -657,10 +658,6 @@ rrset_commit(rrset_type* rrset)
     ods_log_assert(rrset);
 
     if (rrset->del_count || rrset->add_count) {
-        ods_log_info("[debug] RRset[%i] needs signing: "
-            "#del = %u #add = %u dropsig",
-            rrset->rr_type,
-            rrset->del_count, rrset->add_count);
         rrset->needs_signing = 1;
     }
 
@@ -1261,6 +1258,7 @@ rrset_cleanup(rrset_type* rrset)
         rrsigs_cleanup(rrset->rrsigs);
         rrset->rrsigs = NULL;
     }
+    rrset->journal = NULL;
 
     allocator_deallocate(allocator, (void*) rrset);
     allocator_cleanup(allocator);

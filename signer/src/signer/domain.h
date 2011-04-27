@@ -97,11 +97,12 @@ domain_type* domain_create(ldns_rdf* dname);
  * \param[in] domain domain
  * \param[in] fd backup file descriptor
  * \param[in] dstatus domain status
+ * \param[in] journal journal
  * \return ods_status status
  *
  */
 ods_status domain_recover(domain_type* domain, FILE* fd,
-    domain_status dstatus);
+    domain_status dstatus, journal_type* journal);
 
 /**
  * Recover RR from backup.

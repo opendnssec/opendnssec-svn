@@ -112,7 +112,8 @@ domain_create(ldns_rdf* dname)
  *
  */
 ods_status
-domain_recover(domain_type* domain, FILE* fd, domain_status dstatus)
+domain_recover(domain_type* domain, FILE* fd, domain_status dstatus,
+    journal_type* journal)
 {
     const char* token = NULL;
     const char* locator = NULL;
@@ -189,7 +190,8 @@ domain_recover(domain_type* domain, FILE* fd, domain_status dstatus)
             domain->denial->domain = domain; /* back reference */
             /* add the NSEC(3) rr */
             if (!domain->denial->rrset) {
-                domain->denial->rrset = rrset_create(ldns_rr_get_type(rr));
+                domain->denial->rrset = rrset_create(ldns_rr_get_type(rr),
+                    journal);
             }
             ods_log_assert(domain->denial->rrset);
 

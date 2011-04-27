@@ -36,6 +36,7 @@
 
 #include "config.h"
 #include "shared/allocator.h"
+#include "signer/journal.h"
 #include "signer/nsec3params.h"
 #include "signer/rrset.h"
 
@@ -71,11 +72,12 @@ denial_type* denial_create(ldns_rdf* owner);
  * \param[in] nxt next Denial of Existence data point
  * \param[in] ttl ttl
  * \param[in] klass class
+ * \param[in] journal journal to put the NSEC records in
  * \return ods_status status
  *
  */
 ods_status denial_nsecify(denial_type* denial, denial_type* nxt, uint32_t ttl,
-    ldns_rr_class klass);
+    ldns_rr_class klass, journal_type* journal);
 
 /**
  * Add NSEC3 to the Denial of Existence data point.
@@ -84,11 +86,12 @@ ods_status denial_nsecify(denial_type* denial, denial_type* nxt, uint32_t ttl,
  * \param[in] ttl ttl
  * \param[in] klass class
  * \param[in] nsec3params NSEC3 parameters
+ * \param[in] journal journal to put the NSEC3 records in
  * \return ods_status status
  *
  */
 ods_status denial_nsecify3(denial_type* denial, denial_type* nxt, uint32_t ttl,
-    ldns_rr_class klass, nsec3params_type* nsec3params);
+    ldns_rr_class klass, nsec3params_type* nsec3params, journal_type* journal);
 
 /**
  * Clean up Denial of Existence data point.

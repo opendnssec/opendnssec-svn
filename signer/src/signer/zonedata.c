@@ -182,6 +182,14 @@ zonedata_create(allocator_type* allocator)
     ods_log_assert(zd);
 
     zd->allocator = allocator;
+    zd->journal = journal_create(allocator);
+    if (!zd->journal) {
+        ods_log_error("[%s] cannot create zonedata: create transaction failed",
+            zd_str);
+        zonedata_cleanup(zd);
+        return NULL;
+    }
+
     zonedata_init_domains(zd);
     zonedata_init_denial(zd);
     zd->initialized = 0;
@@ -234,7 +242,7 @@ zonedata_recover(zonedata_type* zd, FILE* fd)
                 goto recover_domain_error;
             }
             /* lookup success */
-            status = domain_recover(domain, fd, dstatus);
+            status = domain_recover(domain, fd, dstatus, zd->journal);
             if (status != ODS_STATUS_OK) {
                 ods_log_error("[%s] unable to recover domain", zd_str);
                 goto recover_domain_error;
@@ -283,60 +291,6 @@ recover_domain_error:
 
     return ODS_STATUS_ERR;
 }
-
-
-/**
- * Recover RR from backup.
- *
- */
-/*
-int
-zonedata_recover_rr_from_backup(zonedata_type* zd, ldns_rr* rr)
-{
-    domain_type* domain = NULL;
-
-    ods_log_assert(zd);
-    ods_log_assert(zd->domains);
-    ods_log_assert(rr);
-
-    domain = zonedata_lookup_domain(zd, ldns_rr_owner(rr));
-    if (domain) {
-        return domain_recover_rr_from_backup(domain, rr);
-    }
-
-    ods_log_error("[%s] unable to recover RR to zonedata: domain does not exist",
-        zd_str);
-    return 1;
-}
-*/
-
-/**
- * Recover RRSIG from backup.
- *
- */
-/*
-int
-zonedata_recover_rrsig_from_backup(zonedata_type* zd, ldns_rr* rrsig,
-    const char* locator, uint32_t flags)
-{
-    domain_type* domain = NULL;
-    ldns_rr_type type_covered;
-
-    ods_log_assert(zd);
-    ods_log_assert(zd->domains);
-    ods_log_assert(rrsig);
-
-    type_covered = ldns_rdf2rr_type(ldns_rr_rrsig_typecovered(rrsig));
-    domain = zonedata_lookup_domain(zd, ldns_rr_owner(rrsig));
-    if (domain) {
-        return domain_recover_rrsig_from_backup(domain, rrsig, type_covered,
-            locator, flags);
-    }
-    ods_log_error("[%s] unable to recover RRSIG to zonedata: domain does not "
-        "exist", zd_str);
-    return 1;
-}
-*/
 
 
 /**
@@ -1078,7 +1032,7 @@ zonedata_nsecify(zonedata_type* zd, ldns_rr_class klass, uint32_t ttl,
         }
         nxt = (denial_type*) nxt_node->data;
 
-        status = denial_nsecify(denial, nxt, ttl, klass);
+        status = denial_nsecify(denial, nxt, ttl, klass, zd->journal);
         if (status != ODS_STATUS_OK) {
             ods_log_error("[%s] unable to nsecify: failed to add NSEC record",
                 zd_str);
@@ -1217,7 +1171,8 @@ zonedata_nsecify3(zonedata_type* zd, ldns_rr_class klass,
         }
         nxt = (denial_type*) nxt_node->data;
 
-        status = denial_nsecify3(denial, nxt, ttl, klass, nsec3params);
+        status = denial_nsecify3(denial, nxt, ttl, klass, nsec3params,
+            zd->journal);
         if (status != ODS_STATUS_OK) {
             ods_log_error("[%s] unable to nsecify3: failed to add NSEC3 "
                 "record", zd_str);
@@ -1587,6 +1542,7 @@ zonedata_cleanup(zonedata_type* zd)
     zonedata_cleanup_chain(zd);
     zonedata_cleanup_domains(zd);
     allocator = zd->allocator;
+    journal_cleanup(zd->journal);
     allocator_deallocate(allocator, (void*) zd);
     return;
 }

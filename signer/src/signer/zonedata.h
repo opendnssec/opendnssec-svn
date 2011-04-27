@@ -43,6 +43,7 @@
 #include "signer/denial.h"
 #include "signer/domain.h"
 #include "signer/keys.h"
+#include "signer/journal.h"
 #include "signer/signconf.h"
 #include "signer/stats.h"
 #include "signer/nsec3params.h"
@@ -60,6 +61,7 @@ struct zonedata_struct {
     allocator_type* allocator;
     ldns_rbtree_t* domains;
     ldns_rbtree_t* denial_chain;
+    journal_type* journal;
     int initialized;
     uint32_t default_ttl; /* fallback ttl */
     uint32_t inbound_serial; /* last seen inbound soa serial */

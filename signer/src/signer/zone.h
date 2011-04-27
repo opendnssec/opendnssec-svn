@@ -40,7 +40,6 @@
 #include "shared/allocator.h"
 #include "shared/locks.h"
 #include "shared/status.h"
-#include "signer/journal.h"
 #include "signer/nsec3params.h"
 #include "signer/signconf.h"
 #include "signer/stats.h"

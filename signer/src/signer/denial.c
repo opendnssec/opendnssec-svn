@@ -194,7 +194,7 @@ denial_create_nsec(denial_type* denial, denial_type* nxt, uint32_t ttl,
  */
 ods_status
 denial_nsecify(denial_type* denial, denial_type* nxt, uint32_t ttl,
-    ldns_rr_class klass)
+    ldns_rr_class klass, journal_type* journal)
 {
     ldns_rr* nsec_rr = NULL;
     ods_status status = ODS_STATUS_OK;
@@ -214,7 +214,7 @@ denial_nsecify(denial_type* denial, denial_type* nxt, uint32_t ttl,
     if (denial->nxt_changed || denial->bitmap_changed) {
         /* assert there is a NSEC RRset */
         if (!denial->rrset) {
-            denial->rrset = rrset_create(LDNS_RR_TYPE_NSEC);
+            denial->rrset = rrset_create(LDNS_RR_TYPE_NSEC, journal);
             if (!denial->rrset) {
                  ods_log_alert("[%s] unable to nsecify: failed to "
                 "create NSEC RRset", denial_str);
@@ -373,7 +373,7 @@ denial_create_nsec3(denial_type* denial, denial_type* nxt, uint32_t ttl,
  */
 ods_status
 denial_nsecify3(denial_type* denial, denial_type* nxt, uint32_t ttl,
-    ldns_rr_class klass, nsec3params_type* nsec3params)
+    ldns_rr_class klass, nsec3params_type* nsec3params, journal_type* journal)
 {
     ldns_rr* nsec_rr = NULL;
     ods_status status = ODS_STATUS_OK;
@@ -393,7 +393,7 @@ denial_nsecify3(denial_type* denial, denial_type* nxt, uint32_t ttl,
     if (denial->nxt_changed || denial->bitmap_changed) {
         /* assert there is a NSEC RRset */
         if (!denial->rrset) {
-            denial->rrset = rrset_create(LDNS_RR_TYPE_NSEC3);
+            denial->rrset = rrset_create(LDNS_RR_TYPE_NSEC3, journal);
             if (!denial->rrset) {
                  ods_log_alert("[%s] unable to nsecify3: failed to "
                 "create NSEC3 RRset", denial_str);

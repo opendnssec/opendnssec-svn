@@ -43,7 +43,6 @@
 #include "shared/status.h"
 #include "shared/util.h"
 #include "signer/backup.h"
-#include "signer/journal.h"
 #include "signer/nsec3params.h"
 #include "signer/signconf.h"
 #include "signer/zone.h"
@@ -235,7 +234,7 @@ zone_add_rr(zone_type* zone, ldns_rr* rr, int do_stats)
     rrset = domain_lookup_rrset(domain, ldns_rr_get_type(rr));
     if (!rrset) {
         /* add RRset */
-        rrset = rrset_create(ldns_rr_get_type(rr));
+        rrset = rrset_create(ldns_rr_get_type(rr), zone->zonedata->journal);
         if (!rrset) {
             ods_log_error("[%s] unable to add RR: create RRset failed",
                 zone_str);
@@ -946,6 +945,7 @@ zone_recover(zone_type* zone)
         if (zone->stats) {
             stats_clear(zone->stats);
         }
+        journal_purge(zone->zonedata->journal, 0);
         return ODS_STATUS_OK;
     }
     return ODS_STATUS_UNCHANGED;
