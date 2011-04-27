@@ -234,9 +234,25 @@ journal_add_transaction(journal_type* journal, transaction_type* transaction)
  *
  */
 ods_status
-journal_purge(journal_type* journal)
+journal_purge(journal_type* journal, size_t num)
 {
-    /* no purging strategy for now */
+    transaction_type* transaction;
+
+    if (!journal) {
+        return ODS_STATUS_ASSERT_ERR;
+    }
+
+    transaction = journal->transactions;
+    if (num == 0) {
+        journal->transactions = NULL;
+    }
+
+    while (num && transaction) {
+        num--;
+        transaction = transaction->next;
+    }
+    transaction_cleanup(transaction);
+
     return ODS_STATUS_OK;
 }
 

@@ -132,10 +132,11 @@ ods_status journal_add_transaction(journal_type* journal,
 /**
  * Purge journal.
  * \param[in] journal journal to be deleted
+ * \param[in] number of transactions to keep
  * \return ods_status status
  *
  */
-ods_status journal_purge(journal_type* journal);
+ods_status journal_purge(journal_type* journal, size_t num);
 
 /**
  * Clean up journal.
