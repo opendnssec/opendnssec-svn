@@ -649,6 +649,7 @@ rrset_commit_add(rrset_type* rrset, ldns_rr* rr)
 ods_status
 rrset_commit(rrset_type* rrset)
 {
+    ldns_rr* clone = NULL;
     ldns_dnssec_rrs* rrs = NULL;
     ods_status status = ODS_STATUS_OK;
 
@@ -664,22 +665,35 @@ rrset_commit(rrset_type* rrset)
     /* delete RRs */
     rrs = rrset->del;
     while (rrs) {
-        /* IXFR */
-        log_rr(rrs->rr, "IXFR -", 0);
-
-        status = rrset_commit_del(rrset, rrs->rr);
+        /* update journal */
+        clone = ldns_rr_clone(rrs->rr);
+        lock_basic_lock(&rrset->journal->journal_lock);
+        status = journal_del_rr(rrset->journal, clone);
         if (status != ODS_STATUS_OK) {
-            ods_log_alert("[%s] commit RRset (%i) failed", rrset_str,
-                rrset->rr_type);
+            lock_basic_unlock(&rrset->journal->journal_lock);
+            ods_log_alert("[%s] commit RRset (%i) failed: journal_del_rr() "
+                "failed: %s", rrset_str, rrset->rr_type,
+                ods_status2str(status));
+            ldns_rr_free(clone);
             return status;
         }
+        lock_basic_unlock(&rrset->journal->journal_lock);
+
+        /* update zonedata */
+        status = rrset_commit_del(rrset, rrs->rr);
+        if (status != ODS_STATUS_OK) {
+            ods_log_alert("[%s] commit RRset (%i) failed: rrset_commit_del() "
+                "failed: %s", rrset_str, rrset->rr_type,
+                ods_status2str(status));
+            return status;
+        }
+        clone = NULL;
         rrs = rrs->next;
     }
     if (rrset->del_count != 0) {
         ods_log_error("[%s] deleted RRs count less than del_count (%u left)",
             rrset_str, rrset->del_count);
     }
-
     ldns_dnssec_rrs_deep_free(rrset->del);
     rrset->del = NULL;
     rrset->del_count = 0;
@@ -687,22 +701,35 @@ rrset_commit(rrset_type* rrset)
     /* add RRs */
     rrs = rrset->add;
     while (rrs) {
-        /* IXFR */
-        log_rr(rrs->rr, "IXFR +", 0);
-
-        status = rrset_commit_add(rrset, rrs->rr);
+        /* update journal */
+        clone = ldns_rr_clone(rrs->rr);
+        lock_basic_lock(&rrset->journal->journal_lock);
+        status = journal_add_rr(rrset->journal, clone);
         if (status != ODS_STATUS_OK) {
-            ods_log_alert("[%s] commit RRset (%i) failed", rrset_str,
-                rrset->rr_type);
+            lock_basic_unlock(&rrset->journal->journal_lock);
+            ods_log_alert("[%s] commit RRset (%i) failed: journal_add_rr() "
+                "failed: %s", rrset_str, rrset->rr_type,
+                ods_status2str(status));
+            ldns_rr_free(clone);
             return status;
         }
+        lock_basic_unlock(&rrset->journal->journal_lock);
+
+        /* update zonedata */
+        status = rrset_commit_add(rrset, rrs->rr);
+        if (status != ODS_STATUS_OK) {
+            ods_log_alert("[%s] commit RRset (%i) failed: rrset_commit_add() "
+                "failed: %s", rrset_str, rrset->rr_type,
+                ods_status2str(status));
+            return status;
+        }
+        clone = NULL;
         rrs = rrs->next;
     }
     if (rrset->add_count != 0) {
         ods_log_error("[%s] added RRs count less than add_count (%u left)",
             rrset_str, rrset->add_count);
     }
-
     ldns_dnssec_rrs_free(rrset->add);
     rrset->add = NULL;
     rrset->add_count = 0;
@@ -801,6 +828,7 @@ rrset_del_sig(rrset_type* rrset, ldns_rr* rr)
 static uint32_t
 rrset_recycle(rrset_type* rrset, signconf_type* sc, time_t signtime)
 {
+    ldns_rr* clone = NULL;
     rrsigs_type* rrsigs = NULL;
     rrsigs_type* prev_rrsigs = NULL;
     rrsigs_type* next_rrsigs = NULL;
@@ -810,6 +838,7 @@ rrset_recycle(rrset_type* rrset, signconf_type* sc, time_t signtime)
     uint32_t reusedsigs = 0;
     int drop_sig = 0;
     key_type* key = NULL;
+    ods_status status = ODS_STATUS_OK;
 
     /* Calculate the Refresh Window = Signing time + Refresh */
     if (sc && sc->sig_refresh_interval) {
@@ -831,8 +860,6 @@ rrset_recycle(rrset_type* rrset, signconf_type* sc, time_t signtime)
         /* 1. If the RRset has changed, drop all signatures */
         /* 2. If Refresh is disabled, drop all signatures */
         if (rrset->needs_signing || !refresh) {
-            ods_log_info("[debug] RRset[%i] has changed, dropsig",
-                rrset->rr_type);
             drop_sig = 1;
         }
 
@@ -843,8 +870,6 @@ rrset_recycle(rrset_type* rrset, signconf_type* sc, time_t signtime)
 
         if (expiration < refresh) {
             /* 3a. Expiration - Refresh has passed */
-            ods_log_info("[debug] RRset[%i] expiration-refresh has passed, dropsig",
-                rrset->rr_type);
             drop_sig = 1;
             ods_log_deeebug("[%s] refresh signature for RRset[%i]: "
                 "expiration minus refresh has passed: %u - %u < (signtime)",
@@ -852,8 +877,6 @@ rrset_recycle(rrset_type* rrset, signconf_type* sc, time_t signtime)
                 (uint32_t) signtime);
         } else if (inception > (uint32_t) signtime) {
             /* 3b. Inception has not yet passed */
-            ods_log_info("[debug] RRset[%i] inception has not passed, dropsig",
-                rrset->rr_type);
             drop_sig = 1;
             ods_log_deeebug("[%s] refresh signature for RRset[%i]: "
                 "inception has not passed: %u < %u (signtime)", rrset_str,
@@ -862,15 +885,11 @@ rrset_recycle(rrset_type* rrset, signconf_type* sc, time_t signtime)
             /* 3c. Corresponding key is dead (key is locator+flags) */
             key = keylist_lookup(sc->keys, rrsigs->key_locator);
             if (!key) {
-                ods_log_info("[debug] RRset[%i] key not found, dropsig",
-                rrset->rr_type);
                 drop_sig = 1;
                 ods_log_deeebug("[%s] refresh signature for RRset[%i]: "
                 "key %s %u is dead", rrset_str,
                 rrset->rr_type, rrsigs->key_locator, rrsigs->key_flags);
             } else if (key->flags != rrsigs->key_flags) {
-                ods_log_info("[debug] RRset[%i] key flags don't match, dropsig",
-                rrset->rr_type);
                 drop_sig = 1;
                 ods_log_deeebug("[%s] refresh signature for RRset[%i]: "
                 "key %s %u flags mismatch", rrset_str,
@@ -890,8 +909,20 @@ rrset_recycle(rrset_type* rrset, signconf_type* sc, time_t signtime)
             rrset->rrsig_count -= 1;
             rrsigs->next = NULL;
 
-            /* IXFR */
-            log_rr(rrsigs->rr, "IXFR -", 0);
+            /* update journal */
+            clone = ldns_rr_clone(rrsigs->rr);
+            lock_basic_lock(&rrset->journal->journal_lock);
+            status = journal_del_rr(rrset->journal, clone);
+            if (status != ODS_STATUS_OK) {
+                lock_basic_unlock(&rrset->journal->journal_lock);
+                ods_log_alert("[%s] unable to sign RRset (%i): "
+                    "journal_del_rr() failed: %s", rrset_str, rrset->rr_type,
+                    ods_status2str(status));
+                ldns_rr_free(clone);
+                return status;
+            }
+            lock_basic_unlock(&rrset->journal->journal_lock);
+            clone = NULL;
 
             rrsigs_cleanup(rrsigs);
         } else {
@@ -1034,6 +1065,7 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, ldns_rdf* owner,
     uint32_t newsigs = 0;
     uint32_t reusedsigs = 0;
     ldns_rr* rrsig = NULL;
+    ldns_rr* clone = NULL;
     ldns_rr_list* rr_list = NULL;
     rrsigs_type* new_rrsigs = NULL;
     rrsigs_type* walk_rrsigs = NULL;
@@ -1147,7 +1179,6 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, ldns_rdf* owner,
             ods_log_deeebug("[%s] adding signature to RRset[%i]", rrset_str,
                     rrset->rr_type);
 
-
             status = rrsigs_add_sig(rrset->rrsigs,
                 ldns_rr_clone(walk_rrsigs->rr),
                 walk_rrsigs->key_locator, walk_rrsigs->key_flags);
@@ -1164,8 +1195,20 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, ldns_rdf* owner,
             newsigs++;
             log_rr(walk_rrsigs->rr, "+RRSIG", 6);
 
-            /* IXFR */
-            log_rr(walk_rrsigs->rr, "IXFR +", 0);
+            /* update journal */
+            clone = ldns_rr_clone(walk_rrsigs->rr);
+            lock_basic_lock(&rrset->journal->journal_lock);
+            status = journal_add_rr(rrset->journal, clone);
+            if (status != ODS_STATUS_OK) {
+                lock_basic_unlock(&rrset->journal->journal_lock);
+                ods_log_alert("[%s] unable to sign RRset (%i): "
+                    "journal_add_rr() failed: %s", rrset_str, rrset->rr_type,
+                    ods_status2str(status));
+                ldns_rr_free(clone);
+                return status;
+            }
+            lock_basic_unlock(&rrset->journal->journal_lock);
+            clone = NULL;
         }
         walk_rrsigs = walk_rrsigs->next;
     }

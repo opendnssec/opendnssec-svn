@@ -120,6 +120,16 @@ void transaction_cleanup(transaction_type* transaction);
 journal_type* journal_create(allocator_type* allocator);
 
 /**
+ * Lookup transaction in journal.
+ * \param[in] journal the journal
+ * \param[in] serial_from from serial
+ * \return transaction_type* transaction, if found
+ *
+ */
+transaction_type* journal_lookup_transaction(journal_type* journal,
+    uint32_t serial_from);
+
+/**
  * Add transaction to journal.
  * \param[in] journal the journal
  * \param[in] transaction the transaction
@@ -130,6 +140,24 @@ ods_status journal_add_transaction(journal_type* journal,
     transaction_type* transaction);
 
 /**
+ * Add RR addition to first transaction in journal.
+ * \param[in] journal the journal
+ * \param[in] rr the RR to be added.
+ * \return ods_status status
+ *
+ */
+ods_status journal_add_rr(journal_type* journal, ldns_rr* rr);
+
+/**
+ * Add RR removal to first transaction in journal.
+ * \param[in] journal the journal
+ * \param[in] rr the RR to be added.
+ * \return ods_status status
+ *
+ */
+ods_status journal_del_rr(journal_type* journal, ldns_rr* rr);
+
+/**
  * Purge journal.
  * \param[in] journal journal to be deleted
  * \param[in] number of transactions to keep
@@ -137,6 +165,14 @@ ods_status journal_add_transaction(journal_type* journal,
  *
  */
 ods_status journal_purge(journal_type* journal, size_t num);
+
+/**
+ * Print journal.
+ * \param[in] fd file descriptor
+ * \param[in] journal the journal
+ *
+ */
+void journal_print(FILE* fd, journal_type* journal);
 
 /**
  * Clean up journal.

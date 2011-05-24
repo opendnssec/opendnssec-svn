@@ -128,6 +128,7 @@ static void
 worker_perform_task(worker_type* worker)
 {
     engine_type* engine = NULL;
+    transaction_type* transaction = NULL;
     zone_type* zone = NULL;
     task_type* task = NULL;
     task_id what = TASK_NONE;
@@ -142,6 +143,7 @@ worker_perform_task(worker_type* worker)
     time_t start = 0;
     time_t end = 0;
 
+    /* sanity checking */
     if (!worker || !worker->task || !worker->task->zone || !worker->engine) {
         return;
     }
@@ -156,6 +158,33 @@ worker_perform_task(worker_type* worker)
        worker2str(worker->type), worker->thread_num, task_what2str(task->what),
        task_who2str(task->who), (uint32_t) worker->clock_in);
 
+    /* make sure the transaction exists */
+    lock_basic_lock(&zone->zonedata->journal->journal_lock);
+    transaction = journal_lookup_transaction(zone->zonedata->journal,
+        zone->zonedata->outbound_serial);
+    if (!transaction) {
+        transaction = transaction_create(zone->zonedata->allocator);
+        if (!transaction) {
+            ods_log_crit("[%s[%i]] unable to create transaction for zone %s",
+                worker2str(worker->type), worker->thread_num,
+                task_who2str(task->who));
+            lock_basic_unlock(&zone->zonedata->journal->journal_lock);
+            goto task_perform_fail;
+        }
+        transaction->serial_from = zone->zonedata->outbound_serial;
+        status = journal_add_transaction(zone->zonedata->journal, transaction);
+        if (status != ODS_STATUS_OK) {
+            ods_log_crit("[%s[%i]] unable to add transaction to journal for "
+                "zone %s",
+                worker2str(worker->type), worker->thread_num,
+                task_who2str(task->who));
+            lock_basic_unlock(&zone->zonedata->journal->journal_lock);
+            goto task_perform_fail;
+        }
+    }
+    lock_basic_unlock(&zone->zonedata->journal->journal_lock);
+
+    /* do what you have been told to do */
     switch (task->what) {
         case TASK_SIGNCONF:
             worker->working_with = TASK_SIGNCONF;

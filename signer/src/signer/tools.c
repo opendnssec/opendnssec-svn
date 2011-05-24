@@ -54,6 +54,7 @@ tools_input(zone_type* zone)
     time_t start = 0;
     time_t end = 0;
 
+    /* sanity checking */
     if (!zone) {
         ods_log_error("[%s] unable to read zone: no zone", tools_str);
         return ODS_STATUS_ASSERT_ERR;
@@ -69,6 +70,7 @@ tools_input(zone_type* zone)
     ods_log_assert(zone->adinbound);
     ods_log_assert(zone->signconf);
 
+    /* reset stats */
     if (zone->stats) {
         lock_basic_lock(&zone->stats->stats_lock);
         zone->stats->sort_done = 0;
@@ -77,6 +79,7 @@ tools_input(zone_type* zone)
         lock_basic_unlock(&zone->stats->stats_lock);
     }
 
+    /* read from the adapter */
     if (zone->adinbound->type == ADAPTER_FILE) {
         if (zone->fetch) {
             ods_log_verbose("fetch zone %s",
@@ -93,7 +96,6 @@ tools_input(zone_type* zone)
             free((void*)tmpname);
         }
     }
-
     start = time(NULL);
     status = adapter_read(zone);
     if (status == ODS_STATUS_OK) {
@@ -103,6 +105,7 @@ tools_input(zone_type* zone)
         tmpname = NULL;
     }
 
+    /* done */
     if (status == ODS_STATUS_OK) {
         ods_log_verbose("[%s] commit updates for zone %s", tools_str,
                 zone->name?zone->name:"(null)");
@@ -138,6 +141,7 @@ tools_nsecify(zone_type* zone)
     uint32_t ttl = 0;
     uint32_t num_added = 0;
 
+    /* sanity checking */
     if (!zone) {
         ods_log_error("[%s] unable to nsecify zone: no zone", tools_str);
         return ODS_STATUS_ASSERT_ERR;
@@ -158,19 +162,21 @@ tools_nsecify(zone_type* zone)
     }
     ods_log_assert(zone->signconf);
 
+    /* reset stats */
     if (zone->stats) {
         lock_basic_lock(&zone->stats->stats_lock);
         zone->stats->nsec_time = 0;
         zone->stats->nsec_count = 0;
         lock_basic_unlock(&zone->stats->stats_lock);
     }
-
     start = time(NULL);
-    /* determine NSEC(3) ttl */
+
+    /* determine denial ttl */
     ttl = zone->zonedata->default_ttl;
     if (zone->signconf->soa_min) {
         ttl = (uint32_t) duration2time(zone->signconf->soa_min);
     }
+
     /* add missing empty non-terminals */
     status = zonedata_entize(zone->zonedata, zone->dname);
     if (status != ODS_STATUS_OK) {
@@ -179,7 +185,7 @@ tools_nsecify(zone_type* zone)
         return status;
     }
 
-    /* NSEC or NSEC3? */
+    /* nsecify(3) */
     if (zone->signconf->nsec_type == LDNS_RR_TYPE_NSEC) {
         status = zonedata_nsecify(zone->zonedata, zone->klass, ttl,
             &num_added);
@@ -207,6 +213,8 @@ tools_nsecify(zone_type* zone)
         zone->stats->nsec_count = num_added;
         lock_basic_unlock(&zone->stats->stats_lock);
     }
+
+    /* done */
     return status;
 }
 
@@ -226,6 +234,7 @@ tools_audit(zone_type* zone, char* working_dir, char* cfg_filename)
     time_t start = 0;
     time_t end = 0;
 
+    /* sanity checking */
     if (!zone) {
         ods_log_error("[%s] unable to audit zone: no zone", tools_str);
         return ODS_STATUS_ASSERT_ERR;
@@ -239,6 +248,7 @@ tools_audit(zone_type* zone, char* working_dir, char* cfg_filename)
     }
     ods_log_assert(zone->signconf);
 
+    /* check for changes */
     if (zone->stats) {
         lock_basic_lock(&zone->stats->stats_lock);
         if (zone->stats->sort_done == 0 &&
@@ -249,6 +259,7 @@ tools_audit(zone_type* zone, char* working_dir, char* cfg_filename)
         lock_basic_unlock(&zone->stats->stats_lock);
     }
 
+    /* audit */
     if (zone->signconf->audit) {
         inbound = ods_build_path(zone->name, ".inbound", 0);
         finalized = ods_build_path(zone->name, ".finalized", 0);
@@ -260,7 +271,8 @@ tools_audit(zone_type* zone, char* working_dir, char* cfg_filename)
             return status;
         }
 
-        snprintf(str, SYSTEM_MAXLEN, "%s -c %s -u %s/%s -s %s/%s -z %s > /dev/null",
+        snprintf(str, SYSTEM_MAXLEN, "%s -c %s -u %s/%s -s %s/%s -z %s > "
+            "/dev/null",
             ODS_SE_AUDITOR,
             cfg_filename?cfg_filename:ODS_SE_CFGFILE,
             working_dir?working_dir:"",
@@ -290,6 +302,8 @@ tools_audit(zone_type* zone, char* working_dir, char* cfg_filename)
             lock_basic_unlock(&zone->stats->stats_lock);
         }
     }
+
+    /* done */
     return status;
 }
 
@@ -305,7 +319,9 @@ tools_output(zone_type* zone)
     char str[SYSTEM_MAXLEN];
     int error = 0;
     uint32_t outbound_serial = 0;
+    transaction_type* transaction = NULL;
 
+    /* sanity checking */
     if (!zone) {
         ods_log_error("[%s] unable to write zone: no zone", tools_str);
         return ODS_STATUS_ASSERT_ERR;
@@ -319,6 +335,7 @@ tools_output(zone_type* zone)
     }
     ods_log_assert(zone->adoutbound);
 
+    /* check for changes */
     if (zone->stats) {
         lock_basic_lock(&zone->stats->stats_lock);
         if (zone->stats->sort_done == 0 &&
@@ -335,8 +352,20 @@ tools_output(zone_type* zone)
         lock_basic_unlock(&zone->stats->stats_lock);
     }
 
+    /* output zone */
     outbound_serial = zone->zonedata->outbound_serial;
     zone->zonedata->outbound_serial = zone->zonedata->internal_serial;
+    lock_basic_lock(&zone->zonedata->journal->journal_lock);
+    transaction = journal_lookup_transaction(zone->zonedata->journal,
+        outbound_serial);
+    if (!transaction) {
+        ods_log_error("[%s] unable to write zone %s: transaction missing",
+            tools_str, zone->name);
+        lock_basic_unlock(&zone->zonedata->journal->journal_lock);
+        return ODS_STATUS_ERR;
+    }
+    transaction->serial_to = zone->zonedata->internal_serial;
+    lock_basic_unlock(&zone->zonedata->journal->journal_lock);
     status = adapter_write(zone);
     if (status != ODS_STATUS_OK) {
         ods_log_error("[%s] unable to write zone %s: adapter failed",
@@ -344,6 +373,15 @@ tools_output(zone_type* zone)
         zone->zonedata->outbound_serial = outbound_serial;
         return status;
     }
+
+    /* purge journal */
+    lock_basic_lock(&zone->zonedata->journal->journal_lock);
+    status = journal_purge(zone->zonedata->journal, 0);
+    if (status != ODS_STATUS_OK) {
+        ods_log_error("[%s] unable to purge journal for zone %s",
+            tools_str, zone->name);
+    }
+    lock_basic_unlock(&zone->zonedata->journal->journal_lock);
 
     /* initialize zonedata */
     zone->zonedata->initialized = 1;

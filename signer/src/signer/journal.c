@@ -34,6 +34,7 @@
 #include "config.h"
 #include "shared/allocator.h"
 #include "shared/log.h"
+#include "shared/util.h"
 #include "signer/journal.h"
 
 #include <stdio.h>
@@ -94,6 +95,13 @@ transaction_add_rr(transaction_type* transaction, ldns_rr* rr)
     }
     ods_log_assert(transaction->add);
 
+    ods_log_info("[debug] transaction_add_rr(): %s", ldns_rr2str(rr));
+
+    if (!transaction->add->rr) {
+        transaction->add->rr = rr;
+        return ODS_STATUS_OK;
+    }
+
     status = ldns_dnssec_rrs_add_rr(transaction->add, rr);
     if (status != LDNS_STATUS_OK) {
         ods_log_error("[%s] unable to add +RR to transaction: %s",
@@ -117,6 +125,13 @@ transaction_del_rr(transaction_type* transaction, ldns_rr* rr)
         return ODS_STATUS_ASSERT_ERR;
     }
     ods_log_assert(transaction->remove);
+
+    ods_log_info("[debug] transaction_del_rr(): %s", ldns_rr2str(rr));
+
+    if (!transaction->remove->rr) {
+        transaction->remove->rr = rr;
+        return ODS_STATUS_OK;
+    }
 
     status = ldns_dnssec_rrs_add_rr(transaction->remove, rr);
     if (status != LDNS_STATUS_OK) {
@@ -213,6 +228,30 @@ journal_create(allocator_type* allocator)
 
 
 /**
+ * Lookup transaction in journal.
+ *
+ */
+transaction_type*
+journal_lookup_transaction(journal_type* journal, uint32_t serial_from)
+{
+    transaction_type* transaction;
+
+    if (!journal) {
+        return NULL;
+    }
+
+    transaction = journal->transactions;
+    while (transaction) {
+        if (transaction->serial_from == serial_from) {
+            return transaction;
+        }
+        transaction = transaction->next;
+    }
+    return NULL;
+}
+
+
+/**
  * Add transaction to journal.
  *
  */
@@ -226,6 +265,34 @@ journal_add_transaction(journal_type* journal, transaction_type* transaction)
     transaction->next = journal->transactions;
     journal->transactions = transaction;
     return ODS_STATUS_OK;
+}
+
+
+/**
+ * Add RR addition to first transaction in journal.
+ *
+ */
+ods_status
+journal_add_rr(journal_type* journal, ldns_rr* rr)
+{
+    if (!journal || !journal->transactions || !rr) {
+        return ODS_STATUS_ASSERT_ERR;
+    }
+    return transaction_add_rr(journal->transactions, rr);
+}
+
+
+/**
+ * Add RR removal to first transaction in journal.
+ *
+ */
+ods_status
+journal_del_rr(journal_type* journal, ldns_rr* rr)
+{
+    if (!journal || !journal->transactions || !rr) {
+        return ODS_STATUS_ASSERT_ERR;
+    }
+    return transaction_del_rr(journal->transactions, rr);
 }
 
 
@@ -254,6 +321,28 @@ journal_purge(journal_type* journal, size_t num)
     transaction_cleanup(transaction);
 
     return ODS_STATUS_OK;
+}
+
+
+/**
+ * Clean up journal.
+ *
+ */
+void
+journal_print(FILE* fd, journal_type* journal)
+{
+    transaction_type* transaction;
+
+    if (!journal || !fd) {
+        return;
+    }
+
+    transaction = journal->transactions;
+    while (transaction) {
+        transaction_print(fd, transaction);
+        transaction = transaction->next;
+    }
+    return;
 }
 
 

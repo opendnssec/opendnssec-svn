@@ -761,6 +761,7 @@ zone_recover(zone_type* zone)
     /* keys part */
     key_type* key = NULL;
     /* zonedata part */
+    transaction_type* transaction = NULL;
 
     ods_log_assert(zone);
     ods_log_assert(zone->signconf);
@@ -877,6 +878,20 @@ zone_recover(zone_type* zone)
             token = NULL;
         }
         /* zonedata part */
+        transaction = transaction_create(zone->zonedata->allocator);
+        if (!transaction) {
+            goto recover_error;
+        }
+        transaction->serial_from = zone->zonedata->outbound_serial;
+        lock_basic_lock(&zone->zonedata->journal->journal_lock);
+        status = journal_add_transaction(zone->zonedata->journal, transaction);
+        lock_basic_unlock(&zone->zonedata->journal->journal_lock);
+        if (status != ODS_STATUS_OK) {
+            transaction_cleanup(transaction);
+            transaction = NULL;
+            goto recover_error;
+        }
+
         filename = ods_build_path(zone->name, ".inbound", 0);
         status = adbackup_read(zone, filename);
         free((void*)filename);
@@ -945,7 +960,13 @@ zone_recover(zone_type* zone)
         if (zone->stats) {
             stats_clear(zone->stats);
         }
-        journal_purge(zone->zonedata->journal, 0);
+        lock_basic_lock(&zone->zonedata->journal->journal_lock);
+        status = journal_purge(zone->zonedata->journal, 0);
+        if (status != ODS_STATUS_OK) {
+            ods_log_error("[%s] unable to purge journal for zone %s",
+                zone_str, zone->name);
+        }
+        lock_basic_unlock(&zone->zonedata->journal->journal_lock);
         return ODS_STATUS_OK;
     }
     return ODS_STATUS_UNCHANGED;
