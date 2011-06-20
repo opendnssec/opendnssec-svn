@@ -98,9 +98,11 @@ engine_create(void)
     engine->need_to_exit = 0;
     engine->need_to_reload = 0;
 
-    engine->signal = SIGNAL_INIT;
     lock_basic_init(&engine->signal_lock);
     lock_basic_set(&engine->signal_cond);
+    lock_basic_lock(&engine->signal_lock);
+    engine->signal = SIGNAL_INIT;
+    lock_basic_unlock(&engine->signal_lock);
 
     engine->zonelist = zonelist_create(engine->allocator);
     if (!engine->zonelist) {
@@ -789,11 +791,7 @@ set_notify_ns(zone_type* zone, const char* cmd)
     if (zone->adoutbound->type == ADAPTER_FILE) {
         str = ods_replace(cmd, "%zonefile", zone->adoutbound->configstr);
     } else {
-        str = strdup(cmd);
-    }
-    if (!str) {
-        ods_log_error("[%s] failed to set notify ns for zone %s",
-            engine_str, zone->name);
+        str = cmd;
     }
 
     str2 = ods_replace(str, "%zone", zone->name);
@@ -836,6 +834,7 @@ engine_update_zones(engine_type* engine)
     node = ldns_rbtree_first(engine->zonelist->zones);
     while (node && node != LDNS_RBTREE_NULL) {
         zone = (zone_type*) node->data;
+        task = NULL; /* reset task */
 
         if (zone->tobe_removed) {
             node = ldns_rbtree_next(node);
@@ -860,6 +859,8 @@ engine_update_zones(engine_type* engine)
             zone = NULL;
             continue;
         } else if (zone->just_added) {
+
+            lock_basic_lock(&zone->zone_lock);
             ods_log_assert(!zone->task);
             zone->just_added = 0;
             /* notify nameserver */
@@ -881,8 +882,9 @@ engine_update_zones(engine_type* engine)
            }
            /* zone fetcher enabled? */
            zone->fetch = (engine->config->zonefetch_filename != NULL);
-
+           lock_basic_unlock(&zone->zone_lock);
         } else if (zone->just_updated) {
+            lock_basic_lock(&zone->zone_lock);
             ods_log_assert(zone->task);
             zone->just_updated = 0;
             /* reschedule task */
@@ -909,6 +911,7 @@ engine_update_zones(engine_type* engine)
             }
             /* [UNLOCK] schedule */
             lock_basic_unlock(&engine->taskq->schedule_lock);
+            lock_basic_unlock(&zone->zone_lock);
 
             wake_up = 1;
         }
@@ -1017,6 +1020,7 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
     int use_syslog = 0;
     ods_status zl_changed = ODS_STATUS_UNCHANGED;
     ods_status status = ODS_STATUS_OK;
+    int close_hsm = 0;
 
     ods_log_assert(cfgfile);
     ods_log_init(NULL, use_syslog, cmdline_verbosity);
@@ -1060,7 +1064,12 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
         if (status != ODS_STATUS_WRITE_PIDFILE_ERR) {
             /* command handler had not yet been started */
             engine->cmdhandler_done = 1;
+            /* hsm has been opened */
+            hsm_close();
         }
+    } else {
+        /* setup ok, mark hsm open */
+        close_hsm = 1;
     }
 
     /* run */
@@ -1098,7 +1107,9 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
     /* shutdown */
     ods_log_info("[%s] signer shutdown", engine_str);
     stop_zonefetcher(engine);
-    hsm_close();
+    if (close_hsm) {
+        hsm_close();
+    }
     if (engine->cmdhandler != NULL) {
         engine_stop_cmdhandler(engine);
     }

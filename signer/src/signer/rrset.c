@@ -47,7 +47,6 @@
 #include <stdlib.h>
 
 static const char* rrset_str = "rrset";
-static ods_status rrset_del_sig(rrset_type* rrset, ldns_rr* rr);
 
 
 /**
@@ -72,9 +71,6 @@ log_rr(ldns_rr* rr, const char* pre, int level)
             }
         }
 
-        if (level == 0) { /* LOG_IXFR */
-            ods_log_info("%s %s", pre?pre:"", str);
-        }
         if (level == 1) { /* LOG_ERR */
             ods_log_error("%s %s", pre?pre:"", str);
         } else if (level == 2) { /* LOG_WARNING */
@@ -101,7 +97,7 @@ log_rr(ldns_rr* rr, const char* pre, int level)
  *
  */
 rrset_type*
-rrset_create(ldns_rr_type rrtype, journal_type* journal)
+rrset_create(ldns_rr_type rrtype)
 {
     allocator_type* allocator = NULL;
     rrset_type* rrset = NULL;
@@ -140,7 +136,6 @@ rrset_create(ldns_rr_type rrtype, journal_type* journal)
     rrset->add = NULL;
     rrset->del = NULL;
     rrset->rrsigs = NULL;
-    rrset->journal = journal;
     return rrset;
 }
 
@@ -167,7 +162,7 @@ rrset_recover(rrset_type* rrset, ldns_rr* rrsig, const char* locator,
     status = rrsigs_add_sig(rrset->rrsigs, rrsig, locator, flags);
     if (status != ODS_STATUS_OK) {
         ods_log_error("[%s] unable to recover RRSIG", rrset_str);
-        log_rr(rrsig, "ERROR +RRSIG", 1);
+        log_rr(rrsig, "+RRSIG", 1);
     } else {
         rrset->rrsig_count += 1;
         /**
@@ -255,6 +250,7 @@ rrset_count_rr(rrset_type* rrset, int which)
         default:
             return rrset->rr_count;
     }
+    /* not reached */
     return rrset->rr_count;
 }
 
@@ -299,14 +295,14 @@ rrset_add_rr(rrset_type* rrset, ldns_rr* rr)
             if (status == LDNS_STATUS_NO_DATA) {
                 ods_log_warning("[%s] unable to add RR to RRset (%i): "
                       "duplicate", rrset_str, rrset->rr_type);
-                log_rr(rr, "WARNING +rr", 2);
+                log_rr(rr, "+rr", 2);
                 /* filter out duplicates */
                 return rr;
             } else {
                 ods_log_error("[%s] unable to add RR to RRset (%i): %s",
                     rrset_str, rrset->rr_type,
                     ldns_get_errorstr_by_id(status));
-                log_rr(rr, "ERROR +rr", 1);
+                log_rr(rr, "+rr", 1);
                 ldns_dnssec_rrs_deep_free(rrset->add);
                 rrset->add = NULL;
                 rrset->add_count = 0;
@@ -363,14 +359,14 @@ rrset_del_rr(rrset_type* rrset, ldns_rr* rr, int dupallowed)
                 }
                 ods_log_warning("[%s] unable to delete RR from RRset (%i): "
                     "duplicate", rrset_str, rrset->rr_type);
-                log_rr(rr, "WARNING -rr", 2);
+                log_rr(rr, "-rr", 2);
                 /* filter out duplicates */
                 return rr;
             } else {
                 ods_log_error("[%s] unable to delete RR from RRset (%i): %s",
                    rrset_str, rrset->rr_type,
                    ldns_get_errorstr_by_id(status));
-                log_rr(rr, "ERROR -rr", 1);
+                log_rr(rr, "-rr", 1);
                 ldns_dnssec_rrs_deep_free(rrset->del);
                 rrset->del = NULL;
                 rrset->del_count = 0;
@@ -582,7 +578,7 @@ rrset_commit_del(rrset_type* rrset, ldns_rr* rr)
     }
 
     ods_log_warning("[%s] unable to commit del RR: no such RR", rrset_str);
-    log_rr(rr, "WARNING -RR", 2);
+    log_rr(rr, "-RR", 2);
     return ODS_STATUS_UNCHANGED;
 }
 
@@ -623,12 +619,12 @@ rrset_commit_add(rrset_type* rrset, ldns_rr* rr)
             if (status == LDNS_STATUS_NO_DATA) {
                 ods_log_warning("[%s] unable to commit add RR: duplicate",
                     rrset_str);
-                log_rr(rr, "WARNING +RR", 2);
+                log_rr(rr, "+RR", 2);
                 return ODS_STATUS_UNCHANGED;
             } else {
                 ods_log_error("[%s] unable to commit add RR: %s",
                     rrset_str, ldns_get_errorstr_by_id(status));
-                log_rr(rr, "ERROR +RR", 1);
+                log_rr(rr, "+RR", 1);
                 return ODS_STATUS_ERR;
             }
         }
@@ -649,7 +645,6 @@ rrset_commit_add(rrset_type* rrset, ldns_rr* rr)
 ods_status
 rrset_commit(rrset_type* rrset)
 {
-    ldns_rr* clone = NULL;
     ldns_dnssec_rrs* rrs = NULL;
     ods_status status = ODS_STATUS_OK;
 
@@ -665,29 +660,12 @@ rrset_commit(rrset_type* rrset)
     /* delete RRs */
     rrs = rrset->del;
     while (rrs) {
-        /* update journal */
-        clone = ldns_rr_clone(rrs->rr);
-        lock_basic_lock(&rrset->journal->journal_lock);
-        status = journal_del_rr(rrset->journal, clone);
-        if (status != ODS_STATUS_OK) {
-            lock_basic_unlock(&rrset->journal->journal_lock);
-            ods_log_alert("[%s] commit RRset (%i) failed: journal_del_rr() "
-                "failed: %s", rrset_str, rrset->rr_type,
-                ods_status2str(status));
-            ldns_rr_free(clone);
-            return status;
-        }
-        lock_basic_unlock(&rrset->journal->journal_lock);
-
-        /* update zonedata */
         status = rrset_commit_del(rrset, rrs->rr);
         if (status != ODS_STATUS_OK) {
-            ods_log_alert("[%s] commit RRset (%i) failed: rrset_commit_del() "
-                "failed: %s", rrset_str, rrset->rr_type,
-                ods_status2str(status));
+            ods_log_alert("[%s] commit RRset (%i) failed: %s", rrset_str,
+                rrset->rr_type, ods_status2str(status));
             return status;
         }
-        clone = NULL;
         rrs = rrs->next;
     }
     if (rrset->del_count != 0) {
@@ -701,29 +679,12 @@ rrset_commit(rrset_type* rrset)
     /* add RRs */
     rrs = rrset->add;
     while (rrs) {
-        /* update journal */
-        clone = ldns_rr_clone(rrs->rr);
-        lock_basic_lock(&rrset->journal->journal_lock);
-        status = journal_add_rr(rrset->journal, clone);
-        if (status != ODS_STATUS_OK) {
-            lock_basic_unlock(&rrset->journal->journal_lock);
-            ods_log_alert("[%s] commit RRset (%i) failed: journal_add_rr() "
-                "failed: %s", rrset_str, rrset->rr_type,
-                ods_status2str(status));
-            ldns_rr_free(clone);
-            return status;
-        }
-        lock_basic_unlock(&rrset->journal->journal_lock);
-
-        /* update zonedata */
         status = rrset_commit_add(rrset, rrs->rr);
         if (status != ODS_STATUS_OK) {
-            ods_log_alert("[%s] commit RRset (%i) failed: rrset_commit_add() "
-                "failed: %s", rrset_str, rrset->rr_type,
-                ods_status2str(status));
+            ods_log_alert("[%s] commit RRset (%i) failed: %s", rrset_str,
+                rrset->rr_type, ods_status2str(status));
             return status;
         }
-        clone = NULL;
         rrs = rrs->next;
     }
     if (rrset->add_count != 0) {
@@ -752,13 +713,13 @@ rrset_rollback(rrset_type* rrset)
     if (rrset->add) {
         ldns_dnssec_rrs_deep_free(rrset->add);
         rrset->add = NULL;
+        rrset->add_count = 0;
     }
     if (rrset->del) {
         ldns_dnssec_rrs_deep_free(rrset->del);
         rrset->del = NULL;
+        rrset->del_count = 0;
     }
-    rrset->add_count = 0;
-    rrset->del_count = 0;
     return;
 }
 
@@ -828,7 +789,6 @@ rrset_del_sig(rrset_type* rrset, ldns_rr* rr)
 static uint32_t
 rrset_recycle(rrset_type* rrset, signconf_type* sc, time_t signtime)
 {
-    ldns_rr* clone = NULL;
     rrsigs_type* rrsigs = NULL;
     rrsigs_type* prev_rrsigs = NULL;
     rrsigs_type* next_rrsigs = NULL;
@@ -838,7 +798,6 @@ rrset_recycle(rrset_type* rrset, signconf_type* sc, time_t signtime)
     uint32_t reusedsigs = 0;
     int drop_sig = 0;
     key_type* key = NULL;
-    ods_status status = ODS_STATUS_OK;
 
     /* Calculate the Refresh Window = Signing time + Refresh */
     if (sc && sc->sig_refresh_interval) {
@@ -908,22 +867,6 @@ rrset_recycle(rrset_type* rrset, signconf_type* sc, time_t signtime)
             log_rr(rrsigs->rr, "-RRSIG", 6);
             rrset->rrsig_count -= 1;
             rrsigs->next = NULL;
-
-            /* update journal */
-            clone = ldns_rr_clone(rrsigs->rr);
-            lock_basic_lock(&rrset->journal->journal_lock);
-            status = journal_del_rr(rrset->journal, clone);
-            if (status != ODS_STATUS_OK) {
-                lock_basic_unlock(&rrset->journal->journal_lock);
-                ods_log_alert("[%s] unable to sign RRset (%i): "
-                    "journal_del_rr() failed: %s", rrset_str, rrset->rr_type,
-                    ods_status2str(status));
-                ldns_rr_free(clone);
-                return status;
-            }
-            lock_basic_unlock(&rrset->journal->journal_lock);
-            clone = NULL;
-
             rrsigs_cleanup(rrsigs);
         } else {
             /* All rules ok, recycle signature */
@@ -1065,7 +1008,6 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, ldns_rdf* owner,
     uint32_t newsigs = 0;
     uint32_t reusedsigs = 0;
     ldns_rr* rrsig = NULL;
-    ldns_rr* clone = NULL;
     ldns_rr_list* rr_list = NULL;
     rrsigs_type* new_rrsigs = NULL;
     rrsigs_type* walk_rrsigs = NULL;
@@ -1098,7 +1040,7 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, ldns_rdf* owner,
     rr_list = rrset2rrlist(rrset);
     if (!rr_list) {
         ods_log_error("[%s] unable to sign RRset[%i]: to RRlist failed",
-            rrset->rr_type);
+            rrset_str, rrset->rr_type);
         return ODS_STATUS_ERR;
     }
     if (ldns_rr_list_rr_count(rr_list) <= 0) {
@@ -1163,7 +1105,7 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, ldns_rdf* owner,
         if (status != ODS_STATUS_OK) {
             ods_log_error("[%s] unable to sign RRset[%i]: error adding RRSIG",
                 rrset_str, rrset->rr_type);
-                log_rr(rrsig, "ERROR +RRSIG", 1);
+                log_rr(rrsig, "+RRSIG", 1);
                 ldns_rr_list_free(rr_list);
                 rrsigs_cleanup(new_rrsigs);
             return status;
@@ -1178,7 +1120,6 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, ldns_rdf* owner,
         if (walk_rrsigs->rr) {
             ods_log_deeebug("[%s] adding signature to RRset[%i]", rrset_str,
                     rrset->rr_type);
-
             status = rrsigs_add_sig(rrset->rrsigs,
                 ldns_rr_clone(walk_rrsigs->rr),
                 walk_rrsigs->key_locator, walk_rrsigs->key_flags);
@@ -1186,7 +1127,7 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, ldns_rdf* owner,
                 ods_log_error("[%s] unable to sign RRset[%i]: error adding "
                     "RRSIG to RRset[%i]", rrset_str, rrset->rr_type,
                     rrset->rr_type);
-                log_rr(walk_rrsigs->rr, "ERROR +RRSIG", 1);
+                log_rr(walk_rrsigs->rr, "+RRSIG", 1);
                 ldns_rr_list_free(rr_list);
                 rrsigs_cleanup(new_rrsigs);
                 return status;
@@ -1194,21 +1135,6 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, ldns_rdf* owner,
             rrset->rrsig_count += 1;
             newsigs++;
             log_rr(walk_rrsigs->rr, "+RRSIG", 6);
-
-            /* update journal */
-            clone = ldns_rr_clone(walk_rrsigs->rr);
-            lock_basic_lock(&rrset->journal->journal_lock);
-            status = journal_add_rr(rrset->journal, clone);
-            if (status != ODS_STATUS_OK) {
-                lock_basic_unlock(&rrset->journal->journal_lock);
-                ods_log_alert("[%s] unable to sign RRset (%i): "
-                    "journal_add_rr() failed: %s", rrset_str, rrset->rr_type,
-                    ods_status2str(status));
-                ldns_rr_free(clone);
-                return status;
-            }
-            lock_basic_unlock(&rrset->journal->journal_lock);
-            clone = NULL;
         }
         walk_rrsigs = walk_rrsigs->next;
     }
@@ -1301,7 +1227,6 @@ rrset_cleanup(rrset_type* rrset)
         rrsigs_cleanup(rrset->rrsigs);
         rrset->rrsigs = NULL;
     }
-    rrset->journal = NULL;
 
     allocator_deallocate(allocator, (void*) rrset);
     allocator_cleanup(allocator);

@@ -159,12 +159,9 @@ engine_config_print(FILE* out, engineconfig_type* config)
     if (!out) {
         return;
     }
-    ods_log_assert(out);
 
     fprintf(out, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
     if (config) {
-        ods_log_assert(config);
-
         fprintf(out, "<Configuration>\n");
 
         /* Common */
@@ -267,3 +264,4 @@ engine_config_cleanup(engineconfig_type* config)
     allocator_deallocate(allocator, (void*) config);
     return;
 }
+

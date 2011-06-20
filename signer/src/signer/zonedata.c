@@ -38,7 +38,6 @@
 #include "shared/util.h"
 #include "signer/backup.h"
 #include "signer/domain.h"
-#include "signer/journal.h"
 #include "signer/nsec3params.h"
 #include "signer/zonedata.h"
 
@@ -182,14 +181,6 @@ zonedata_create(allocator_type* allocator)
     ods_log_assert(zd);
 
     zd->allocator = allocator;
-    zd->journal = journal_create(allocator);
-    if (!zd->journal) {
-        ods_log_error("[%s] cannot create zonedata: create transaction failed",
-            zd_str);
-        zonedata_cleanup(zd);
-        return NULL;
-    }
-
     zonedata_init_domains(zd);
     zonedata_init_denial(zd);
     zd->initialized = 0;
@@ -242,7 +233,7 @@ zonedata_recover(zonedata_type* zd, FILE* fd)
                 goto recover_domain_error;
             }
             /* lookup success */
-            status = domain_recover(domain, fd, dstatus, zd->journal);
+            status = domain_recover(domain, fd, dstatus);
             if (status != ODS_STATUS_OK) {
                 ods_log_error("[%s] unable to recover domain", zd_str);
                 goto recover_domain_error;
@@ -609,7 +600,7 @@ zonedata_del_denial_fixup(ldns_rbtree_t* tree, denial_type* denial)
                     "point: failed to wipe out NSEC RRset", zd_str);
                 return denial;
             }
-            rrset_commit(denial->rrset);
+            status = rrset_commit(denial->rrset);
             if (status != ODS_STATUS_OK) {
                 ods_log_alert("[%s] unable to del denial of existence data "
                     "point: failed to commit NSEC RRset", zd_str);
@@ -1032,7 +1023,7 @@ zonedata_nsecify(zonedata_type* zd, ldns_rr_class klass, uint32_t ttl,
         }
         nxt = (denial_type*) nxt_node->data;
 
-        status = denial_nsecify(denial, nxt, ttl, klass, zd->journal);
+        status = denial_nsecify(denial, nxt, ttl, klass);
         if (status != ODS_STATUS_OK) {
             ods_log_error("[%s] unable to nsecify: failed to add NSEC record",
                 zd_str);
@@ -1171,8 +1162,7 @@ zonedata_nsecify3(zonedata_type* zd, ldns_rr_class klass,
         }
         nxt = (denial_type*) nxt_node->data;
 
-        status = denial_nsecify3(denial, nxt, ttl, klass, nsec3params,
-            zd->journal);
+        status = denial_nsecify3(denial, nxt, ttl, klass, nsec3params);
         if (status != ODS_STATUS_OK) {
             ods_log_error("[%s] unable to nsecify3: failed to add NSEC3 "
                 "record", zd_str);
@@ -1542,7 +1532,6 @@ zonedata_cleanup(zonedata_type* zd)
     zonedata_cleanup_chain(zd);
     zonedata_cleanup_domains(zd);
     allocator = zd->allocator;
-    journal_cleanup(zd->journal);
     allocator_deallocate(allocator, (void*) zd);
     return;
 }

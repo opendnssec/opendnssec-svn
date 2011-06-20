@@ -419,6 +419,7 @@ addns_write(struct zone_struct* zone, const char* str)
         return ODS_STATUS_ASSERT_ERR;
     }
     ods_log_assert(adzone);
+
     if (!str) {
         ods_log_error("[%s] unable to write file: no filename given",
             adapter_str);
@@ -428,9 +429,9 @@ addns_write(struct zone_struct* zone, const char* str)
     /* [end] sanity parameter checking */
 
     /* [start] write zone */
-    fd = ods_fopen(str, NULL, "a");
+    fd = ods_fopen(str, NULL, "w");
     if (fd) {
-        journal_print(fd, adzone->zonedata->journal);
+        zone_print(fd, adzone);
         ods_fclose(fd);
     } else {
         status = ODS_STATUS_FOPEN_ERR;

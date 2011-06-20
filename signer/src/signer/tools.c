@@ -319,7 +319,6 @@ tools_output(zone_type* zone)
     char str[SYSTEM_MAXLEN];
     int error = 0;
     uint32_t outbound_serial = 0;
-    transaction_type* transaction = NULL;
 
     /* sanity checking */
     if (!zone) {
@@ -355,17 +354,6 @@ tools_output(zone_type* zone)
     /* output zone */
     outbound_serial = zone->zonedata->outbound_serial;
     zone->zonedata->outbound_serial = zone->zonedata->internal_serial;
-    lock_basic_lock(&zone->zonedata->journal->journal_lock);
-    transaction = journal_lookup_transaction(zone->zonedata->journal,
-        outbound_serial);
-    if (!transaction) {
-        ods_log_error("[%s] unable to write zone %s: transaction missing",
-            tools_str, zone->name);
-        lock_basic_unlock(&zone->zonedata->journal->journal_lock);
-        return ODS_STATUS_ERR;
-    }
-    transaction->serial_to = zone->zonedata->internal_serial;
-    lock_basic_unlock(&zone->zonedata->journal->journal_lock);
     status = adapter_write(zone);
     if (status != ODS_STATUS_OK) {
         ods_log_error("[%s] unable to write zone %s: adapter failed",
@@ -373,15 +361,6 @@ tools_output(zone_type* zone)
         zone->zonedata->outbound_serial = outbound_serial;
         return status;
     }
-
-    /* purge journal */
-    lock_basic_lock(&zone->zonedata->journal->journal_lock);
-    status = journal_purge(zone->zonedata->journal, 0);
-    if (status != ODS_STATUS_OK) {
-        ods_log_error("[%s] unable to purge journal for zone %s",
-            tools_str, zone->name);
-    }
-    lock_basic_unlock(&zone->zonedata->journal->journal_lock);
 
     /* initialize zonedata */
     zone->zonedata->initialized = 1;

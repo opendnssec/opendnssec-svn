@@ -234,7 +234,7 @@ zone_add_rr(zone_type* zone, ldns_rr* rr, int do_stats)
     rrset = domain_lookup_rrset(domain, ldns_rr_get_type(rr));
     if (!rrset) {
         /* add RRset */
-        rrset = rrset_create(ldns_rr_get_type(rr), zone->zonedata->journal);
+        rrset = rrset_create(ldns_rr_get_type(rr));
         if (!rrset) {
             ods_log_error("[%s] unable to add RR: create RRset failed",
                 zone_str);
@@ -405,6 +405,7 @@ zone_load_signconf(zone_type* zone, task_id* tbs)
             ods_log_error("[%s] unable to load signconf: zone %s "
                 "signconf %s: failed to delete DNSKEY from RRset",
                 zone_str, zone->name, zone->signconf_filename);
+            zonedata_rollback(zone->zonedata);
             return status;
         }
 
@@ -552,6 +553,10 @@ zone_publish_dnskeys(zone_type* zone, int recover)
         key = key->next;
     }
 
+    if (status != ODS_STATUS_OK) {
+        zonedata_rollback(zone->zonedata);
+    }
+
     hsm_destroy_context(ctx);
     ctx = NULL;
     return status;
@@ -649,6 +654,7 @@ zone_prepare_nsec3(zone_type* zone, int recover)
             "from zone %s: apex undefined", zone_str, zone->name);
             nsec3params_cleanup(zone->nsec3params);
             zone->nsec3params = NULL;
+            zonedata_rollback(zone->zonedata);
             return ODS_STATUS_ASSERT_ERR;
         }
         ods_log_assert(apex);
@@ -661,6 +667,7 @@ zone_prepare_nsec3(zone_type* zone, int recover)
                     "NSEC3PARAM RR from zone %s", zone_str, zone->name);
                 nsec3params_cleanup(zone->nsec3params);
                 zone->nsec3params = NULL;
+                rrset_rollback(rrset);
                 return status;
             }
         }
@@ -685,6 +692,8 @@ zone_backup(zone_type* zone)
 
     filename = ods_build_path(zone->name, ".backup", 0);
     fd = ods_fopen(filename, NULL, "w");
+    free((void*)filename);
+
     if (fd) {
         fprintf(fd, "%s\n", ODS_SE_FILE_MAGIC);
         /** Backup zone */
@@ -722,7 +731,6 @@ zone_backup(zone_type* zone)
     } else {
         return ODS_STATUS_FOPEN_ERR;
     }
-    free((void*)filename);
     return ODS_STATUS_OK;
 }
 
@@ -761,7 +769,7 @@ zone_recover(zone_type* zone)
     /* keys part */
     key_type* key = NULL;
     /* zonedata part */
-    transaction_type* transaction = NULL;
+    int fetch = 0;
 
     ods_log_assert(zone);
     ods_log_assert(zone->signconf);
@@ -878,20 +886,6 @@ zone_recover(zone_type* zone)
             token = NULL;
         }
         /* zonedata part */
-        transaction = transaction_create(zone->zonedata->allocator);
-        if (!transaction) {
-            goto recover_error;
-        }
-        transaction->serial_from = zone->zonedata->outbound_serial;
-        lock_basic_lock(&zone->zonedata->journal->journal_lock);
-        status = journal_add_transaction(zone->zonedata->journal, transaction);
-        lock_basic_unlock(&zone->zonedata->journal->journal_lock);
-        if (status != ODS_STATUS_OK) {
-            transaction_cleanup(transaction);
-            transaction = NULL;
-            goto recover_error;
-        }
-
         filename = ods_build_path(zone->name, ".inbound", 0);
         status = adbackup_read(zone, filename);
         free((void*)filename);
@@ -900,6 +894,7 @@ zone_recover(zone_type* zone)
         }
 
         zone->klass = (ldns_rr_class) klass;
+        zone->zonedata->default_ttl = ttl;
         zone->zonedata->inbound_serial = inbound;
         zone->zonedata->internal_serial = internal;
         zone->zonedata->outbound_serial = outbound;
@@ -913,7 +908,8 @@ zone_recover(zone_type* zone)
         }
         if (zone->signconf->nsec_type == LDNS_RR_TYPE_NSEC3) {
             nsec3params = nsec3params_create(zone->signconf->nsec3_algo,
-                zone->signconf->nsec3_optout, zone->signconf->nsec3_iterations,
+                zone->signconf->nsec3_optout,
+                zone->signconf->nsec3_iterations,
                 zone->signconf->nsec3_salt);
             if (!nsec3params) {
                 goto recover_error;
@@ -954,21 +950,58 @@ zone_recover(zone_type* zone)
             zone->nsec3params = NULL;
             goto recover_error;
         }
+        ods_fclose(fd);
 
         /* all ok */
         zone->zonedata->initialized = 1;
         if (zone->stats) {
+            lock_basic_lock(&zone->stats->stats_lock);
             stats_clear(zone->stats);
+            lock_basic_unlock(&zone->stats->stats_lock);
         }
-        lock_basic_lock(&zone->zonedata->journal->journal_lock);
-        status = journal_purge(zone->zonedata->journal, 0);
-        if (status != ODS_STATUS_OK) {
-            ods_log_error("[%s] unable to purge journal for zone %s",
-                zone_str, zone->name);
-        }
-        lock_basic_unlock(&zone->zonedata->journal->journal_lock);
         return ODS_STATUS_OK;
+    } else {
+        /* backwards compatible backup recovery (serial) */
+        filename = ods_build_path(zone->name, ".state", 0);
+        fd = ods_fopen(filename, NULL, "r");
+        free((void*)filename);
+        if (fd) {
+            if (!backup_read_check_str(fd, ODS_SE_FILE_MAGIC_V1) ||
+                !backup_read_check_str(fd, ";name:") ||
+                !backup_read_check_str(fd, zone->name) ||
+                !backup_read_check_str(fd, ";class:") ||
+                !backup_read_int(fd, &klass) ||
+                !backup_read_check_str(fd, ";fetch:") ||
+                !backup_read_int(fd, &fetch) ||
+                !backup_read_check_str(fd, ";default_ttl:") ||
+                !backup_read_uint32_t(fd, &ttl) ||
+                !backup_read_check_str(fd, ";inbound_serial:") ||
+                !backup_read_uint32_t(fd, &inbound) ||
+                !backup_read_check_str(fd, ";internal_serial:") ||
+                !backup_read_uint32_t(fd, &internal) ||
+                !backup_read_check_str(fd, ";outbound_serial:") ||
+                !backup_read_uint32_t(fd, &outbound) ||
+                !backup_read_check_str(fd, ODS_SE_FILE_MAGIC_V1))
+            {
+                goto recover_error;
+            }
+            zone->klass = (ldns_rr_class) klass;
+            zone->zonedata->default_ttl = ttl;
+            zone->zonedata->inbound_serial = inbound;
+            zone->zonedata->internal_serial = internal;
+            zone->zonedata->outbound_serial = outbound;
+            /* all ok */
+            zone->zonedata->initialized = 1;
+            if (zone->stats) {
+                lock_basic_lock(&zone->stats->stats_lock);
+                stats_clear(zone->stats);
+                lock_basic_unlock(&zone->stats->stats_lock);
+            }
+            return ODS_STATUS_UNCHANGED;
+        }
+        ods_fclose(fd);
     }
+
     return ODS_STATUS_UNCHANGED;
 
 recover_error:
@@ -1001,7 +1034,9 @@ recover_error:
     ods_log_assert(zone->zonedata);
 
     if (zone->stats) {
-        stats_clear(zone->stats);
+       lock_basic_lock(&zone->stats->stats_lock);
+       stats_clear(zone->stats);
+       lock_basic_unlock(&zone->stats->stats_lock);
     }
     return ODS_STATUS_ERR;
 }

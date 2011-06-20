@@ -41,7 +41,6 @@
 #include "shared/hsm.h"
 #include "shared/locks.h"
 #include "shared/status.h"
-#include "signer/journal.h"
 #include "signer/keys.h"
 #include "signer/rrsigs.h"
 #include "signer/signconf.h"
@@ -66,17 +65,15 @@ struct rrset_struct {
     ldns_dnssec_rrs* add;
     ldns_dnssec_rrs* del;
     rrsigs_type* rrsigs;
-    journal_type* journal;
 };
 
 /**
  * Create new RRset.
  * \param[in] rrtype RRtype
- * \param[in] journal journal
  * \return rrset_type* new RRset
  *
  */
-rrset_type* rrset_create(ldns_rr_type rrtype, journal_type* journal);
+rrset_type* rrset_create(ldns_rr_type rrtype);
 
 /**
  * Recover RRSIG from backup.

@@ -51,7 +51,6 @@
 
 /**
  * Statistics structure.
- *
  */
 typedef struct stats_struct stats_type;
 struct stats_struct {

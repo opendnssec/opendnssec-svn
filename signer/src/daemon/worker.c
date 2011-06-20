@@ -74,6 +74,9 @@ worker_create(allocator_type* allocator, int num, worker_id type)
     }
 
     ods_log_debug("create worker[%i]", num +1);
+    lock_basic_init(&worker->worker_lock);
+    lock_basic_set(&worker->worker_alarm);
+    lock_basic_lock(&worker->worker_lock);
     worker->allocator = allocator;
     worker->thread_num = num +1;
     worker->engine = NULL;
@@ -87,8 +90,7 @@ worker_create(allocator_type* allocator, int num, worker_id type)
     worker->jobs_failed = 0;
     worker->sleeping = 0;
     worker->waiting = 0;
-    lock_basic_init(&worker->worker_lock);
-    lock_basic_set(&worker->worker_alarm);
+    lock_basic_unlock(&worker->worker_lock);
     return worker;
 }
 
@@ -128,7 +130,6 @@ static void
 worker_perform_task(worker_type* worker)
 {
     engine_type* engine = NULL;
-    transaction_type* transaction = NULL;
     zone_type* zone = NULL;
     task_type* task = NULL;
     task_id what = TASK_NONE;
@@ -157,32 +158,6 @@ worker_perform_task(worker_type* worker)
     ods_log_debug("[%s[%i]] perform task %s for zone %s at %u",
        worker2str(worker->type), worker->thread_num, task_what2str(task->what),
        task_who2str(task->who), (uint32_t) worker->clock_in);
-
-    /* make sure the transaction exists */
-    lock_basic_lock(&zone->zonedata->journal->journal_lock);
-    transaction = journal_lookup_transaction(zone->zonedata->journal,
-        zone->zonedata->outbound_serial);
-    if (!transaction) {
-        transaction = transaction_create(zone->zonedata->allocator);
-        if (!transaction) {
-            ods_log_crit("[%s[%i]] unable to create transaction for zone %s",
-                worker2str(worker->type), worker->thread_num,
-                task_who2str(task->who));
-            lock_basic_unlock(&zone->zonedata->journal->journal_lock);
-            goto task_perform_fail;
-        }
-        transaction->serial_from = zone->zonedata->outbound_serial;
-        status = journal_add_transaction(zone->zonedata->journal, transaction);
-        if (status != ODS_STATUS_OK) {
-            ods_log_crit("[%s[%i]] unable to add transaction to journal for "
-                "zone %s",
-                worker2str(worker->type), worker->thread_num,
-                task_who2str(task->who));
-            lock_basic_unlock(&zone->zonedata->journal->journal_lock);
-            goto task_perform_fail;
-        }
-    }
-    lock_basic_unlock(&zone->zonedata->journal->journal_lock);
 
     /* do what you have been told to do */
     switch (task->what) {
@@ -455,6 +430,9 @@ worker_perform_task(worker_type* worker)
     return;
 
 task_perform_fail:
+    /* in case of failure, also mark zone processed (for single run usage) */
+    zone->processed = 1;
+
     if (task->backoff) {
         task->backoff *= 2;
         if (task->backoff > ODS_SE_MAX_BACKOFF) {
@@ -522,7 +500,6 @@ worker_work(worker_type* worker)
             worker_perform_task(worker);
 
             zone->task = worker->task;
-            zone->processed = 1;
 
             ods_log_debug("[%s[%i]] finished working on zone %s",
                 worker2str(worker->type), worker->thread_num, zone->name);
