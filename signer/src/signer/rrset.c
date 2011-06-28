@@ -381,6 +381,38 @@ rrset_del_rr(rrset_type* rrset, ldns_rr* rr, int dupallowed)
 
 
 /**
+ * Lookup RR in RRset.
+ *
+ */
+ldns_rr*
+rrset_lookup_rr(rrset_type* rrset, ldns_rr* rr)
+{
+    ldns_status lstatus = LDNS_STATUS_OK;
+    ldns_dnssec_rrs* rrs = NULL;
+    int cmp = 1;
+
+    if (!rrset || !rr) {
+       return NULL;
+    }
+
+    rrs = rrset->rrs;
+    while (rrs) {
+       lstatus = util_dnssec_rrs_compare(rrs->rr, rr, &cmp);
+        if (lstatus != LDNS_STATUS_OK) {
+            ods_log_error("[%s] lookup failed: compare failed (%s)",
+                rrset_str, ldns_get_errorstr_by_id(lstatus));
+            return NULL;
+        }
+        if (!cmp) { /* equal */
+            return rrs->rr;
+        }
+        rrs = rrs->next;
+    }
+    return NULL;
+}
+
+
+/**
  * Wipe out current RRs in RRset.
  *
  */

@@ -124,6 +124,15 @@ ldns_rr* rrset_add_rr(rrset_type* rrset, ldns_rr* rr);
 ldns_rr* rrset_del_rr(rrset_type* rrset, ldns_rr* rr, int dupallowed);
 
 /**
+ * Lookup RR in RRset.
+ * \param[in] rrset RRset
+ * \param[in] rr RR
+ * \return ldns_rr* RR if found
+ *
+ */
+ldns_rr* rrset_lookup_rr(rrset_type* rrset, ldns_rr* rr);
+
+/**
  * Wipe out current RRs in RRset.
  * \param[in] rrset RRset
  * \return ods_status status
