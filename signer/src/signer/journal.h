@@ -1,5 +1,5 @@
 /*
- * $Id: journal.h 4644 2011-03-24 14:22:54Z matthijs $
+ * $Id: journal.h 5190 2011-05-30 13:12:12Z matthijs $
  *
  * Copyright (c) 2009 NLNet Labs. All rights reserved.
  *
@@ -27,149 +27,142 @@
  */
 
 /**
- * Zone journal for IXFR serving.
+ * Journal.
  *
  */
 
 #ifndef SIGNER_JOURNAL_H
 #define SIGNER_JOURNAL_H
 
-#include "config.h"
 #include "shared/allocator.h"
-#include "shared/locks.h"
 #include "shared/status.h"
+
+#include <config.h>
+#include <ctype.h>
+#include <stdint.h>
+#include <time.h>
+#ifdef HAVE_SYS_TYPES_H
+# include <sys/types.h>
+#endif
+#ifdef HAVE_UNISTD_H
+# include <unistd.h>
+#endif
 
 #include <ldns/ldns.h>
 
-#define MAX_TRANSACTIONS 5
-
 /**
- * Transaction structure.
- *
+ * Entry structure.
  */
-typedef struct transaction_struct transaction_type;
-struct transaction_struct {
-    allocator_type* allocator;
-    /* time of transaction */
-    /* size of transaction */
-    uint32_t serial_from;
-    uint32_t serial_to;
-    ldns_dnssec_rrs* add;
-    ldns_dnssec_rrs* remove;
-    transaction_type* next;
+typedef struct entry_struct entry_type;
+struct entry_struct {
+    int committed;
+    uint32_t serial;
+    ldns_rr_list* deleted;
+    ldns_rr_list* added;
+    entry_type* next;
 };
 
 /**
  * Journal structure.
- *
  */
 typedef struct journal_struct journal_type;
 struct journal_struct {
     allocator_type* allocator;
-    transaction_type* transactions;
-    lock_basic_type journal_lock;
+    entry_type* entries;
 };
 
+
 /**
- * Create transaction.
+ * Create entry.
  * \param[in] allocator memory allocator
- * \return the created transaction
+ * \return entry_type* the created entry
  *
  */
-transaction_type* transaction_create(allocator_type* allocator);
+entry_type* entry_create(allocator_type* allocator);
 
 /**
- * Add RR addition to transaction.
- * \param[in] transaction the transaction
- * \param[in] rr the RR to be added.
+ * Add +rr to entry.
+ * \param[in] entry entry
+ * \param[in] rr RR
  * \return ods_status status
  *
  */
-ods_status transaction_add_rr(transaction_type* transaction, ldns_rr* rr);
+ods_status entry_plus_rr(entry_type* entry, ldns_rr* rr);
 
 /**
- * Add RR removal to transaction.
- * \param[in] transaction the transaction
- * \param[in] rr the RR to be added.
+ * Add -rr to entry.
+ * \param[in] entry entry
+ * \param[in] rr RR
  * \return ods_status status
  *
  */
-ods_status transaction_del_rr(transaction_type* transaction, ldns_rr* rr);
+ods_status entry_min_rr(entry_type* entry, ldns_rr* rr);
 
 /**
- * Print transaction.
+ * Print entry.
  * \param[in] fd file descriptor
- * \param[in] transaction the transaction
+ * \param[in] entry entry to be deleted
  *
  */
-void transaction_print(FILE* fd, transaction_type* transaction);
+void entry_print(FILE* fd, entry_type* entry);
 
 /**
- * Clean up transaction.
- * \param[in] transaction the transaction
+ * Commit entry.
+ * \param[in] entry entry to be committed
  *
  */
-void transaction_cleanup(transaction_type* transaction);
+void entry_commit(entry_type* entry);
+
+/**
+ * Rollback entry.
+ * \param[in] entry entry to be rollbacked
+ *
+ */
+void entry_rollback(entry_type* entry);
+
+/**
+ * Clear entry.
+ * \param[in] entry entry to be cleared
+ *
+ */
+void entry_clear(entry_type* entry);
+
+/**
+ * Clean up entry.
+ * \param[in] allocator memory allocator
+ * \param[in] entry entry to be deleted
+ *
+ */
+void entry_cleanup(allocator_type* allocator, entry_type* entry);
+
 
 /**
  * Create journal.
- * \param[in] allocator memory allocator
- * \return the created journal
+ * \return journal_type* the created journal
  *
  */
-journal_type* journal_create(allocator_type* allocator);
+journal_type* journal_create(void);
 
 /**
- * Lookup transaction in journal.
- * \param[in] journal the journal
- * \param[in] serial_from from serial
- * \return transaction_type* transaction, if found
- *
- */
-transaction_type* journal_lookup_transaction(journal_type* journal,
-    uint32_t serial_from);
-
-/**
- * Add transaction to journal.
- * \param[in] journal the journal
- * \param[in] transaction the transaction
+ * Add entry to journal.
+ * \param[in] journal journal
+ * \param[in] entry entry
  * \return ods_status status
  *
  */
-ods_status journal_add_transaction(journal_type* journal,
-    transaction_type* transaction);
-
-/**
- * Add RR addition to first transaction in journal.
- * \param[in] journal the journal
- * \param[in] rr the RR to be added.
- * \return ods_status status
- *
- */
-ods_status journal_add_rr(journal_type* journal, ldns_rr* rr);
-
-/**
- * Add RR removal to first transaction in journal.
- * \param[in] journal the journal
- * \param[in] rr the RR to be added.
- * \return ods_status status
- *
- */
-ods_status journal_del_rr(journal_type* journal, ldns_rr* rr);
+ods_status journal_add_entry(journal_type* journal, entry_type* entry);
 
 /**
  * Purge journal.
- * \param[in] journal journal to be deleted
- * \param[in] number of transactions to keep
- * \return ods_status status
+ * \param[in] journal journal to be purged
  *
  */
-ods_status journal_purge(journal_type* journal, size_t num);
+void journal_purge(journal_type* journal);
 
 /**
  * Print journal.
  * \param[in] fd file descriptor
- * \param[in] journal the journal
+ * \param[in] journal journal to be printed
  *
  */
 void journal_print(FILE* fd, journal_type* journal);

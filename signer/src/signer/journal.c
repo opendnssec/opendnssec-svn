@@ -1,5 +1,5 @@
 /*
- * $Id: journal.c 4644 2011-03-24 14:22:54Z matthijs $
+ * $Id: journal.c 5190 2011-05-30 13:12:12Z matthijs $
  *
  * Copyright (c) 2009 NLNet Labs. All rights reserved.
  *
@@ -27,176 +27,207 @@
  */
 
 /**
- * Zone journal for IXFR serving.
+ * Journal.
  *
  */
 
 #include "config.h"
-#include "shared/allocator.h"
 #include "shared/log.h"
 #include "shared/util.h"
 #include "signer/journal.h"
-
-#include <stdio.h>
+#include "signer/rrset.h"
 
 static const char* journal_str = "journal";
 
 
 /**
- * Create transaction.
+ * Create entry.
  *
  */
-transaction_type*
-transaction_create(allocator_type* allocator)
+entry_type* entry_create(allocator_type* allocator)
 {
-    transaction_type* transaction;
+    entry_type* entry = NULL;
 
     if (!allocator) {
+        ods_log_error("[%s] unable to create journal entry: no allocator",
+            journal_str);
         return NULL;
     }
     ods_log_assert(allocator);
 
-    transaction = (transaction_type*) allocator_alloc(allocator,
-        sizeof(transaction_type));
-    if (!transaction) {
+    entry = (entry_type*) allocator_alloc(allocator, sizeof(entry_type));
+    if (!entry) {
+        ods_log_error("[%s] unable to create journal entry: allocator failed",
+            journal_str);
         return NULL;
     }
-    transaction->allocator = allocator;
+    ods_log_assert(entry);
 
-    transaction->serial_from = 0;
-    transaction->serial_to = 0;
-    transaction->next = NULL;
-
-    transaction->add = ldns_dnssec_rrs_new();
-    if (!transaction->add) {
-        transaction_cleanup(transaction);
+    entry->added = ldns_rr_list_new();
+    entry->deleted = ldns_rr_list_new();
+    if (!entry->added || !entry->deleted) {
+        ods_log_error("[%s] unable to create journal entry: create rr lists "
+            "failed", journal_str);
+        entry_cleanup(allocator, entry);
         return NULL;
     }
-    transaction->remove = ldns_dnssec_rrs_new();
-    if (!transaction->remove) {
-        transaction_cleanup(transaction);
-        return NULL;
-    }
-    return transaction;
+    entry->committed = 0;
+    entry->serial = 0;
+    entry->next = NULL;
+    return entry;
 }
 
 
 /**
- * Add RR addition to transaction.
+ * Add +rr to entry.
  *
  */
 ods_status
-transaction_add_rr(transaction_type* transaction, ldns_rr* rr)
+entry_plus_rr(entry_type* entry, ldns_rr* rr)
 {
-    ldns_status status = LDNS_STATUS_OK;
-
-    if (!transaction || !rr) {
+    if (!entry || !rr) {
+        ods_log_error("[%s] unable to do +rr to journal entry: no entry or rr",
+            journal_str);
         return ODS_STATUS_ASSERT_ERR;
     }
-    ods_log_assert(transaction->add);
-
-    ods_log_info("[debug] transaction_add_rr(): %s", ldns_rr2str(rr));
-
-    if (!transaction->add->rr) {
-        transaction->add->rr = rr;
-        return ODS_STATUS_OK;
-    }
-
-    status = ldns_dnssec_rrs_add_rr(transaction->add, rr);
-    if (status != LDNS_STATUS_OK) {
-        ods_log_error("[%s] unable to add +RR to transaction: %s",
-            journal_str, ldns_get_errorstr_by_id(status));
+    ods_log_assert(rr);
+    ods_log_assert(entry);
+    ods_log_assert(entry->added);
+    if (0 == (int) ldns_rr_list_push_rr(entry->added, rr)) {
+        ods_log_error("[%s] unable to do +rr to journal entry: push rr failed",
+            journal_str);
         return ODS_STATUS_ERR;
     }
+    log_rr(rr, "+rr", 2);
+
+    /* else ok */
     return ODS_STATUS_OK;
 }
 
 
 /**
- * Add RR removal to transaction.
+ * Add -rr to entry.
  *
  */
 ods_status
-transaction_del_rr(transaction_type* transaction, ldns_rr* rr)
+entry_min_rr(entry_type* entry, ldns_rr* rr)
 {
-    ldns_status status = LDNS_STATUS_OK;
-
-    if (!transaction || !rr) {
+    if (!entry || !rr) {
+        ods_log_error("[%s] unable to do -rr to journal entry: no entry or rr",
+            journal_str);
         return ODS_STATUS_ASSERT_ERR;
     }
-    ods_log_assert(transaction->remove);
-
-    ods_log_info("[debug] transaction_del_rr(): %s", ldns_rr2str(rr));
-
-    if (!transaction->remove->rr) {
-        transaction->remove->rr = rr;
-        return ODS_STATUS_OK;
-    }
-
-    status = ldns_dnssec_rrs_add_rr(transaction->remove, rr);
-    if (status != LDNS_STATUS_OK) {
-        ods_log_error("[%s] unable to add -RR to transaction: %s",
-            journal_str, ldns_get_errorstr_by_id(status));
+    ods_log_assert(rr);
+    ods_log_assert(entry);
+    ods_log_assert(entry->deleted);
+    if (0 == (int) ldns_rr_list_push_rr(entry->deleted, rr)) {
+        ods_log_error("[%s] unable to do -rr to journal entry: push rr failed",
+            journal_str);
         return ODS_STATUS_ERR;
     }
+    log_rr(rr, "-rr", 2);
+
+    /* else ok */
     return ODS_STATUS_OK;
 }
 
 
 /**
- * Print transaction.
+ * Print entry.
  *
  */
 void
-transaction_print(FILE* fd, transaction_type* transaction)
+entry_print(FILE* fd, entry_type* entry)
 {
-    if (!fd || !transaction) {
+    size_t i = 0;
+    size_t count = 0;
+
+    if (!fd || !entry) {
         return;
     }
-    fprintf(fd, ";;IXFR from %u to %u\n", transaction->serial_from,
-        transaction->serial_to);
-
-    /* print first soa */
-    /* print from soa */
-    if (transaction->remove) {
-        ldns_dnssec_rrs_print(fd, transaction->remove);
+    fprintf(fd, "; -IXFR serial=%u\n", entry->serial);
+    count = ldns_rr_list_rr_count(entry->deleted);
+    for (i=0; i<count; i++) {
+         ldns_rr_print(fd, ldns_rr_list_rr(entry->deleted, i));
     }
-    /* print to soa */
-    if (transaction->add) {
-        ldns_dnssec_rrs_print(fd, transaction->add);
+    fprintf(fd, "; +IXFR serial=%u\n", entry->serial);
+    count = ldns_rr_list_rr_count(entry->added);
+    for (i=0; i<count; i++) {
+         ldns_rr_print(fd, ldns_rr_list_rr(entry->added, i));
     }
-    /* print final soa */
-
-    fprintf(fd, ";;\n");
     return;
 }
 
 
-
 /**
- * Clean up transaction.
+ * Commit entry.
  *
  */
 void
-transaction_cleanup(transaction_type* transaction)
+entry_commit(entry_type* entry)
 {
-    allocator_type* allocator;
-
-    if (!transaction) {
+    if (!entry) {
         return;
     }
-    transaction_cleanup(transaction->next);
+    entry->committed = 1;
+    return;
+}
 
-    allocator = transaction->allocator;
-    if (transaction->add) {
-        ldns_dnssec_rrs_deep_free(transaction->add);
-        transaction->add = NULL;
+
+/**
+ * Rollback entry.
+ *
+ */
+void
+entry_rollback(entry_type* entry)
+{
+    if (!entry) {
+        return;
     }
-    if (transaction->remove) {
-        ldns_dnssec_rrs_deep_free(transaction->remove);
-        transaction->remove = NULL;
+    entry->serial = 0;
+    entry->committed = 0;
+    ldns_rr_list_deep_free(entry->added);
+    ldns_rr_list_free(entry->deleted);
+    entry->added   = ldns_rr_list_new(); ods_log_assert(entry->added);
+    entry->deleted = ldns_rr_list_new(); ods_log_assert(entry->deleted);
+    return;
+}
+
+
+/**
+ * Clear entry.
+ *
+ */
+void
+entry_clear(entry_type* entry)
+{
+    if (!entry) {
+        return;
     }
-    allocator_deallocate(allocator, (void*) transaction);
+    entry->serial = 0;
+    entry->committed = 0;
+    ldns_rr_list_free(entry->added);
+    ldns_rr_list_deep_free(entry->deleted);
+    entry->added   = ldns_rr_list_new(); ods_log_assert(entry->added);
+    entry->deleted = ldns_rr_list_new(); ods_log_assert(entry->deleted);
+    return;
+}
+
+
+/**
+ * Clean up entry.
+ *
+ */
+void
+entry_cleanup(allocator_type* allocator, entry_type* entry)
+{
+    if (!entry || !allocator) {
+        return;
+    }
+    entry_cleanup(allocator, entry->next);
+    ldns_rr_list_free(entry->added);
+    ldns_rr_list_deep_free(entry->deleted);
+    allocator_deallocate(allocator, (void*) entry);
     return;
 }
 
@@ -205,94 +236,70 @@ transaction_cleanup(transaction_type* transaction)
  * Create journal.
  *
  */
-journal_type*
-journal_create(allocator_type* allocator)
+journal_type* journal_create(void)
 {
-    journal_type* journal;
+    allocator_type* allocator = NULL;
+    journal_type* journal = NULL;
 
+    allocator = allocator_create(malloc, free);
     if (!allocator) {
+        ods_log_error("[%s] unable to create journal: create allocator "
+            "failed", journal_str);
         return NULL;
     }
     ods_log_assert(allocator);
 
-    journal = (journal_type*) allocator_alloc(allocator,
-        sizeof(journal_type));
+    journal = (journal_type*) allocator_alloc(allocator, sizeof(journal_type));
     if (!journal) {
+        ods_log_error("[%s] unable to create journal: allocator failed",
+            journal_str);
+        allocator_cleanup(allocator);
         return NULL;
     }
+    ods_log_assert(journal);
+
     journal->allocator = allocator;
-    journal->transactions = NULL;
-    lock_basic_init(&journal->journal_lock);
+    journal->entries = NULL;
     return journal;
 }
 
 
 /**
- * Lookup transaction in journal.
- *
- */
-transaction_type*
-journal_lookup_transaction(journal_type* journal, uint32_t serial_from)
-{
-    transaction_type* transaction;
-
-    if (!journal) {
-        return NULL;
-    }
-
-    transaction = journal->transactions;
-    while (transaction) {
-        if (transaction->serial_from == serial_from) {
-            return transaction;
-        }
-        transaction = transaction->next;
-    }
-    return NULL;
-}
-
-
-/**
- * Add transaction to journal.
+ * Add entry to journal.
  *
  */
 ods_status
-journal_add_transaction(journal_type* journal, transaction_type* transaction)
+journal_add_entry(journal_type* journal, entry_type* entry)
 {
-    if (!journal || !transaction) {
+    entry_type* prev_entry = NULL;
+
+    if (!journal || !entry) {
+        ods_log_error("[%s] unable to add entry to journal: no journal or "
+            "entry", journal_str);
         return ODS_STATUS_ASSERT_ERR;
     }
+    ods_log_assert(journal);
+    ods_log_assert(entry);
 
-    transaction->next = journal->transactions;
-    journal->transactions = transaction;
+    if (journal->entries == NULL) {
+        journal->entries = entry;
+        return ODS_STATUS_OK;
+    }
+    /* else find right place in journal */
+    prev_entry = journal->entries;
+    while (prev_entry->next) {
+        prev_entry = prev_entry->next;
+    }
+    /* make sure that the previous entry serial -lt new serial */
+    if (!DNS_SERIAL_GT(entry->serial, prev_entry->serial)) {
+        ods_log_error("[%s] unable to add entry to journal: serial %u does "
+            "not increment previous entry serial %u", journal_str,
+            entry->serial, prev_entry->serial);
+        return ODS_STATUS_CONFLICT_ERR;
+    }
+    /* ok */
+    prev_entry->next = entry;
     return ODS_STATUS_OK;
-}
-
-
-/**
- * Add RR addition to first transaction in journal.
- *
- */
-ods_status
-journal_add_rr(journal_type* journal, ldns_rr* rr)
-{
-    if (!journal || !journal->transactions || !rr) {
-        return ODS_STATUS_ASSERT_ERR;
-    }
-    return transaction_add_rr(journal->transactions, rr);
-}
-
-
-/**
- * Add RR removal to first transaction in journal.
- *
- */
-ods_status
-journal_del_rr(journal_type* journal, ldns_rr* rr)
-{
-    if (!journal || !journal->transactions || !rr) {
-        return ODS_STATUS_ASSERT_ERR;
-    }
-    return transaction_del_rr(journal->transactions, rr);
 }
 
 
@@ -300,49 +307,37 @@ journal_del_rr(journal_type* journal, ldns_rr* rr)
  * Purge journal.
  *
  */
-ods_status
-journal_purge(journal_type* journal, size_t num)
+void
+journal_purge(journal_type* journal)
 {
-    transaction_type* transaction;
-
     if (!journal) {
-        return ODS_STATUS_ASSERT_ERR;
+        return;
     }
-
-    transaction = journal->transactions;
-    if (num == 0) {
-        journal->transactions = NULL;
-    }
-
-    while (num && transaction) {
-        num--;
-        transaction = transaction->next;
-    }
-    transaction_cleanup(transaction);
-
-    return ODS_STATUS_OK;
+    /* no purging strategy */
+    return;
 }
 
 
 /**
- * Clean up journal.
+ * Print journal.
  *
  */
 void
 journal_print(FILE* fd, journal_type* journal)
 {
-    transaction_type* transaction;
+    entry_type* entry = NULL;
 
-    if (!journal || !fd) {
+    if (!fd || !journal) {
         return;
     }
 
-    transaction = journal->transactions;
-    while (transaction) {
-        transaction_print(fd, transaction);
-        transaction = transaction->next;
+    entry = journal->entries;
+    while (entry) {
+        entry_print(fd, entry);
+        entry = entry->next;
     }
     return;
+
 }
 
 
@@ -353,21 +348,14 @@ journal_print(FILE* fd, journal_type* journal)
 void
 journal_cleanup(journal_type* journal)
 {
-    allocator_type* allocator;
-    lock_basic_type journal_lock;
+    allocator_type* allocator = NULL;
 
     if (!journal) {
         return;
     }
     allocator = journal->allocator;
-    journal_lock = journal->journal_lock;
-
-    if (journal->transactions) {
-        transaction_cleanup(journal->transactions);
-        journal->transactions = NULL;
-    }
-
+    entry_cleanup(allocator, journal->entries);
     allocator_deallocate(allocator, (void*) journal);
-    lock_basic_destroy(&journal_lock);
+    allocator_cleanup(allocator);
     return;
 }
