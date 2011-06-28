@@ -211,7 +211,7 @@ nsec3params_cleanup(nsec3params_type* nsec3params)
         return;
     }
     allocator = nsec3params->allocator;
-    ldns_rr_free(nsec3params->rr);
+/*    ldns_rr_free(nsec3params->rr); */
     allocator_deallocate(allocator, (void*) nsec3params->salt_data);
     allocator_deallocate(allocator, (void*) nsec3params);
     allocator_cleanup(allocator);

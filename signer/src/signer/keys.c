@@ -456,7 +456,7 @@ key_delfunc(key_type* key)
         return;
     }
     if (key->dnskey) {
-        ldns_rr_free(key->dnskey);
+/*        ldns_rr_free(key->dnskey); */
         key->dnskey = NULL;
     }
     if (key->hsmkey) {
