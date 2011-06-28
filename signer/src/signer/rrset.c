@@ -757,6 +757,56 @@ rrset_rollback(rrset_type* rrset)
 
 
 /**
+ * Withdraw all RRs and RRSIGs from this RRset.
+ *
+ */
+ods_status
+rrset_withdraw(rrset_type* rrset, ldns_rr_list* del)
+{
+    ldns_dnssec_rrs* rrs = NULL;
+    rrsigs_type* rrsigs = NULL;
+
+    /* sanity checking */
+    if (!rrset) {
+        ods_log_error("[%s] unable to withdraw rrset: missing rrset",
+            rrset_str);
+        return ODS_STATUS_ASSERT_ERR;
+    }
+    ods_log_assert(rrset);
+    if (!del) {
+        ods_log_error("[%s] unable to withdraw rrset: missing rrlist",
+            rrset_str);
+        return ODS_STATUS_ASSERT_ERR;
+    }
+    ods_log_assert(del);
+
+    /* withdraw RRs */
+    rrs = rrset->rrs;
+    while (rrs) {
+        if (rrs->rr) {
+            if (!ldns_rr_list_push_rr(del, rrs->rr)) {
+                ods_log_error("[%s] del rr failed", rrset_str);
+                return ODS_STATUS_ERR;
+            }
+        }
+        rrs = rrs->next;
+    }
+    /* withdraw RRSIGs */
+    rrsigs = rrset->rrsigs;
+    while (rrsigs) {
+        if (rrsigs->rr) {
+            if (!ldns_rr_list_push_rr(del, rrsigs->rr)) {
+                ods_log_error("[%s] del rrsig failed", rrset_str);
+                return ODS_STATUS_ERR;
+            }
+        }
+        rrsigs = rrsigs->next;
+    }
+    return ODS_STATUS_OK;
+}
+
+
+/**
  * Delete RRSIG from signature set.
  *
  */

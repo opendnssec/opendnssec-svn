@@ -165,6 +165,15 @@ ods_status rrset_commit(rrset_type* rrset);
 void rrset_rollback(rrset_type* rrset);
 
 /**
+ * Withdraw all RRs and RRSIGs from this RRset.
+ * \param[in] rrset RRset
+ * \param[in] del RR list with withdrawed RRs
+ * \return ods_status status
+ *
+ */
+ods_status rrset_withdraw(rrset_type* rrset, ldns_rr_list* del);
+
+/**
  * Sign RRset.
  * \param[in] ctx HSM context
  * \param[in] rrset RRset
