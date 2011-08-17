@@ -43,9 +43,10 @@
 #include <pkcs11.h>
 
 /* Constants */
-#define SHM_KEY (key_t)1234
+#define SHM_KEY (key_t)0x0d50d5ec
 #define SEM_NAME "/ods_libhsm_pin"
 #define SHM_PERM S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP
+#define PIN_TRIES 3
 
 /* Semaphore */
 static sem_t *pin_semaphore = NULL;
@@ -137,7 +138,7 @@ hsm_pin_init(char *(callback)(const char *repository, void *), void *data)
 int
 hsm_pin_login(unsigned int id, const char *repository, CK_FUNCTION_LIST_PTR p11, CK_SESSION_HANDLE session, const char *config_pin)
 {
-    int tries = 3;
+    int tries = PIN_TRIES;
     int save_pin = 0;
     int size = 0;
     char cached_pin[HSM_MAX_PIN_LENGTH+1];
