@@ -657,7 +657,7 @@ engine_setup(engine_type* engine)
     sigaction(SIGTERM, &action, NULL);
 
     /* set up hsm */ /* LEAK */
-    result = hsm_open(engine->config->cfg_filename, hsm_prompt_pin, NULL);
+    result = hsm_open(engine->config->cfg_filename, NULL, NULL);
     if (result != HSM_OK) {
         char *error =  hsm_get_error(NULL);
         if (error != NULL) {

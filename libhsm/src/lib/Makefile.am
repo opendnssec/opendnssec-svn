@@ -12,6 +12,6 @@ AM_CFLAGS =	-std=c99
 
 noinst_LIBRARIES = libhsm.a
 
-libhsm_a_SOURCES = libhsm.c libhsm.h libhsmdns.h \
+libhsm_a_SOURCES = libhsm.c libhsm.h libhsmdns.h pin.c pin.h \
 	cryptoki_compat/pkcs11.h
 

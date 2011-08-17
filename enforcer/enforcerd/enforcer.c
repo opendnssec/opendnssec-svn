@@ -118,9 +118,9 @@ server_main(DAEMONCONFIG *config)
 /*    if (config->manualKeyGeneration == 0) {*/
         /* We keep the HSM connection open for the lifetime of the daemon */
         if (config->configfile != NULL) {
-            result = hsm_open(config->configfile, hsm_prompt_pin, NULL);
+            result = hsm_open(config->configfile, NULL, NULL);
         } else {
-            result = hsm_open(OPENDNSSEC_CONFIG_FILE, hsm_prompt_pin, NULL);
+            result = hsm_open(OPENDNSSEC_CONFIG_FILE, NULL, NULL);
         }
         if (result) {
             hsm_error_message = hsm_get_error(ctx);

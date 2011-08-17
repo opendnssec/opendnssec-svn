@@ -44,6 +44,7 @@
 
 #include "libhsm.h"
 #include "libhsmdns.h"
+#include "pin.h"
 #include "compat.h"
 
 #include <pkcs11.h>
@@ -454,10 +455,11 @@ hsm_module_free(hsm_module_t *module)
 }
 
 static hsm_session_t *
-hsm_session_new(hsm_module_t *module, CK_SESSION_HANDLE session_handle)
+hsm_session_new(unsigned int id, hsm_module_t *module, CK_SESSION_HANDLE session_handle)
 {
     hsm_session_t *session;
     session = malloc(sizeof(hsm_session_t));
+    session->id = id;
     session->module = module;
     session->session = session_handle;
     return session;
@@ -487,7 +489,6 @@ hsm_session_init(hsm_ctx_t *ctx, hsm_session_t **session,
                  const hsm_config_t *config)
 {
     CK_RV rv;
-    CK_RV rv_login;
     hsm_module_t *module;
     CK_SLOT_ID slot_id;
     CK_SESSION_HANDLE session_handle;
@@ -531,13 +532,11 @@ hsm_session_init(hsm_ctx_t *ctx, hsm_session_t **session,
         hsm_module_free(module);
         return HSM_ERROR;
     }
-    rv_login = ((CK_FUNCTION_LIST_PTR) module->sym)->C_Login(session_handle,
-                                   CKU_USER,
-                                   (unsigned char *) pin,
-                                   strlen((char *)pin));
 
-    if (rv_login == CKR_OK) {
-        *session = hsm_session_new(module, session_handle);
+    result = hsm_pin_login(ctx->session_count, repository,
+                           (CK_FUNCTION_LIST_PTR) module->sym, session_handle, pin);
+    if (result == HSM_OK) {
+        *session = hsm_session_new(ctx->session_count, module, session_handle);
         return HSM_OK;
     } else {
         /* uninitialize the session again */
@@ -559,17 +558,17 @@ hsm_session_init(hsm_ctx_t *ctx, hsm_session_t **session,
                 return HSM_ERROR;
             }
         }
+
         hsm_module_free(module);
         *session = NULL;
-        switch(rv_login) {
-        case CKR_PIN_INCORRECT:
+
+        if (result == HSM_PIN_INCORRECT) {
             hsm_ctx_set_error(ctx, HSM_PIN_INCORRECT,
 	            "hsm_session_init()",
 		    "Incorrect PIN for repository %s", repository);
-            return HSM_PIN_INCORRECT;
-        default:
-            return HSM_ERROR;
         }
+
+        return result;
     }
 }
 
@@ -597,7 +596,7 @@ hsm_session_clone(hsm_ctx_t *ctx, hsm_session_t *session)
     if (hsm_pkcs11_check_error(ctx, rv, "Clone session")) {
         return NULL;
     }
-    new_session = hsm_session_new(session->module, session_handle);
+    new_session = hsm_session_new(session->id, session->module, session_handle);
 
     return new_session;
 }
@@ -1955,12 +1954,19 @@ hsm_open(const char *config,
     char *module_pin;
     hsm_config_t module_config;
     int result = HSM_OK;
-    int tries;
     int repositories = 0;
 
     /* create an internal context with an attached session for each
      * configured HSM. */
     _hsm_ctx = hsm_ctx_new();
+
+    /* Initialize the PIN module */
+    result = hsm_pin_init(pin_callback, data);
+    if (result != HSM_OK) {
+        hsm_ctx_set_error(_hsm_ctx, result, "hsm_open()",
+            "could not initialize the PIN module");
+        return result;
+    }
 
     if (config) {
         config_file = strdup(config);
@@ -2002,7 +2008,7 @@ hsm_open(const char *config,
             module_path = NULL;
             module_pin = NULL;
             hsm_config_default(&module_config);
-                 
+
             curNode = xpath_obj->nodesetval->nodeTab[i]->xmlChildrenNode;
             repository = (char *) xmlGetProp(xpath_obj->nodesetval->nodeTab[i],
                                              (const xmlChar *)"name");
@@ -2015,47 +2021,24 @@ hsm_open(const char *config,
                 if (xmlStrEqual(curNode->name, (const xmlChar *)"PIN"))
                     module_pin = (char *) xmlNodeGetContent(curNode);
                 if (xmlStrEqual(curNode->name, (const xmlChar *)"SkipPublicKey"))
-                    module_config.use_pubkey = 0;                
+                    module_config.use_pubkey = 0;
                 curNode = curNode->next;
             }
 
             if (repository && token_label && module_path) {
-                if (module_pin) {
-                    result = hsm_attach(repository,
-                                        token_label,
-                                        module_path,
-                                        module_pin,
-                                        &module_config);
-                    free(module_pin);
-                } else {
-                    if (pin_callback) {
-                        result = HSM_PIN_INCORRECT;
-                        tries = 0;
-                        while (result == HSM_PIN_INCORRECT &&
-                               tries < 3) {
-                            module_pin = pin_callback(repository,
-                                                      data);
-                            result = hsm_attach(repository,
-                                                token_label,
-                                                module_path,
-                                                module_pin,
-                                                &module_config);
-                            memset(module_pin, 0, strlen(module_pin));
-                            tries++;
-                        }
-                    } else {
-                        /* no pin, no callback, ignore
-                         * module and token */
-                        result = HSM_OK;
-                    }
-                }
+                result = hsm_attach(repository,
+                                    token_label,
+                                    module_path,
+                                    module_pin,
+                                    &module_config);
+                if (module_pin) free(module_pin);
                 free(repository);
                 free(token_label);
                 free(module_path);
 
                 if (result != HSM_OK) {
-					break;
-				}
+                    break;
+                }
 
                 repositories++;
             }
@@ -2082,11 +2065,11 @@ hsm_prompt_pin(const char *repository, void *data)
     char *r;
     (void) data;
     prompt = malloc(64);
-    snprintf(prompt, 64, "Enter PIN for token %s:", repository);
+    snprintf(prompt, 64, "Enter PIN for token %s: ", repository);
 #ifdef HAVE_GETPASSPHRASE
-    r = getpassphrase("Enter PIN:");
+    r = getpassphrase(prompt);
 #else
-    r = getpass("Enter PIN:");
+    r = getpass(prompt);
 #endif
     free(prompt);
     return r;
@@ -2096,6 +2079,8 @@ int
 hsm_close()
 {
     hsm_ctx_close(_hsm_ctx, 1);
+    hsm_pin_final();
+
     return 0;
 }
 

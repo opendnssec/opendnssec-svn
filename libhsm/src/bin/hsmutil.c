@@ -52,6 +52,14 @@ version ()
         progname, PACKAGE_NAME, PACKAGE_VERSION);
 }
 
+int
+cmd_login ()
+{
+    printf("The tokens are now logged in.\n");
+
+    return 0;
+}
+
 void
 usage ()
 {
@@ -59,6 +67,7 @@ usage ()
        "usage: %s [-c config] [-vV] command [options]\n",
         progname);
 
+    fprintf(stderr,"  login\n");
     fprintf(stderr,"  list [repository]\n");
     fprintf(stderr,"  generate <repository> rsa <keysize>\n");
     fprintf(stderr,"  remove <id>\n");
@@ -447,7 +456,11 @@ main (int argc, char *argv[])
 
     openlog("hsmutil", LOG_PID, LOG_USER);
 
-    if (!strcasecmp(argv[0], "list")) {
+    if (!strcasecmp(argv[0], "login")) {
+        argc --;
+        argv ++;
+        result = cmd_login();
+    } else if (!strcasecmp(argv[0], "list")) {
         argc --;
         argv ++;
         result = cmd_list(argc, argv);

@@ -46,6 +46,8 @@
  * maximum? */
 #define HSM_MAX_SIGNATURE_LENGTH 512
 
+#define HSM_MAX_PIN_LENGTH 255
+
 /*! Return codes for some of the functions */
 /*! These should be different than the list of CKR_ values defined
  * by pkcs11 (for easier debugging purposes of calling applications)
@@ -57,6 +59,7 @@
 #define HSM_REPOSITORY_NOT_FOUND  0x10000004
 #define HSM_NO_REPOSITORIES       0x10000005
 #define HSM_MODULE_NOT_FOUND      0x10000006
+#define HSM_SEMAPHORE_ERROR       0x10000007
 
 
 /*! HSM configuration */
@@ -77,6 +80,7 @@ typedef struct {
 
 /*! HSM Session */
 typedef struct {
+    unsigned int  id;
     hsm_module_t  *module;
     unsigned long session;
 } hsm_session_t;
@@ -118,8 +122,9 @@ typedef struct {
 \param config path to OpenDNSSEC XML configuration file
 \param pin_callback This function will be called for tokens that have
                     no PIN configured. The default hsm_prompt_pin() can
-                    be used. If this value is NULL, these tokens will
-                    be skipped
+                    be used. Only use the default prompt if the process
+                    is running in the foreground. Use NULL to block until
+                    the PIN has been entered by e.g. ods-hsmutil.
 \param data optional data that will be directly passed to the callback
             function
 \return 0 if successful, !0 if failed
