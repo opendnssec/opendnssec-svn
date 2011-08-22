@@ -109,14 +109,11 @@ adapter_read(struct zone_struct* zone)
 {
     zone_type* adzone = (zone_type*) zone;
     ods_status status = ODS_STATUS_OK;
-
     if (!adzone || !adzone->adinbound) {
         ods_log_error("[%s] unable to read zone: no input adapter",
             adapter_str);
         return ODS_STATUS_ASSERT_ERR;
     }
-    ods_log_assert(adzone);
-    ods_log_assert(adzone->adinbound);
     ods_log_assert(adzone->adinbound->configstr);
 
     switch(adzone->adinbound->type) {
@@ -153,15 +150,12 @@ adapter_write(struct zone_struct* zone)
             adapter_str);
         return ODS_STATUS_ASSERT_ERR;
     }
-    ods_log_assert(adzone);
-    ods_log_assert(adzone->adoutbound);
     ods_log_assert(adzone->adoutbound->configstr);
     if (!adzone->zonedata) {
         ods_log_error("[%s] unable to write zone %s: no zone data",
             adapter_str, adzone->name);
         return ODS_STATUS_ASSERT_ERR;
     }
-    ods_log_assert(adzone->zonedata);
 
     switch(adzone->adoutbound->type) {
         case ADAPTER_FILE:
@@ -178,8 +172,7 @@ adapter_write(struct zone_struct* zone)
             return ODS_STATUS_ERR;
             break;
     }
-
-    /* NOT REACHED */
+    /* not reached */
     return ODS_STATUS_ERR;
 }
 

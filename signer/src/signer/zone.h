@@ -108,7 +108,7 @@ zone_type* zone_create(char* name, ldns_rr_class klass);
  * \param[in] zone zone
  * \param[in] rr rr
  * \param[in] do_stats true if we need to maintain statistics
- * \return ods_status status:
+ * \return ods_status status
  *         ODS_STATUS_OK: rr to be added to zone
  *         ODS_STATUS_UNCHANGED: rr not added to zone, rr already exists
  *         other: rr not added to zone, error occurred
@@ -178,7 +178,7 @@ ods_status zone_recover(zone_type* zone);
  * Merge zones. Values that are merged:
  * - policy name
  * - signconf filename
- * - input and output adater
+ * - input and output adapter
  *
  * \param[in] z1 zone
  * \param[in] z2 zone with new values
