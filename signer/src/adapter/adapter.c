@@ -51,22 +51,16 @@ static const char* adapter_str = "adapter";
 ods_status
 adapter_init(adapter_type* adapter)
 {
-    ods_log_assert(adapter);
-    ods_log_assert(adapter->type);
-    ods_log_assert(adapter->configstr);
-
-    switch(adapter->type) {
-        case ADAPTER_FILE:
-            return adfile_init();
-            break;
-        default:
-            ods_log_error("[%s] unable to initialize adapter: "
-                "unknown adapter", adapter_str);
-            return ODS_STATUS_ERR;
-            break;
+    if (adapter) {
+        switch(adapter->type) {
+            case ADAPTER_FILE:
+                return adfile_init(adapter->configstr);
+            default:
+                ods_log_error("[%s] unable to initialize adapter: "
+                    "unknown adapter", adapter_str);
+                return ODS_STATUS_ERR;
+        }
     }
-
-    /* not reached */
     return ODS_STATUS_ERR;
 }
 
