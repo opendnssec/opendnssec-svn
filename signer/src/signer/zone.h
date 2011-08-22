@@ -56,8 +56,9 @@ struct schedule_struct;
 typedef struct zone_struct zone_type;
 struct zone_struct {
     allocator_type* allocator; /* memory allocator */
-    ldns_rdf* dname; /* wire format zone name */
+    ldns_rdf* apex; /* wire format zone name */
     ldns_rr_class klass; /* class */
+    uint32_t default_ttl; /* ttl */
 
     /* from conf.xml */
     const char* notify_ns; /* master name server reload command */

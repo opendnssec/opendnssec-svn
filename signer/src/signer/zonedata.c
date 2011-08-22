@@ -187,7 +187,6 @@ zonedata_create(allocator_type* allocator)
     zd->inbound_serial = 0;
     zd->internal_serial = 0;
     zd->outbound_serial = 0;
-    zd->default_ttl = 3600; /* TODO: configure --default-ttl option? */
     return zd;
 }
 

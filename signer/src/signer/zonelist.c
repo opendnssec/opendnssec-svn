@@ -65,7 +65,7 @@ zone_compare(const void* a, const void* b)
         }
         return 1;
     }
-    return ldns_dname_compare(x->dname, y->dname);
+    return ldns_dname_compare(x->apex, y->apex);
 }
 
 

@@ -205,12 +205,12 @@ tools_nsecify(zone_type* zone)
 
     start = time(NULL);
     /* determine denial ttl */
-    ttl = zone->zonedata->default_ttl;
+    ttl = zone->default_ttl;
     if (zone->signconf->soa_min) {
         ttl = (uint32_t) duration2time(zone->signconf->soa_min);
     }
     /* add missing empty non-terminals */
-    status = zonedata_entize(zone->zonedata, zone->dname);
+    status = zonedata_entize(zone->zonedata, zone->apex);
     if (status != ODS_STATUS_OK) {
         ods_log_error("[%s] unable to nsecify zone %s: failed to add empty ",
             "non-terminals", tools_str, zone->name);
