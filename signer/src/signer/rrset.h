@@ -124,15 +124,6 @@ ldns_rr* rrset_add_rr(rrset_type* rrset, ldns_rr* rr);
 ldns_rr* rrset_del_rr(rrset_type* rrset, ldns_rr* rr, int dupallowed);
 
 /**
- * Lookup RR in RRset.
- * \param[in] rrset RRset
- * \param[in] rr RR
- * \return ldns_rr* RR if found
- *
- */
-ldns_rr* rrset_lookup_rr(rrset_type* rrset, ldns_rr* rr);
-
-/**
  * Wipe out current RRs in RRset.
  * \param[in] rrset RRset
  * \return ods_status status
@@ -165,21 +156,12 @@ ods_status rrset_commit(rrset_type* rrset);
 void rrset_rollback(rrset_type* rrset);
 
 /**
- * Withdraw all RRs and RRSIGs from this RRset.
- * \param[in] rrset RRset
- * \param[in] del RR list with withdrawed RRs
- * \return ods_status status
- *
- */
-ods_status rrset_withdraw(rrset_type* rrset, ldns_rr_list* del);
-
-/**
  * Sign RRset.
  * \param[in] ctx HSM context
  * \param[in] rrset RRset
  * \param[in] owner owner of the zone
  * \param[in] sc signer configuration
- * \param[in] signtime time when the zone is being signd
+ * \param[in] signtime time when the zone is being signed
  * \param[out] stats update statistics
  * \return ods_status status
  *

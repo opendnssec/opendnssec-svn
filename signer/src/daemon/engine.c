@@ -433,7 +433,6 @@ start_zonefetcher(engine_type* engine)
         return 1;
     }
 
-    hsm_close();
     ods_log_verbose("zone fetcher running as pid %lu",
         (unsigned long) getpid());
 
@@ -660,6 +659,11 @@ engine_setup(engine_type* engine)
     /* set up hsm */ /* LEAK */
     result = hsm_open(engine->config->cfg_filename, hsm_prompt_pin, NULL);
     if (result != HSM_OK) {
+        char *error =  hsm_get_error(NULL);
+        if (error != NULL) {
+            ods_log_error("[%s] %s", engine_str, error);
+            free(error);
+        }
         ods_log_error("[%s] error initializing libhsm (errno %i)",
             engine_str, result);
         return ODS_STATUS_HSM_ERR;
@@ -902,7 +906,7 @@ engine_update_zones(engine_type* engine)
                 task->when = now;
                 status = schedule_task(engine->taskq, task, 0);
             } else {
-                /* task now queued, being worked on? */
+                /* task not queued, being worked on? */
                 ods_log_debug("[%s] worker busy with zone %s, will update "
                     "signconf as soon as possible", engine_str, zone->name);
                 task = (task_type*) zone->task;
@@ -927,7 +931,6 @@ engine_update_zones(engine_type* engine)
     }
     /* [UNLOCK] zonelist */
     lock_basic_unlock(&engine->zonelist->zl_lock);
-
     if (wake_up) {
         engine_wakeup_workers(engine);
     }
@@ -1064,8 +1067,6 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
         if (status != ODS_STATUS_WRITE_PIDFILE_ERR) {
             /* command handler had not yet been started */
             engine->cmdhandler_done = 1;
-            /* hsm has been opened */
-            hsm_close();
         }
     } else {
         /* setup ok, mark hsm open */

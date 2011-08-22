@@ -20,7 +20,6 @@ sbin_PROGRAMS = ods-signerd ods-signer
 ods_signerd_SOURCES=		ods-signerd.c \
 				adapter/adapi.c adapter/adapi.h \
 				adapter/adapter.c adapter/adapter.h \
-				adapter/addns.c adapter/addns.h \
 				adapter/adfile.c adapter/adfile.h \
 				adapter/adutil.c adapter/adutil.h \
 				daemon/cfg.c daemon/cfg.h \
@@ -46,7 +45,6 @@ ods_signerd_SOURCES=		ods-signerd.c \
 				signer/backup.c signer/backup.h \
 				signer/denial.c signer/denial.h \
 				signer/domain.c signer/domain.h \
-				signer/journal.c signer/journal.h \
 				signer/keys.c signer/keys.h \
 				signer/nsec3params.c signer/nsec3params.h \
 				signer/rrset.c signer/rrset.h \

@@ -95,6 +95,7 @@ cmdhandler_handle_cmd_help(int sockfd)
         "update <zone>   update this zone signer configurations.\n"
         "update [--all]  update zone list and all signer configurations.\n"
         "start           start the engine.\n"
+        "running         check if the engine is running.\n"
         "reload          reload the engine.\n"
         "stop            stop the engine.\n"
         "verbosity <nr>  set verbosity.\n"
@@ -206,8 +207,9 @@ cmdhandler_handle_cmd_update(int sockfd, cmdhandler_type* cmdc,
         /* [LOCK] zonelist */
         zone = zonelist_lookup_zone_by_name(cmdc->engine->zonelist, tbd,
             LDNS_RR_CLASS_IN);
-        if (zone->just_added) {
-            zone = NULL;
+        /* If this zone is just added, don't update (it might not have a task yet) */
+        if (zone && zone->just_added) {
+                    zone = NULL;
         }
         /* [UNLOCK] zonelist */
         lock_basic_unlock(&cmdc->engine->zonelist->zl_lock);
@@ -302,7 +304,8 @@ cmdhandler_handle_cmd_sign(int sockfd, cmdhandler_type* cmdc, const char* tbd)
         /* [LOCK] zonelist */
         zone = zonelist_lookup_zone_by_name(cmdc->engine->zonelist, tbd,
             LDNS_RR_CLASS_IN);
-        if (zone->just_added) {
+        /* If this zone is just added, don't update (it might not have a task yet) */
+        if (zone && zone->just_added) {
             zone = NULL;
         }
         /* [UNLOCK] zonelist */
@@ -850,13 +853,13 @@ cmdhandler_create(allocator_type* allocator, const char* filename)
     int ret = 0;
 
     if (!allocator) {
-        ods_log_error("[%s] unable to create: no allocator");
+        ods_log_error("[%s] unable to create: no allocator", cmdh_str);
         return NULL;
     }
     ods_log_assert(allocator);
 
     if (!filename) {
-        ods_log_error("[%s] unable to create: no socket filename");
+        ods_log_error("[%s] unable to create: no socket filename", cmdh_str);
         return NULL;
     }
     ods_log_assert(filename);

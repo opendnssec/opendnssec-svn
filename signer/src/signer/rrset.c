@@ -381,38 +381,6 @@ rrset_del_rr(rrset_type* rrset, ldns_rr* rr, int dupallowed)
 
 
 /**
- * Lookup RR in RRset.
- *
- */
-ldns_rr*
-rrset_lookup_rr(rrset_type* rrset, ldns_rr* rr)
-{
-    ldns_status lstatus = LDNS_STATUS_OK;
-    ldns_dnssec_rrs* rrs = NULL;
-    int cmp = 1;
-
-    if (!rrset || !rr) {
-       return NULL;
-    }
-
-    rrs = rrset->rrs;
-    while (rrs) {
-       lstatus = util_dnssec_rrs_compare(rrs->rr, rr, &cmp);
-        if (lstatus != LDNS_STATUS_OK) {
-            ods_log_error("[%s] lookup failed: compare failed (%s)",
-                rrset_str, ldns_get_errorstr_by_id(lstatus));
-            return NULL;
-        }
-        if (!cmp) { /* equal */
-            return rrs->rr;
-        }
-        rrs = rrs->next;
-    }
-    return NULL;
-}
-
-
-/**
  * Wipe out current RRs in RRset.
  *
  */
@@ -700,10 +668,6 @@ rrset_commit(rrset_type* rrset)
         }
         rrs = rrs->next;
     }
-    if (rrset->del_count != 0) {
-        ods_log_error("[%s] deleted RRs count less than del_count (%u left)",
-            rrset_str, rrset->del_count);
-    }
     ldns_dnssec_rrs_deep_free(rrset->del);
     rrset->del = NULL;
     rrset->del_count = 0;
@@ -719,13 +683,11 @@ rrset_commit(rrset_type* rrset)
         }
         rrs = rrs->next;
     }
-    if (rrset->add_count != 0) {
-        ods_log_error("[%s] added RRs count less than add_count (%u left)",
-            rrset_str, rrset->add_count);
-    }
     ldns_dnssec_rrs_free(rrset->add);
     rrset->add = NULL;
     rrset->add_count = 0;
+
+    /* update serial */
 
     return ODS_STATUS_OK;
 }
@@ -757,114 +719,6 @@ rrset_rollback(rrset_type* rrset)
 
 
 /**
- * Withdraw all RRs and RRSIGs from this RRset.
- *
- */
-ods_status
-rrset_withdraw(rrset_type* rrset, ldns_rr_list* del)
-{
-    ldns_dnssec_rrs* rrs = NULL;
-    rrsigs_type* rrsigs = NULL;
-
-    /* sanity checking */
-    if (!rrset) {
-        ods_log_error("[%s] unable to withdraw rrset: missing rrset",
-            rrset_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
-    ods_log_assert(rrset);
-    if (!del) {
-        ods_log_error("[%s] unable to withdraw rrset: missing rrlist",
-            rrset_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
-    ods_log_assert(del);
-
-    /* withdraw RRs */
-    rrs = rrset->rrs;
-    while (rrs) {
-        if (rrs->rr) {
-            if (!ldns_rr_list_push_rr(del, rrs->rr)) {
-                ods_log_error("[%s] del rr failed", rrset_str);
-                return ODS_STATUS_ERR;
-            }
-        }
-        rrs = rrs->next;
-    }
-    /* withdraw RRSIGs */
-    rrsigs = rrset->rrsigs;
-    while (rrsigs) {
-        if (rrsigs->rr) {
-            if (!ldns_rr_list_push_rr(del, rrsigs->rr)) {
-                ods_log_error("[%s] del rrsig failed", rrset_str);
-                return ODS_STATUS_ERR;
-            }
-        }
-        rrsigs = rrsigs->next;
-    }
-    return ODS_STATUS_OK;
-}
-
-
-/**
- * Delete RRSIG from signature set.
- *
- */
-static ods_status
-rrset_del_sig(rrset_type* rrset, ldns_rr* rr)
-{
-    ldns_status status = LDNS_STATUS_OK;
-    rrsigs_type* rrs = NULL;
-    rrsigs_type* prev_rrs = NULL;
-    int cmp = 0;
-
-    if (!rr) {
-        ods_log_error("[%s] unable to del RRSIG: no RRSIG", rrset_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
-    ods_log_assert(rr);
-    if (!rrset) {
-        ods_log_error("[%s] unable to del RRSIG: no storage", rrset_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
-    ods_log_assert(rrset);
-
-    rrs = rrset->rrsigs;
-    while (rrs) {
-        status = util_dnssec_rrs_compare(rrs->rr, rr, &cmp);
-        if (status != LDNS_STATUS_OK) {
-            ods_log_error("[%s] unable to del RRSIG: compare failed",
-                rrset_str);
-            return ODS_STATUS_ERR;
-        }
-
-        if (cmp == 0) {
-            /* this is it */
-            if (prev_rrs) {
-                prev_rrs->next = rrs->next;
-            } else {
-                rrset->rrsigs = rrs->next;
-            }
-            rrs->next = NULL;
-            rrsigs_cleanup(rrs);
-            rrs = NULL;
-
-            rrset->rrsig_count -= 1;
-            return ODS_STATUS_OK;
-        }
-
-        /* keep looking */
-        prev_rrs = rrs;
-        rrs = rrs->next;
-    }
-
-    ods_log_warning("[%s] unable to del RRSIG: no such RRSIG", rrset_str);
-    log_rr(rr, "WARNING -RR", 2);
-    return ODS_STATUS_UNCHANGED;
-}
-
-
-/**
  * Recycle signatures from RRset and drop unreusable signatures.
  *
  */
@@ -887,21 +741,31 @@ rrset_recycle(rrset_type* rrset, signconf_type* sc, time_t signtime)
             duration2time(sc->sig_refresh_interval));
     }
 
+    /* 1. If the RRset has changed, drop all signatures */
+    /* 2. If Refresh is disabled, drop all signatures */
+    if (rrset->needs_signing || !refresh) {
+        ods_log_debug("[%s] drop signatures for RRset[%i]", rrset_str,
+            rrset->rr_type);
+        if (rrset->rrsigs) {
+            rrsigs_cleanup(rrset->rrsigs);
+            rrset->rrsigs = NULL;
+        }
+        rrset->rrsig_count = 0;
+        rrset->needs_signing = 0;
+        return 0;
+    }
+
     /* 3. Check every signature if it matches the recycling logic. */
     rrsigs = rrset->rrsigs;
     while (rrsigs) {
         if (!rrsigs->rr) {
-            ods_log_warning("[%s] signature set has no RRSIG record "
-                "for RRset[%i]", rrset_str, rrset->rr_type);
-            drop_sig = 0;
-            rrsigs = rrsigs->next;
-            continue;
-        }
-
-        /* 1. If the RRset has changed, drop all signatures */
-        /* 2. If Refresh is disabled, drop all signatures */
-        if (rrset->needs_signing || !refresh) {
-            drop_sig = 1;
+          ods_log_warning("[%s] signature set has no RRSIG record: "
+                "drop signatures for RRset[%i]", rrset_str, rrset->rr_type);
+            rrsigs_cleanup(rrset->rrsigs);
+            rrset->rrsigs = NULL;
+            rrset->rrsig_count = 0;
+            rrset->needs_signing = 0;
+            return 0;
         }
 
         expiration = ldns_rdf2native_int32(
@@ -1232,8 +1096,6 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, ldns_rdf* owner,
     stats->sig_count += newsigs;
     stats->sig_reuse += reusedsigs;
     lock_basic_unlock(&stats->stats_lock);
-
-    rrset->needs_signing = 0;
     return ODS_STATUS_OK;
 }
 
@@ -1263,7 +1125,7 @@ rrset_queue(rrset_type* rrset, fifoq_type* q, worker_type* worker)
     }
     ods_log_assert(q);
 
-    while (status == ODS_STATUS_UNCHANGED) {
+    while (status == ODS_STATUS_UNCHANGED && !worker->need_to_exit) {
         lock_basic_lock(&q->q_lock);
         status = fifoq_push(q, (void*) rrset, worker);
         lock_basic_unlock(&q->q_lock);

@@ -23,10 +23,10 @@
 		<SignerConfiguration>@OPENDNSSEC_STATE_DIR@/signconf/example.com.xml</SignerConfiguration>
 		<Adapters>
 			<Input>
-				<DNS>@OPENDNSSEC_STATE_DIR@/adapters/dummy/example.com.in</DNS>
+				<Adapter type="DNS">@OPENDNSSEC_STATE_DIR@/adapters/dummy/example.com.in</Adapter>
 			</Input>
 			<Output>
-				<DNS>@OPENDNSSEC_STATE_DIR@/adapters/dummy/example.com.out</DNS>
+				<Adapter type="DNS">@OPENDNSSEC_STATE_DIR@/adapters/dummy/example.com.out</Adapter>
 			</Output>
 		</Adapters>
 	</Zone>

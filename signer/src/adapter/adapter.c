@@ -59,9 +59,6 @@ adapter_init(adapter_type* adapter)
         case ADAPTER_FILE:
             return adfile_init();
             break;
-        case ADAPTER_DNS:
-            return addns_init(adapter->configstr);
-            break;
         default:
             ods_log_error("[%s] unable to initialize adapter: "
                 "unknown adapter", adapter_str);
@@ -135,12 +132,6 @@ adapter_read(struct zone_struct* zone)
             status = adfile_read(zone, adzone->adinbound->configstr);
             return status;
             break;
-        case ADAPTER_DNS:
-            ods_log_verbose("[%s] read zone %s from dns input adapter %s",
-                adapter_str, adzone->name, adzone->adinbound->configstr);
-            status = addns_read(zone, adzone->adinbound->configstr);
-            return status;
-            break;
         default:
             ods_log_error("[%s] unable to read zone %s from adapter: unknown "
                 "adapter", adapter_str, adzone->name);
@@ -187,14 +178,6 @@ adapter_write(struct zone_struct* zone)
             status = adfile_write(zone, adzone->adoutbound->configstr);
             return status;
             break;
-        case ADAPTER_DNS:
-            ods_log_verbose("[%s] write zone %s serial %u to output dns "
-                "adapter %s", adapter_str, adzone->name,
-                adzone->zonedata->outbound_serial,
-                adzone->adinbound->configstr);
-            status = addns_write(zone, adzone->adoutbound->configstr);
-            return status;
-            break;
         default:
             ods_log_error("[%s] unable to write zone %s to adapter: unknown "
                 "adapter", adapter_str, adzone->name);
@@ -224,11 +207,8 @@ adapter_compare(adapter_type* a1, adapter_type* a2)
         return a1->inbound - a2->inbound;
     } else if (a1->type != a2->type) {
         return a1->type - a2->type;
-    } else {
-        return ods_strcmp(a1->configstr, a2->configstr);
     }
-    /* not reached */
-    return 0;
+    return ods_strcmp(a1->configstr, a2->configstr);
 }
 
 

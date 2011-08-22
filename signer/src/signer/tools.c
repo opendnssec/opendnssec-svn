@@ -49,12 +49,12 @@ ods_status
 tools_input(zone_type* zone)
 {
     ods_status status = ODS_STATUS_OK;
-    int error = 0;
     char* tmpname = NULL;
+    char* lockname = NULL;
     time_t start = 0;
     time_t end = 0;
+    FILE* fd = NULL;
 
-    /* sanity checking */
     if (!zone) {
         ods_log_error("[%s] unable to read zone: no zone", tools_str);
         return ODS_STATUS_ASSERT_ERR;
@@ -70,7 +70,6 @@ tools_input(zone_type* zone)
     ods_log_assert(zone->adinbound);
     ods_log_assert(zone->signconf);
 
-    /* reset stats */
     if (zone->stats) {
         lock_basic_lock(&zone->stats->stats_lock);
         zone->stats->sort_done = 0;
@@ -79,40 +78,76 @@ tools_input(zone_type* zone)
         lock_basic_unlock(&zone->stats->stats_lock);
     }
 
-    /* read from the adapter */
     if (zone->adinbound->type == ADAPTER_FILE) {
         if (zone->fetch) {
-            ods_log_verbose("fetch zone %s",
+            ods_log_verbose("[%s] fetch zone %s", tools_str,
                 zone->name?zone->name:"(null)");
             tmpname = ods_build_path(
                 zone->adinbound->configstr, ".axfr", 0);
-            error = ods_file_copy(tmpname, zone->adinbound->configstr);
-            if (error) {
-                ods_log_error("[%s] unable to copy axfr file %s to %s",
-                    tools_str, tmpname, zone->adinbound->configstr);
+            lockname = ods_build_path(
+                zone->adinbound->configstr, ".lock", 0);
+
+lock_fetch:
+            if (access(lockname, F_OK) == 0) {
+                ods_log_deeebug("[%s] axfr file %s is locked, "
+                    "waiting...", tools_str, tmpname);
+                sleep(1);
+                goto lock_fetch;
+            } else {
+                fd = fopen(lockname, "w");
+                if (!fd) {
+                    ods_log_error("[%s] cannot lock AXFR file %s",
+                        tools_str, lockname);
+                    free((void*)tmpname);
+                    free((void*)lockname);
+                    return ODS_STATUS_ERR;
+                }
+            }
+            ods_log_assert(fd); /* locked */
+
+            status = ods_file_copy(tmpname, zone->adinbound->configstr);
+
+            fclose(fd);
+            (void) unlink(lockname); /* unlocked */
+
+            if (status != ODS_STATUS_OK) {
+                ods_log_error("[%s] unable to copy axfr file %s to %s: %s",
+                    tools_str, tmpname, zone->adinbound->configstr,
+                    ods_status2str(status));
                 free((void*)tmpname);
-                return ODS_STATUS_ERR;
+                free((void*)lockname);
+                return status;
             }
             free((void*)tmpname);
+            free((void*)lockname);
         }
     }
+
     start = time(NULL);
     status = adapter_read(zone);
-    if (status == ODS_STATUS_OK) {
+    if (status != ODS_STATUS_OK) {
+        ods_log_error("[%s] unable to read from input adapter for zone %s: "
+            "%s", tools_str, zone->name?zone->name:"(null)",
+            ods_status2str(status));
+    } else {
         tmpname = ods_build_path(zone->name, ".inbound", 0);
         status = ods_file_copy(zone->adinbound->configstr, tmpname);
         free((void*)tmpname);
         tmpname = NULL;
+        if (status != ODS_STATUS_OK) {
+            ods_log_error("[%s] unable to copy zone input file %s: %s",
+                tools_str, zone->name?zone->name:"(null)",
+                ods_status2str(status));
+        }
     }
 
-    /* done */
     if (status == ODS_STATUS_OK) {
         ods_log_verbose("[%s] commit updates for zone %s", tools_str,
-                zone->name?zone->name:"(null)");
+            zone->name?zone->name:"(null)");
         status = zonedata_commit(zone->zonedata);
     } else {
         ods_log_warning("[%s] rollback updates for zone %s", tools_str,
-                zone->name?zone->name:"(null)");
+            zone->name?zone->name:"(null)");
         zonedata_rollback(zone->zonedata);
     }
     end = time(NULL);
@@ -141,7 +176,6 @@ tools_nsecify(zone_type* zone)
     uint32_t ttl = 0;
     uint32_t num_added = 0;
 
-    /* sanity checking */
     if (!zone) {
         ods_log_error("[%s] unable to nsecify zone: no zone", tools_str);
         return ODS_STATUS_ASSERT_ERR;
@@ -162,21 +196,19 @@ tools_nsecify(zone_type* zone)
     }
     ods_log_assert(zone->signconf);
 
-    /* reset stats */
     if (zone->stats) {
         lock_basic_lock(&zone->stats->stats_lock);
         zone->stats->nsec_time = 0;
         zone->stats->nsec_count = 0;
         lock_basic_unlock(&zone->stats->stats_lock);
     }
-    start = time(NULL);
 
+    start = time(NULL);
     /* determine denial ttl */
     ttl = zone->zonedata->default_ttl;
     if (zone->signconf->soa_min) {
         ttl = (uint32_t) duration2time(zone->signconf->soa_min);
     }
-
     /* add missing empty non-terminals */
     status = zonedata_entize(zone->zonedata, zone->dname);
     if (status != ODS_STATUS_OK) {
@@ -184,7 +216,6 @@ tools_nsecify(zone_type* zone)
             "non-terminals", tools_str, zone->name);
         return status;
     }
-
     /* nsecify(3) */
     if (zone->signconf->nsec_type == LDNS_RR_TYPE_NSEC) {
         status = zonedata_nsecify(zone->zonedata, zone->klass, ttl,
@@ -213,8 +244,6 @@ tools_nsecify(zone_type* zone)
         zone->stats->nsec_count = num_added;
         lock_basic_unlock(&zone->stats->stats_lock);
     }
-
-    /* done */
     return status;
 }
 
@@ -233,8 +262,6 @@ tools_audit(zone_type* zone, char* working_dir, char* cfg_filename)
     int error = 0;
     time_t start = 0;
     time_t end = 0;
-
-    /* sanity checking */
     if (!zone) {
         ods_log_error("[%s] unable to audit zone: no zone", tools_str);
         return ODS_STATUS_ASSERT_ERR;
@@ -248,7 +275,6 @@ tools_audit(zone_type* zone, char* working_dir, char* cfg_filename)
     }
     ods_log_assert(zone->signconf);
 
-    /* check for changes */
     if (zone->stats) {
         lock_basic_lock(&zone->stats->stats_lock);
         if (zone->stats->sort_done == 0 &&
@@ -259,7 +285,6 @@ tools_audit(zone_type* zone, char* working_dir, char* cfg_filename)
         lock_basic_unlock(&zone->stats->stats_lock);
     }
 
-    /* audit */
     if (zone->signconf->audit) {
         inbound = ods_build_path(zone->name, ".inbound", 0);
         finalized = ods_build_path(zone->name, ".finalized", 0);
@@ -267,12 +292,12 @@ tools_audit(zone_type* zone, char* working_dir, char* cfg_filename)
         if (status != ODS_STATUS_OK) {
             ods_log_error("[%s] audit zone %s failed: unable to write zone",
                 tools_str, zone->name?zone->name:"(null)");
+            free((void*)inbound);
             free((void*)finalized);
             return status;
         }
 
-        snprintf(str, SYSTEM_MAXLEN, "%s -c %s -u %s/%s -s %s/%s -z %s > "
-            "/dev/null",
+        snprintf(str, SYSTEM_MAXLEN, "%s -c %s -u %s/%s -s %s/%s -z %s > /dev/null",
             ODS_SE_AUDITOR,
             cfg_filename?cfg_filename:ODS_SE_CFGFILE,
             working_dir?working_dir:"",
@@ -302,8 +327,6 @@ tools_audit(zone_type* zone, char* working_dir, char* cfg_filename)
             lock_basic_unlock(&zone->stats->stats_lock);
         }
     }
-
-    /* done */
     return status;
 }
 
@@ -320,7 +343,6 @@ tools_output(zone_type* zone)
     int error = 0;
     uint32_t outbound_serial = 0;
 
-    /* sanity checking */
     if (!zone) {
         ods_log_error("[%s] unable to write zone: no zone", tools_str);
         return ODS_STATUS_ASSERT_ERR;
@@ -334,7 +356,6 @@ tools_output(zone_type* zone)
     }
     ods_log_assert(zone->adoutbound);
 
-    /* check for changes */
     if (zone->stats) {
         lock_basic_lock(&zone->stats->stats_lock);
         if (zone->stats->sort_done == 0 &&
@@ -351,7 +372,6 @@ tools_output(zone_type* zone)
         lock_basic_unlock(&zone->stats->stats_lock);
     }
 
-    /* output zone */
     outbound_serial = zone->zonedata->outbound_serial;
     zone->zonedata->outbound_serial = zone->zonedata->internal_serial;
     status = adapter_write(zone);

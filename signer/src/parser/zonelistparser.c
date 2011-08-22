@@ -125,9 +125,6 @@ parse_zonelist_adapter(xmlXPathContextPtr xpathCtx, xmlChar* expr,
             while (curNode) {
                 if (xmlStrEqual(curNode->name, (const xmlChar*)"File")) {
                     adapter = zlp_adapter(curNode, ADAPTER_FILE, inbound);
-                } else if (xmlStrEqual(curNode->name,
-                    (const xmlChar*)"DNS")) {
-                    adapter = zlp_adapter(curNode, ADAPTER_DNS, inbound);
                 }
                 if (adapter) {
                     break;
@@ -230,9 +227,13 @@ parse_zonelist_zones(struct zonelist_struct* zlist, const char* zlfile)
             if (doc == NULL || xpathCtx == NULL) {
                 ods_log_error("[%s] unable to read zone %s; skipping",
                    parser_str, zone_name);
-                free((void*) zone_name);
                 ret = xmlTextReaderRead(reader);
+                free((void*) zone_name);
                 free((void*) tag_name);
+                if (xpathCtx) {
+                    xmlXPathFreeContext(xpathCtx);
+                    xpathCtx = NULL;
+                }
                 continue;
             }
 
