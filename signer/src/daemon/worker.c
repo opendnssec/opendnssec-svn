@@ -505,22 +505,24 @@ static void
 worker_work(worker_type* worker)
 {
     time_t now, timeout = 1;
+    engine_type* engine = NULL;
     zone_type* zone = NULL;
     ods_status status = ODS_STATUS_OK;
 
     ods_log_assert(worker);
     ods_log_assert(worker->type == WORKER_WORKER);
 
+    engine = (engine_type*) worker->engine;
     while (worker->need_to_exit == 0) {
         ods_log_debug("[%s[%i]] report for duty", worker2str(worker->type),
             worker->thread_num);
-        lock_basic_lock(&worker->engine->taskq->schedule_lock);
+        lock_basic_lock(&engine->taskq->schedule_lock);
         /* [LOCK] schedule */
-        worker->task = schedule_pop_task(worker->engine->taskq);
+        worker->task = schedule_pop_task(engine->taskq);
         /* [UNLOCK] schedule */
         if (worker->task) {
             worker->working_with = worker->task->what;
-            lock_basic_unlock(&worker->engine->taskq->schedule_lock);
+            lock_basic_unlock(&engine->taskq->schedule_lock);
 
             zone = worker->task->zone;
             lock_basic_lock(&zone->zone_lock);
@@ -537,13 +539,13 @@ worker_work(worker_type* worker)
                 worker2str(worker->type), worker->thread_num, zone->name);
             /* [UNLOCK] zone */
 
-            lock_basic_lock(&worker->engine->taskq->schedule_lock);
+            lock_basic_lock(&engine->taskq->schedule_lock);
             /* [LOCK] zone, schedule */
             worker->task = NULL;
             worker->working_with = TASK_NONE;
-            status = schedule_task(worker->engine->taskq, zone->task, 1);
+            status = schedule_task(engine->taskq, zone->task, 1);
             /* [UNLOCK] zone, schedule */
-            lock_basic_unlock(&worker->engine->taskq->schedule_lock);
+            lock_basic_unlock(&engine->taskq->schedule_lock);
             lock_basic_unlock(&zone->zone_lock);
 
             timeout = 1;
@@ -552,12 +554,12 @@ worker_work(worker_type* worker)
                 worker->thread_num);
 
             /* [LOCK] schedule */
-            worker->task = schedule_get_first_task(worker->engine->taskq);
+            worker->task = schedule_get_first_task(engine->taskq);
             /* [UNLOCK] schedule */
-            lock_basic_unlock(&worker->engine->taskq->schedule_lock);
+            lock_basic_unlock(&engine->taskq->schedule_lock);
 
             now = time_now();
-            if (worker->task && !worker->engine->taskq->loading) {
+            if (worker->task && !engine->taskq->loading) {
                 timeout = (worker->task->when - now);
             } else {
                 timeout *= 2;
@@ -580,6 +582,7 @@ worker_work(worker_type* worker)
 static void
 worker_drudge(worker_type* worker)
 {
+    engine_type* engine = NULL;
     zone_type* zone = NULL;
     task_type* task = NULL;
     rrset_type* rrset = NULL;
@@ -604,11 +607,11 @@ worker_drudge(worker_type* worker)
         zone = NULL;
         task = NULL;
 
-        lock_basic_lock(&worker->engine->signq->q_lock);
+        lock_basic_lock(&engine->signq->q_lock);
         /* [LOCK] schedule */
-        rrset = (rrset_type*) fifoq_pop(worker->engine->signq, &chief);
+        rrset = (rrset_type*) fifoq_pop(engine->signq, &chief);
         /* [UNLOCK] schedule */
-        lock_basic_unlock(&worker->engine->signq->q_lock);
+        lock_basic_unlock(&engine->signq->q_lock);
         if (rrset) {
             /* set up the work */
             if (chief) {
@@ -657,8 +660,7 @@ worker_drudge(worker_type* worker)
         } else {
             ods_log_debug("[%s[%i]] nothing to do", worker2str(worker->type),
                 worker->thread_num);
-            worker_wait(&worker->engine->signq->q_lock,
-                &worker->engine->signq->q_threshold);
+            worker_wait(&engine->signq->q_lock, &engine->signq->q_threshold);
         }
     }
     /* wake up chief */

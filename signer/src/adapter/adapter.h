@@ -36,11 +36,10 @@
 
 #include "config.h"
 #include "adapter/adfile.h"
+#include "shared/allocator.h"
 #include "shared/status.h"
 
 #include <stdio.h>
-
-struct zone_struct;
 
 /** Adapter mode. */
 enum adapter_mode_enum
@@ -102,7 +101,7 @@ int adapter_compare(adapter_type* a1, adapter_type* a2);
  * \return ods_status stats
  *
  */
-ods_status adapter_read(struct zone_struct* zone);
+ods_status adapter_read(void* zone);
 
 /**
  * Write zone to output adapter.
@@ -110,7 +109,7 @@ ods_status adapter_read(struct zone_struct* zone);
  * \return ods_status stats
  *
  */
-ods_status adapter_write(struct zone_struct* zone);
+ods_status adapter_write(void* zone);
 
 /**
  * Clean up adapter.

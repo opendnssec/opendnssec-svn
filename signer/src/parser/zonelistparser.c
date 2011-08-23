@@ -159,7 +159,7 @@ parse_zonelist_adapters(xmlXPathContextPtr xpathCtx, zone_type* zone)
  *
  */
 ods_status
-parse_zonelist_zones(struct zonelist_struct* zlist, const char* zlfile)
+parse_zonelist_zones(void* zlist, const char* zlfile)
 {
     char* tag_name = NULL;
     char* zone_name = NULL;
@@ -177,21 +177,17 @@ parse_zonelist_zones(struct zonelist_struct* zlist, const char* zlfile)
             parser_str);
         return ODS_STATUS_ASSERT_ERR;
     }
-    ods_log_assert(zlist);
-
     if (!zlfile) {
         ods_log_error("[%s] unable to parse zone list: no filename",
             parser_str);
         return ODS_STATUS_ASSERT_ERR;
     }
-    ods_log_assert(zlfile);
 
     reader = xmlNewTextReaderFilename(zlfile);
     if (!reader) {
         ods_log_error("[%s] unable to open file %s", parser_str, zlfile);
         return ODS_STATUS_XML_ERR;
     }
-
     ret = xmlTextReaderRead(reader);
     while (ret == XML_READER_TYPE_ELEMENT) {
         tag_name = (char*) xmlTextReaderLocalName(reader);
@@ -202,7 +198,7 @@ parse_zonelist_zones(struct zonelist_struct* zlist, const char* zlfile)
             zone_name = (char*) xmlTextReaderGetAttribute(reader,
                 name_expr);
             if (!zone_name || strlen(zone_name) <= 0) {
-                ods_log_error("[%s] unable to extract zone name from "
+                ods_log_alert("[%s] unable to extract zone name from "
                     "zonelist", parser_str);
                 if (zone_name) {
                     free((void*) zone_name);
@@ -218,7 +214,7 @@ parse_zonelist_zones(struct zonelist_struct* zlist, const char* zlfile)
                 xpathCtx = xmlXPathNewContext(doc);
             }
             if (doc == NULL || xpathCtx == NULL) {
-                ods_log_error("[%s] unable to read zone %s; skipping",
+                ods_log_alert("[%s] unable to read zone %s, skipping",
                    parser_str, zone_name);
                 ret = xmlTextReaderRead(reader);
                 free((void*) zone_name);

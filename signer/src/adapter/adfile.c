@@ -293,7 +293,7 @@ adfile_read_file(FILE* fd, zone_type* zone)
  *
  */
 ods_status
-adfile_read(struct zone_struct* zone, const char* filename)
+adfile_read(void* zone, const char* filename)
 {
     FILE* fd = NULL;
     zone_type* adzone = (zone_type*) zone;
@@ -365,7 +365,7 @@ adfile_read(struct zone_struct* zone, const char* filename)
  *
  */
 ods_status
-adbackup_read(struct zone_struct* zone, const char* filename)
+adbackup_read(void* zone, const char* filename)
 {
     FILE* fd = NULL;
     zone_type* adzone = (zone_type*) zone;
@@ -416,7 +416,7 @@ adbackup_read(struct zone_struct* zone, const char* filename)
  *
  */
 ods_status
-adfile_write(struct zone_struct* zone, const char* filename)
+adfile_write(void* zone, const char* filename)
 {
     FILE* fd = NULL;
     zone_type* adzone = (zone_type*) zone;

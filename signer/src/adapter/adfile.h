@@ -40,8 +40,6 @@
 
 #include <stdio.h>
 
-struct zone_struct;
-
 /**
  * File adapter.
  *
@@ -58,29 +56,29 @@ ods_status adfile_init(const char* configstr);
 
 /**
  * Read zone from input file adapter.
- * \param[in] zone zone structure
+ * \param[in] zone zone reference
  * \param[in] filename read from this specific file
  * \return ods_status status
  *
  */
-ods_status adfile_read(struct zone_struct* zone, const char* filename);
+ods_status adfile_read(void* zone, const char* filename);
 
 /**
  * Read zone from backup file.
- * \param[in] zone zone structure
+ * \param[in] zone zone reference
  * \param[in] filename read from this specific file
  * \return ods_status status
  *
  */
-ods_status adbackup_read(struct zone_struct* zone, const char* filename);
+ods_status adbackup_read(void* zone, const char* filename);
 
 /**
  * Write zone to output file adapter.
- * \param[in] zone zone structure
+ * \param[in] zone zone reference
  * \param[in] filename write to this specific file
  * \return ods_status status
  *
  */
-ods_status adfile_write(struct zone_struct* zone, const char* filename);
+ods_status adfile_write(void* zone, const char* filename);
 
 #endif /* ADAPTER_ADFILE_H */

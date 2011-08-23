@@ -38,7 +38,6 @@
 #include "shared/status.h"
 #include "signer/zone.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 
 static const char* adapter_str = "adapter";
@@ -105,23 +104,20 @@ adapter_create(const char* str, adapter_mode type, int inbound)
  *
  */
 ods_status
-adapter_read(struct zone_struct* zone)
+adapter_read(void* zone)
 {
     zone_type* adzone = (zone_type*) zone;
-    ods_status status = ODS_STATUS_OK;
     if (!adzone || !adzone->adinbound) {
         ods_log_error("[%s] unable to read zone: no input adapter",
             adapter_str);
         return ODS_STATUS_ASSERT_ERR;
     }
     ods_log_assert(adzone->adinbound->configstr);
-
     switch(adzone->adinbound->type) {
         case ADAPTER_FILE:
             ods_log_verbose("[%s] read zone %s from file input adapter %s",
                 adapter_str, adzone->name, adzone->adinbound->configstr);
-            status = adfile_read(zone, adzone->adinbound->configstr);
-            return status;
+            return adfile_read(zone, adzone->adinbound->configstr);
             break;
         default:
             ods_log_error("[%s] unable to read zone %s from adapter: unknown "
@@ -129,7 +125,6 @@ adapter_read(struct zone_struct* zone)
             return ODS_STATUS_ERR;
             break;
     }
-
     /* not reached */
     return ODS_STATUS_ERR;
 }
@@ -140,11 +135,9 @@ adapter_read(struct zone_struct* zone)
  *
  */
 ods_status
-adapter_write(struct zone_struct* zone)
+adapter_write(void* zone)
 {
     zone_type* adzone = (zone_type*) zone;
-    ods_status status = ODS_STATUS_OK;
-
     if (!adzone || !adzone->adoutbound) {
         ods_log_error("[%s] unable to write zone: no output adapter",
             adapter_str);
@@ -156,15 +149,13 @@ adapter_write(struct zone_struct* zone)
             adapter_str, adzone->name);
         return ODS_STATUS_ASSERT_ERR;
     }
-
     switch(adzone->adoutbound->type) {
         case ADAPTER_FILE:
             ods_log_verbose("[%s] write zone %s serial %u to output file "
                 "adapter %s", adapter_str, adzone->name,
                 adzone->zonedata->outbound_serial,
                 adzone->adinbound->configstr);
-            status = adfile_write(zone, adzone->adoutbound->configstr);
-            return status;
+            return adfile_write(zone, adzone->adoutbound->configstr);
             break;
         default:
             ods_log_error("[%s] unable to write zone %s to adapter: unknown "

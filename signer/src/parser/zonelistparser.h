@@ -41,8 +41,6 @@
 #include <libxml/xpath.h>
 #include <libxml/xmlreader.h>
 
-struct zonelist_struct;
-
 /**
  * Parse adapter.
  * \param[in] xpathCtx XPath Context Pointer
@@ -60,7 +58,6 @@ adapter_type* parse_zonelist_adapter(xmlXPathContextPtr xpathCtx,
  * \return ods_status status
  *
  */
-ods_status parse_zonelist_zones(struct zonelist_struct* zlist,
-    const char* zlfile);
+ods_status parse_zonelist_zones(void* zlist, const char* zlfile);
 
 #endif /* PARSER_ZONELISTPARSER_H */

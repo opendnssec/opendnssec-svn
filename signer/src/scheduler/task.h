@@ -72,7 +72,7 @@ struct task_struct {
  * \param[in] what task identifier
  * \param[in] when scheduled time
  * \param[in] who zone name
- * \param[in] zone pointer to zone
+ * \param[in] zone zone reference
  * \return task_type* created task
  *
  */
@@ -81,7 +81,7 @@ task_type* task_create(task_id what, time_t when, const char* who, void* zone);
 /**
  * Recover a task from backup.
  * \param[in] filename where the task backup is stored
- * \param[in] zone pointer to zone structure
+ * \param[in] zone zone reference
  * \return task_type* created task
  *
  */
@@ -94,13 +94,6 @@ task_type* task_recover_from_backup(const char* filename, void* zone);
  *
  */
 void task_backup(FILE* fd, task_type* task);
-
-/**
- * Clean up task.
- * \param[in] task task
- *
- */
-void task_cleanup(task_type* task);
 
 /**
  * Compare tasks.
@@ -149,5 +142,12 @@ void task_print(FILE* out, task_type* task);
  *
  */
 void task_log(task_type* task);
+
+/**
+ * Clean up task.
+ * \param[in] task task
+ *
+ */
+void task_cleanup(task_type* task);
 
 #endif /* SCHEDULER_TASK_H */

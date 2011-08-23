@@ -40,11 +40,15 @@
 
 #include <stdio.h>
 
-struct zone_struct;
+/**
+ * DNS AXFR and IXFR adapter.
+ *
+ */
+/** NULL */
 
 /**
  * Initialize DNS adapters.
- * \param[in] str configuration string
+ * \param[in] configstr configstr init configuration file location
  * \return ods_status status
  *
  */
@@ -52,20 +56,20 @@ ods_status addns_init(const char* str);
 
 /**
  * Read zone from input DNS adapter.
- * \param[in] zone zone structure
+ * \param[in] zone zone reference
  * \param[in] str configuration string
  * \return ods_status status
  *
  */
-ods_status addns_read(struct zone_struct* zone, const char* str);
+ods_status addns_read(void* zone, const char* str);
 
 /**
  * Write zone to output DNS adapter.
- * \param[in] zone zone structure
+ * \param[in] zone zone reference
  * \param[in] str configuration string
  * \return ods_status status
  *
  */
-ods_status addns_write(struct zone_struct* zone, const char* str);
+ods_status addns_write(void* zone, const char* filename);
 
 #endif /* ADAPTER_ADDNS_H */

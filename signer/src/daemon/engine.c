@@ -296,7 +296,7 @@ engine_start_workers(engine_type* engine)
     ods_log_debug("[%s] start workers", engine_str);
     for (i=0; i < (size_t) engine->config->num_worker_threads; i++) {
         engine->workers[i]->need_to_exit = 0;
-        engine->workers[i]->engine = (struct engine_struct*) engine;
+        engine->workers[i]->engine = (void*) engine;
         ods_thread_create(&engine->workers[i]->thread_id, worker_thread_start,
             engine->workers[i]);
     }
@@ -311,7 +311,7 @@ engine_start_drudgers(engine_type* engine)
     ods_log_debug("[%s] start drudgers", engine_str);
     for (i=0; i < (size_t) engine->config->num_signer_threads; i++) {
         engine->drudgers[i]->need_to_exit = 0;
-        engine->drudgers[i]->engine = (struct engine_struct*) engine;
+        engine->drudgers[i]->engine = (void*) engine;
         ods_thread_create(&engine->drudgers[i]->thread_id, worker_thread_start,
             engine->drudgers[i]);
     }
