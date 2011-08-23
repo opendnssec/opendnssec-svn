@@ -670,12 +670,12 @@ cmdhandler_handle_cmd(cmdhandler_type* cmdc)
 
 again:
     while ((n = read(sockfd, buf, ODS_SE_MAXLINE)) > 0) {
+        /* what if this number is smaller than the number of bytes requested? */
         buf[n-1] = '\0';
         n--;
-        if (n <= 0) {
-            return;
-        }
         ods_log_verbose("[%s] received command %s[%i]", cmdh_str, buf, n);
+        ods_str_trim(buf);
+        n = strlen(buf);
 
         if (n == 4 && strncmp(buf, "help", n) == 0) {
             ods_log_debug("[%s] help command", cmdh_str);
@@ -742,11 +742,10 @@ again:
             } else {
                 cmdhandler_handle_cmd_verbosity(sockfd, cmdc, atoi(&buf[10]));
             }
-        } else {
+        } else if (n > 0) {
             ods_log_debug("[%s] unknown command", cmdh_str);
             cmdhandler_handle_cmd_unknown(sockfd, buf);
         }
-
         ods_log_debug("[%s] done handling command %s[%i]", cmdh_str, buf, n);
         (void)snprintf(buf, SE_CMDH_CMDLEN, "\ncmd> ");
         ods_writen(sockfd, buf, strlen(buf));
