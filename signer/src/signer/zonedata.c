@@ -303,6 +303,76 @@ zonedata_domain_search(ldns_rbtree_t* tree, ldns_rdf* dname)
 
 
 /**
+ * Determine new SOA SERIAL.
+ *
+ */
+ods_status
+zonedata_update_serial(zonedata_type* zd, signconf_type* sc, uint32_t serial)
+{
+    uint32_t soa = 0;
+    uint32_t prev = 0;
+    uint32_t update = 0;
+    if (!db || !sc) {
+        return ODS_STATUS_ASSERT_ERR;
+    }
+    prev = zd->outserial;
+    if (!zd->is_initialized) {
+        prev = serial;
+    }
+    ods_log_debug("[%s] update serial: in=%u internal=%u out=%u now=%u",
+        zd_str, zd->inbserial, zd->intserial, zd->outserial,
+        (uint32_t) time_now());
+
+    if (!sc->soa_serial) {
+        ods_log_error("[%s] no serial type given", zd_str);
+        return ODS_STATUS_ERR;
+    }
+
+    if (ods_strcmp(sc->soa_serial, "unixtime") == 0) {
+        soa = (uint32_t) time_now();
+        if (!DNS_SERIAL_GT(soa, prev)) {
+            soa = prev + 1;
+        }
+    } else if (strncmp(sc->soa_serial, "counter", 7) == 0) {
+        soa = serial;
+        if (zd->is_initialized && !DNS_SERIAL_GT(soa, prev)) {
+            soa = prev + 1;
+        }
+    } else if (strncmp(sc->soa_serial, "datecounter", 11) == 0) {
+        soa = (uint32_t) time_datestamp(0, "%Y%m%d", NULL) * 100;
+        if (!DNS_SERIAL_GT(soa, prev)) {
+            soa = prev + 1;
+        }
+    } else if (strncmp(sc->soa_serial, "keep", 4) == 0) {
+        soa = serial;
+        if (zd->is_initialized && !DNS_SERIAL_GT(soa, prev)) {
+            ods_log_error("[%s] cannot keep SOA SERIAL from input zone "
+                " (%u): previous output SOA SERIAL is %u", zd_str, soa, prev);
+            return ODS_STATUS_CONFLICT_ERR;
+        }
+    } else {
+        ods_log_error("[%s] unknown serial type %s", zd_str, sc->soa_serial);
+        return ODS_STATUS_ERR;
+    }
+
+    /* serial is stored in 32 bits */
+    update = soa - prev;
+    if (update > 0x7FFFFFFF) {
+        update = 0x7FFFFFFF;
+    }
+
+    if (!zd->is_initialized) {
+        zd->intserial = soa;
+    } else {
+        zd->intserial += update; /* automatically does % 2^32 */
+    }
+    ods_log_debug("[%s] update serial: %u + %u = %u", zd_str, prev, update,
+        zd->intserial);
+    return ODS_STATUS_OK;
+}
+
+
+/**
  * Lookup domain.
  *
  */
@@ -1171,77 +1241,6 @@ zonedata_nsecify3(zonedata_type* zd, ldns_rr_class klass,
     if (num_added) {
         *num_added = nsec3_added;
     }
-    return ODS_STATUS_OK;
-}
-
-
-/**
- * Update the serial.
- *
- */
-ods_status
-zonedata_update_serial(zonedata_type* zd, signconf_type* sc, uint32_t serial)
-{
-    uint32_t soa = 0;
-    uint32_t prev = 0;
-    uint32_t update = 0;
-
-    ods_log_assert(zd);
-    ods_log_assert(sc);
-
-    prev = zd->outserial;
-    if (!zd->is_initialized) {
-        prev = serial;
-    }
-    ods_log_debug("[%s] update serial: in=%u internal=%u out=%u now=%u",
-        zd_str, zd->inbserial, zd->intserial, zd->outserial,
-        (uint32_t) time_now());
-
-    if (!sc->soa_serial) {
-        ods_log_error("[%s] no serial type given", zd_str);
-        return ODS_STATUS_ERR;
-    }
-
-    if (ods_strcmp(sc->soa_serial, "unixtime") == 0) {
-        soa = (uint32_t) time_now();
-        if (!DNS_SERIAL_GT(soa, prev)) {
-            soa = prev + 1;
-        }
-    } else if (strncmp(sc->soa_serial, "counter", 7) == 0) {
-        soa = serial;
-        if (zd->is_initialized && !DNS_SERIAL_GT(soa, prev)) {
-            soa = prev + 1;
-        }
-    } else if (strncmp(sc->soa_serial, "datecounter", 11) == 0) {
-        soa = (uint32_t) time_datestamp(0, "%Y%m%d", NULL) * 100;
-        if (!DNS_SERIAL_GT(soa, prev)) {
-            soa = prev + 1;
-        }
-    } else if (strncmp(sc->soa_serial, "keep", 4) == 0) {
-        soa = serial;
-        if (zd->is_initialized && !DNS_SERIAL_GT(soa, prev)) {
-            ods_log_error("[%s] cannot keep SOA SERIAL from input zone "
-                " (%u): previous output SOA SERIAL is %u", zd_str, soa, prev);
-            return ODS_STATUS_CONFLICT_ERR;
-        }
-    } else {
-        ods_log_error("[%s] unknown serial type %s", zd_str, sc->soa_serial);
-        return ODS_STATUS_ERR;
-    }
-
-    /* serial is stored in 32 bits */
-    update = soa - prev;
-    if (update > 0x7FFFFFFF) {
-        update = 0x7FFFFFFF;
-    }
-
-    if (!zd->is_initialized) {
-        zd->intserial = soa;
-    } else {
-        zd->intserial += update; /* automatically does % 2^32 */
-    }
-    ods_log_debug("[%s] update serial: %u + %u = %u", zd_str, prev, update,
-        zd->intserial);
     return ODS_STATUS_OK;
 }
 
