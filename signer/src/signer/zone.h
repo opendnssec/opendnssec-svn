@@ -140,6 +140,17 @@ ods_status zone_prepare_nsec3(zone_type* zone, int recover);
 ods_status zone_update_serial(zone_type* zone);
 
 /**
+ * Lookup RRset.
+ * \param[in] zone zone
+ * \param[in] owner RRset owner
+ * \param[in] type RRtype
+ * \return rrset_type* RRset, if found
+ *
+ */
+rrset_type* zone_lookup_rrset(zone_type* zone, ldns_rdf* owner,
+    ldns_rr_type type);
+
+/**
  * Add RR.
  * \param[in] zone zone
  * \param[in] rr rr

@@ -561,6 +561,25 @@ zone_update_serial(zone_type* zone)
 
 
 /**
+ * Lookup RRset.
+ *
+ */
+rrset_type*
+zone_lookup_rrset(zone_type* zone, ldns_rdf* owner, ldns_rr_type type)
+{
+    domain_type* domain = NULL;
+    if (!zone || !owner || !type) {
+        return NULL;
+    }
+    domain = zonedata_lookup_domain(zone->zonedata, owner);
+    if (!domain) {
+        return NULL;
+    }
+    return domain_lookup_rrset(domain, type);
+}
+
+
+/**
  * Add RR.
  *
  */
