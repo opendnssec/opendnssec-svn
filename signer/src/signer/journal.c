@@ -98,7 +98,7 @@ entry_plus_rr(entry_type* entry, ldns_rr* rr)
             journal_str);
         return ODS_STATUS_ERR;
     }
-    log_rr(rr, "+rr", 2);
+    log_rr(rr, "+rr", LOG_DEBUG);
 
     /* else ok */
     return ODS_STATUS_OK;
@@ -125,7 +125,7 @@ entry_min_rr(entry_type* entry, ldns_rr* rr)
             journal_str);
         return ODS_STATUS_ERR;
     }
-    log_rr(rr, "-rr", 2);
+    log_rr(rr, "-rr", LOG_DEBUG);
 
     /* else ok */
     return ODS_STATUS_OK;

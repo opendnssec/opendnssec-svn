@@ -540,14 +540,14 @@ domain_examine_rrset_is_alone(domain_type* domain, ldns_rr_type rrtype)
                 rrs = rrset->rrs;
                 while (rrs) {
                     if (rrs->rr) {
-                        log_rr(rrs->rr, "next-to-CNAME: ", 1);
+                        log_rr(rrs->rr, "next-to-CNAME: ", LOG_ERR);
                     }
                     rrs = rrs->next;
                 }
                 rrs = rrset->add;
                 while (rrs) {
                     if (rrs->rr) {
-                        log_rr(rrs->rr, "next-to-CNAME: ", 1);
+                        log_rr(rrs->rr, "next-to-CNAME: ", LOG_ERR);
                     }
                     rrs = rrs->next;
                 }

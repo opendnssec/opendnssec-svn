@@ -68,6 +68,15 @@ struct rrset_struct {
 };
 
 /**
+ * Log RR.
+ * \param[in] rr RR
+ * \param[in] pre log message
+ * \param[in] level log level
+ *
+ */
+void log_rr(ldns_rr* rr, const char* pre, int level);
+
+/**
  * Create new RRset.
  * \param[in] rrtype RRtype
  * \return rrset_type* new RRset
@@ -194,15 +203,6 @@ int rrset_examine_ns_rdata(rrset_type* rrset, ldns_rdf* nsdname);
  *
  */
 void rrset_cleanup(rrset_type* rrset);
-
-/**
- * Log RR.
- * \param[in] rr RR
- * \param[in] pre string to log before RR
- * \param[in] level log level
- *
- */
-void log_rr(ldns_rr* rr, const char* pre, int level);
 
 /**
  * Print RRset.

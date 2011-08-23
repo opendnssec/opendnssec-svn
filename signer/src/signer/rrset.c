@@ -59,35 +59,42 @@ log_rr(ldns_rr* rr, const char* pre, int level)
     char* str = NULL;
     size_t i = 0;
 
-    if (ods_log_get_level() < level + 2) return;
-
-    str = ldns_rr2str(rr);
-    if (str) {
-        str[(strlen(str))-1] = '\0';
-        /* replace tabs with white space */
-        for (i=0; i < strlen(str); i++) {
-            if (str[i] == '\t') {
-                str[i] = ' ';
-            }
-        }
-
-        if (level == 1) { /* LOG_ERR */
-            ods_log_error("%s %s", pre?pre:"", str);
-        } else if (level == 2) { /* LOG_WARNING */
-            ods_log_warning("%s %s", pre?pre:"", str);
-        } else if (level == 3) { /* LOG_NOTICE */
-            ods_log_info("%s %s", pre?pre:"", str);
-        } else if (level == 4) { /* LOG_INFO */
-            ods_log_verbose("%s %s", pre?pre:"", str);
-        } else if (level == 5) { /* LOG_DEBUG */
-            ods_log_debug("%s %s", pre?pre:"", str);
-        } else if (level == 6) { /* more debugging */
-            ods_log_deeebug("%s %s", pre?pre:"", str);
-        } else { /* hardcore debugging */
-            ods_log_deeebug("%s %s", pre?pre:"", str);
-        }
-        free((void*)str);
+    if (ods_log_get_level() < level) {
+        return;
     }
+    str = ldns_rr2str(rr);
+    if (!str) {
+        return;
+    }
+    str[(strlen(str))-1] = '\0';
+    /* replace tabs with white space */
+    for (i=0; i < strlen(str); i++) {
+        if (str[i] == '\t') {
+            str[i] = ' ';
+        }
+    }
+    if (level == LOG_EMERG) {
+        ods_fatal_exit("[%s] %s: %s", rrset_str, pre?pre:"", str);
+    } else if (level == LOG_ALERT) {
+        ods_log_alert("[%s] %s: %s", rrset_str, pre?pre:"", str);
+    } else if (level == LOG_CRIT) {
+        ods_log_crit("[%s] %s: %s", rrset_str, pre?pre:"", str);
+    } else if (level == LOG_ERR) {
+        ods_log_error("[%s] %s: %s", rrset_str, pre?pre:"", str);
+    } else if (level == LOG_WARNING) {
+        ods_log_warning("[%s] %s: %s", rrset_str, pre?pre:"", str);
+    } else if (level == LOG_NOTICE) {
+        ods_log_info("[%s] %s: %s", rrset_str, pre?pre:"", str);
+    } else if (level == LOG_INFO) {
+        ods_log_verbose("[%s] %s: %s", rrset_str, pre?pre:"", str);
+    } else if (level == LOG_DEBUG) {
+        ods_log_debug("[%s] %s: %s", rrset_str, pre?pre:"", str);
+    } else if (level == LOG_DEEEBUG) {
+        ods_log_deeebug("[%s] %s: %s", rrset_str, pre?pre:"", str);
+    } else {
+        ods_log_deeebug("[%s] %s: %s", rrset_str, pre?pre:"", str);
+    }
+    free((void*)str);
     return;
 }
 
@@ -162,7 +169,7 @@ rrset_recover(rrset_type* rrset, ldns_rr* rrsig, const char* locator,
     status = rrsigs_add_sig(rrset->rrsigs, rrsig, locator, flags);
     if (status != ODS_STATUS_OK) {
         ods_log_error("[%s] unable to recover RRSIG", rrset_str);
-        log_rr(rrsig, "+RRSIG", 1);
+        log_rr(rrsig, "+RRSIG", LOG_ERR);
     } else {
         rrset->rrsig_count += 1;
         /**
@@ -288,21 +295,21 @@ rrset_add_rr(rrset_type* rrset, ldns_rr* rr)
     if (!rrset->add->rr) {
         rrset->add->rr = rr;
         rrset->add_count = 1;
-        log_rr(rr, "+rr", 7);
+        log_rr(rr, "+rr", LOG_DEEEBUG);
     } else {
         status = util_dnssec_rrs_add_rr(rrset->add, rr);
         if (status != LDNS_STATUS_OK) {
             if (status == LDNS_STATUS_NO_DATA) {
                 ods_log_warning("[%s] unable to add RR to RRset (%i): "
                       "duplicate", rrset_str, rrset->rr_type);
-                log_rr(rr, "+rr", 2);
+                log_rr(rr, "+rr", LOG_WARNING);
                 /* filter out duplicates */
                 return rr;
             } else {
                 ods_log_error("[%s] unable to add RR to RRset (%i): %s",
                     rrset_str, rrset->rr_type,
                     ldns_get_errorstr_by_id(status));
-                log_rr(rr, "+rr", 1);
+                log_rr(rr, "+rr", LOG_ERR);
                 ldns_dnssec_rrs_deep_free(rrset->add);
                 rrset->add = NULL;
                 rrset->add_count = 0;
@@ -310,7 +317,7 @@ rrset_add_rr(rrset_type* rrset, ldns_rr* rr)
             }
         }
         rrset->add_count += 1;
-        log_rr(rr, "+rr", 7);
+        log_rr(rr, "+rr", LOG_DEEEBUG);
     }
     return rr;
 }
@@ -349,7 +356,7 @@ rrset_del_rr(rrset_type* rrset, ldns_rr* rr, int dupallowed)
     if (!rrset->del->rr) {
         rrset->del->rr = rr;
         rrset->del_count = 1;
-        log_rr(rr, "-rr", 7);
+        log_rr(rr, "-rr", LOG_DEEEBUG);
     } else {
         status = util_dnssec_rrs_add_rr(rrset->del, rr);
         if (status != LDNS_STATUS_OK) {
@@ -359,14 +366,14 @@ rrset_del_rr(rrset_type* rrset, ldns_rr* rr, int dupallowed)
                 }
                 ods_log_warning("[%s] unable to delete RR from RRset (%i): "
                     "duplicate", rrset_str, rrset->rr_type);
-                log_rr(rr, "-rr", 2);
+                log_rr(rr, "-rr", LOG_WARNING);
                 /* filter out duplicates */
                 return rr;
             } else {
                 ods_log_error("[%s] unable to delete RR from RRset (%i): %s",
                    rrset_str, rrset->rr_type,
                    ldns_get_errorstr_by_id(status));
-                log_rr(rr, "-rr", 1);
+                log_rr(rr, "-rr", LOG_ERR);
                 ldns_dnssec_rrs_deep_free(rrset->del);
                 rrset->del = NULL;
                 rrset->del_count = 0;
@@ -374,7 +381,7 @@ rrset_del_rr(rrset_type* rrset, ldns_rr* rr, int dupallowed)
             }
         }
         rrset->del_count += 1;
-        log_rr(rr, "-rr", 7);
+        log_rr(rr, "-rr", LOG_DEEEBUG);
     }
     return rr;
 }
@@ -568,7 +575,7 @@ rrset_commit_del(rrset_type* rrset, ldns_rr* rr)
 
             rrset->rr_count -= 1;
             rrset->del_count -= 1;
-            log_rr(rr, "-RR", 6);
+            log_rr(rr, "-RR", LOG_DEBUG);
             return ODS_STATUS_OK;
         }
 
@@ -578,7 +585,7 @@ rrset_commit_del(rrset_type* rrset, ldns_rr* rr)
     }
 
     ods_log_warning("[%s] unable to commit del RR: no such RR", rrset_str);
-    log_rr(rr, "-RR", 2);
+    log_rr(rr, "-RR", LOG_ERR);
     return ODS_STATUS_UNCHANGED;
 }
 
@@ -611,7 +618,7 @@ rrset_commit_add(rrset_type* rrset, ldns_rr* rr)
         rrset->rrs->rr = rr;
         rrset->rr_count += 1;
         rrset->add_count -= 1;
-        log_rr(rr, "+RR", 6);
+        log_rr(rr, "+RR", LOG_DEBUG);
         return ODS_STATUS_OK;
     } else {
         status = util_dnssec_rrs_add_rr(rrset->rrs, rr);
@@ -619,16 +626,16 @@ rrset_commit_add(rrset_type* rrset, ldns_rr* rr)
             if (status == LDNS_STATUS_NO_DATA) {
                 ods_log_warning("[%s] unable to commit add RR: duplicate",
                     rrset_str);
-                log_rr(rr, "+RR", 2);
+                log_rr(rr, "+RR", LOG_WARNING);
                 return ODS_STATUS_UNCHANGED;
             } else {
                 ods_log_error("[%s] unable to commit add RR: %s",
                     rrset_str, ldns_get_errorstr_by_id(status));
-                log_rr(rr, "+RR", 1);
+                log_rr(rr, "+RR", LOG_ERR);
                 return ODS_STATUS_ERR;
             }
         }
-        log_rr(rr, "+RR", 6);
+        log_rr(rr, "+RR", LOG_DEBUG);
         rrset->rr_count += 1;
         rrset->add_count -= 1;
         return ODS_STATUS_OK;
@@ -810,7 +817,7 @@ rrset_recycle(rrset_type* rrset, signconf_type* sc, time_t signtime)
             } else {
                 rrset->rrsigs = rrsigs->next;
             }
-            log_rr(rrsigs->rr, "-RRSIG", 6);
+            log_rr(rrsigs->rr, "-RRSIG", LOG_DEBUG);
             rrset->rrsig_count -= 1;
             rrsigs->next = NULL;
             rrsigs_cleanup(rrsigs);
@@ -820,7 +827,7 @@ rrset_recycle(rrset_type* rrset, signconf_type* sc, time_t signtime)
                 "(refresh=%u, signtime=%u, inception=%u, expiration=%u)",
                 rrset_str, rrset->rr_type, refresh, (uint32_t) signtime,
                 inception, expiration);
-            log_rr(rrsigs->rr, "*RRSIG", 7);
+            log_rr(rrsigs->rr, "*RRSIG", LOG_DEEEBUG);
             reusedsigs += 1;
             prev_rrsigs = rrsigs;
         }
@@ -1046,12 +1053,12 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, ldns_rdf* owner,
         /* add the signature to the set of new signatures */
         ods_log_deeebug("[%s] new signature created for RRset[%i]", rrset_str,
             rrset->rr_type);
-        log_rr(rrsig, "+rrsig", 7);
+        log_rr(rrsig, "+rrsig", LOG_DEEEBUG);
         status = rrsigs_add_sig(new_rrsigs, rrsig, key->locator, key->flags);
         if (status != ODS_STATUS_OK) {
             ods_log_error("[%s] unable to sign RRset[%i]: error adding RRSIG",
                 rrset_str, rrset->rr_type);
-                log_rr(rrsig, "+RRSIG", 1);
+                log_rr(rrsig, "+RRSIG", LOG_ERR);
                 ldns_rr_list_free(rr_list);
                 rrsigs_cleanup(new_rrsigs);
             return status;
@@ -1073,14 +1080,14 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, ldns_rdf* owner,
                 ods_log_error("[%s] unable to sign RRset[%i]: error adding "
                     "RRSIG to RRset[%i]", rrset_str, rrset->rr_type,
                     rrset->rr_type);
-                log_rr(walk_rrsigs->rr, "+RRSIG", 1);
+                log_rr(walk_rrsigs->rr, "+RRSIG", LOG_ERR);
                 ldns_rr_list_free(rr_list);
                 rrsigs_cleanup(new_rrsigs);
                 return status;
             }
             rrset->rrsig_count += 1;
             newsigs++;
-            log_rr(walk_rrsigs->rr, "+RRSIG", 6);
+            log_rr(walk_rrsigs->rr, "+RRSIG", LOG_DEBUG);
         }
         walk_rrsigs = walk_rrsigs->next;
     }
