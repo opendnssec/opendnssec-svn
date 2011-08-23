@@ -33,8 +33,6 @@
 
 #include "daemon/cmdhandler.h"
 #include "daemon/engine.h"
-#include "scheduler/schedule.h"
-#include "scheduler/task.h"
 #include "shared/allocator.h"
 #include "shared/file.h"
 #include "shared/locks.h"
