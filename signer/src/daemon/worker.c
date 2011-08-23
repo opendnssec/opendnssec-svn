@@ -62,17 +62,13 @@ worker_type*
 worker_create(allocator_type* allocator, int num, worker_id type)
 {
     worker_type* worker;
-
     if (!allocator) {
         return NULL;
     }
-    ods_log_assert(allocator);
-
     worker = (worker_type*) allocator_alloc(allocator, sizeof(worker_type));
     if (!worker) {
         return NULL;
     }
-
     ods_log_debug("create worker[%i]", num +1);
     lock_basic_init(&worker->worker_lock);
     lock_basic_set(&worker->worker_alarm);
@@ -144,13 +140,9 @@ worker_perform_task(worker_type* worker)
     time_t start = 0;
     time_t end = 0;
 
-    /* sanity checking */
     if (!worker || !worker->task || !worker->task->zone || !worker->engine) {
         return;
     }
-    ods_log_assert(worker);
-    ods_log_assert(worker->task);
-    ods_log_assert(worker->task->zone);
 
     engine = (engine_type*) worker->engine;
     task = (task_type*) worker->task;
@@ -504,7 +496,8 @@ task_perform_continue:
 static void
 worker_work(worker_type* worker)
 {
-    time_t now, timeout = 1;
+    time_t now = 0;
+    time_t timeout = 1;
     engine_type* engine = NULL;
     zone_type* zone = NULL;
     ods_status status = ODS_STATUS_OK;
@@ -517,47 +510,33 @@ worker_work(worker_type* worker)
         ods_log_debug("[%s[%i]] report for duty", worker2str(worker->type),
             worker->thread_num);
         lock_basic_lock(&engine->taskq->schedule_lock);
-        /* [LOCK] schedule */
         worker->task = schedule_pop_task(engine->taskq);
-        /* [UNLOCK] schedule */
         if (worker->task) {
             worker->working_with = worker->task->what;
             lock_basic_unlock(&engine->taskq->schedule_lock);
+            zone = (zone_type*) worker->task->zone;
 
-            zone = worker->task->zone;
             lock_basic_lock(&zone->zone_lock);
-            /* [LOCK] zone */
             ods_log_debug("[%s[%i]] start working on zone %s",
                 worker2str(worker->type), worker->thread_num, zone->name);
-
             worker->clock_in = time(NULL);
             worker_perform_task(worker);
-
             zone->task = worker->task;
-
             ods_log_debug("[%s[%i]] finished working on zone %s",
                 worker2str(worker->type), worker->thread_num, zone->name);
-            /* [UNLOCK] zone */
 
             lock_basic_lock(&engine->taskq->schedule_lock);
-            /* [LOCK] zone, schedule */
             worker->task = NULL;
             worker->working_with = TASK_NONE;
             status = schedule_task(engine->taskq, zone->task, 1);
-            /* [UNLOCK] zone, schedule */
             lock_basic_unlock(&engine->taskq->schedule_lock);
             lock_basic_unlock(&zone->zone_lock);
-
             timeout = 1;
         } else {
             ods_log_debug("[%s[%i]] nothing to do", worker2str(worker->type),
                 worker->thread_num);
-
-            /* [LOCK] schedule */
             worker->task = schedule_get_first_task(engine->taskq);
-            /* [UNLOCK] schedule */
             lock_basic_unlock(&engine->taskq->schedule_lock);
-
             now = time_now();
             if (worker->task && !engine->taskq->loading) {
                 timeout = (worker->task->when - now);
@@ -601,16 +580,14 @@ worker_drudge(worker_type* worker)
     }
 
     while (worker->need_to_exit == 0) {
-        ods_log_debug("[%s[%i]] report for duty", worker2str(worker->type),
+        ods_log_deeebug("[%s[%i]] report for duty", worker2str(worker->type),
             worker->thread_num);
         chief = NULL;
         zone = NULL;
         task = NULL;
 
         lock_basic_lock(&engine->signq->q_lock);
-        /* [LOCK] schedule */
         rrset = (rrset_type*) fifoq_pop(engine->signq, &chief);
-        /* [UNLOCK] schedule */
         lock_basic_unlock(&engine->signq->q_lock);
         if (rrset) {
             /* set up the work */
@@ -694,7 +671,7 @@ worker_start(worker_type* worker)
             break;
         default:
             ods_log_error("[worker] illegal worker (id=%i)", worker->type);
-            return;
+            break;
     }
     return;
 }
@@ -709,11 +686,9 @@ worker_sleep(worker_type* worker, time_t timeout)
 {
     ods_log_assert(worker);
     lock_basic_lock(&worker->worker_lock);
-    /* [LOCK] worker */
     worker->sleeping = 1;
     lock_basic_sleep(&worker->worker_alarm, &worker->worker_lock,
         timeout);
-    /* [UNLOCK] worker */
     lock_basic_unlock(&worker->worker_lock);
     return;
 }
@@ -728,18 +703,15 @@ worker_sleep_unless(worker_type* worker, time_t timeout)
 {
     ods_log_assert(worker);
     lock_basic_lock(&worker->worker_lock);
-    /* [LOCK] worker */
     while (!worker->need_to_exit && !worker_fulfilled(worker)) {
         worker->sleeping = 1;
         lock_basic_sleep(&worker->worker_alarm, &worker->worker_lock,
             timeout);
-
         ods_log_debug("[%s[%i]] somebody poked me, check completed jobs %u "
            "appointed, %u completed, %u failed", worker2str(worker->type),
            worker->thread_num, worker->jobs_appointed, worker->jobs_completed,
            worker->jobs_failed);
     }
-    /* [UNLOCK] worker */
     lock_basic_unlock(&worker->worker_lock);
     return;
 }
@@ -757,10 +729,8 @@ worker_wakeup(worker_type* worker)
         ods_log_debug("[%s[%i]] wake up", worker2str(worker->type),
            worker->thread_num);
         lock_basic_lock(&worker->worker_lock);
-        /* [LOCK] worker */
         lock_basic_alarm(&worker->worker_alarm);
         worker->sleeping = 0;
-        /* [UNLOCK] worker */
         lock_basic_unlock(&worker->worker_lock);
     }
     return;
@@ -775,9 +745,7 @@ void
 worker_wait(lock_basic_type* lock, cond_basic_type* condition)
 {
     lock_basic_lock(lock);
-    /* [LOCK] worker */
     lock_basic_sleep(condition, lock, 0);
-    /* [UNLOCK] worker */
     lock_basic_unlock(lock);
     return;
 }
@@ -791,9 +759,7 @@ void
 worker_notify(lock_basic_type* lock, cond_basic_type* condition)
 {
     lock_basic_lock(lock);
-    /* [LOCK] lock */
     lock_basic_alarm(condition);
-    /* [UNLOCK] lock */
     lock_basic_unlock(lock);
     return;
 }
@@ -807,9 +773,7 @@ void
 worker_notify_all(lock_basic_type* lock, cond_basic_type* condition)
 {
     lock_basic_lock(lock);
-    /* [LOCK] lock */
     lock_basic_broadcast(condition);
-    /* [UNLOCK] lock */
     lock_basic_unlock(lock);
     return;
 }
@@ -825,14 +789,12 @@ worker_cleanup(worker_type* worker)
     allocator_type* allocator;
     cond_basic_type worker_cond;
     lock_basic_type worker_lock;
-
     if (!worker) {
         return;
     }
     allocator = worker->allocator;
     worker_cond = worker->worker_alarm;
     worker_lock = worker->worker_lock;
-
     allocator_deallocate(allocator, (void*) worker);
     lock_basic_destroy(&worker_lock);
     lock_basic_off(&worker_cond);
