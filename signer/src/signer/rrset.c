@@ -100,7 +100,67 @@ log_rr(ldns_rr* rr, const char* pre, int level)
 
 
 /**
- * Create new RRset.
+ * Log RRset.
+ *
+ */
+void
+log_rrset(ldns_rdf* dname, ldns_rr_type type, const char* pre, int level)
+{
+    char* str = NULL;
+    size_t i = 0;
+
+    if (ods_log_get_level() < level) {
+        return;
+    }
+    str = ldns_rdf2str(dname);
+    if (!str) {
+        return;
+    }
+    str[(strlen(str))-1] = '\0';
+    /* replace tabs with white space */
+    for (i=0; i < strlen(str); i++) {
+        if (str[i] == '\t') {
+            str[i] = ' ';
+        }
+    }
+    if (level == LOG_EMERG) {
+        ods_fatal_exit("[%s] %s: <%s,%s>", rrset_str, pre?pre:"", str,
+            rrset_type2str(type));
+    } else if (level == LOG_ALERT) {
+        ods_log_alert("[%s] %s: <%s,%s>", rrset_str, pre?pre:"", str,
+            rrset_type2str(type));
+    } else if (level == LOG_CRIT) {
+        ods_log_crit("[%s] %s: <%s,%s>", rrset_str, pre?pre:"", str,
+            rrset_type2str(type));
+    } else if (level == LOG_ERR) {
+        ods_log_error("[%s] %s: <%s,%s>", rrset_str, pre?pre:"", str,
+            rrset_type2str(type));
+    } else if (level == LOG_WARNING) {
+        ods_log_warning("[%s] %s: <%s,%s>", rrset_str, pre?pre:"", str,
+            rrset_type2str(type));
+    } else if (level == LOG_NOTICE) {
+        ods_log_info("[%s] %s: <%s,%s>", rrset_str, pre?pre:"", str,
+            rrset_type2str(type));
+    } else if (level == LOG_INFO) {
+        ods_log_verbose("[%s] %s: <%s,%s>", rrset_str, pre?pre:"", str,
+            rrset_type2str(type));
+    } else if (level == LOG_DEBUG) {
+        ods_log_debug("[%s] %s: <%s,%s>", rrset_str, pre?pre:"", str,
+            rrset_type2str(type));
+    } else if (level == LOG_DEEEBUG) {
+        ods_log_deeebug("[%s] %s: <%s,%s>", rrset_str, pre?pre:"", str,
+            rrset_type2str(type));
+    } else {
+        ods_log_deeebug("[%s] %s: <%s,%s>", rrset_str, pre?pre:"", str,
+            rrset_type2str(type));
+    }
+    free((void*)str);
+    return;
+}
+
+
+/**
+ * Create RRset.
  *
  */
 rrset_type*
