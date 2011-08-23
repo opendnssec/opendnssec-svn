@@ -143,7 +143,7 @@ signconf_read(signconf_type* signconf, const char* scfile)
                 return ODS_STATUS_MALLOC_ERR;
             }
         }
-        signconf->keys = parse_sc_keys(signconf->allocator, scfile);
+        signconf->keys = parse_sc_keys((void*) signconf, scfile);
         signconf->dnskey_ttl = parse_sc_dnskey_ttl(scfile);
         signconf->soa_ttl = parse_sc_soa_ttl(scfile);
         signconf->soa_min = parse_sc_soa_min(scfile);
@@ -466,6 +466,7 @@ signconf_compare_keys(signconf_type* a, signconf_type* b, ldns_rr_list* del)
     key_type* kb = NULL;
     int remove = 0;
     int copy = 0;
+    uint16_t i = 0;
 
     if (!a || !b) {
        return TASK_NONE;
@@ -474,14 +475,12 @@ signconf_compare_keys(signconf_type* a, signconf_type* b, ldns_rr_list* del)
     ods_log_assert(b);
 
     /* keys deleted? */
-    if (a->keys) {
-        walk = a->keys->first_key;
-    }
-    while (walk && walk->locator) {
+    for (i=0; i < a->keys->count; i++) {
+        walk = &a->keys->keys[i];
         remove = 0;
         copy = 0;
 
-        kb = keylist_lookup(b->keys, walk->locator);
+        kb = keylist_lookup_by_locator(b->keys, walk->locator);
         if (!kb) {
             remove = 1; /* [DEL] key removed from signconf */
         } else {
@@ -530,17 +529,14 @@ signconf_compare_keys(signconf_type* a, signconf_type* b, ldns_rr_list* del)
                 break;
             }
         }
-        walk = walk->next;
     }
 
     if (new_task == TASK_NONE) {
         /* no error and no keys were deleted, perhaps keys were added */
         walk = NULL;
-        if (b->keys) {
-            walk = b->keys->first_key;
-        }
-        while (walk) {
-            ka = keylist_lookup(a->keys, walk->locator);
+        for (i=0; i < b->keys->count; i++) {
+            walk = &b->keys->keys[i];
+            ka = keylist_lookup_by_locator(a->keys, walk->locator);
             if (!ka) {
                 new_task = TASK_READ; /* [ADD] key added to signconf */
                 break;
@@ -549,7 +545,6 @@ signconf_compare_keys(signconf_type* a, signconf_type* b, ldns_rr_list* del)
              * Keys in ka and kb with the same locator, have been
              * compared when checking for deleted keys.
              */
-            walk = walk->next;
         }
     }
    return new_task;

@@ -871,7 +871,7 @@ rrset_recycle(rrset_type* rrset, signconf_type* sc, time_t signtime)
                 rrset->rr_type, inception, (uint32_t) signtime);
         } else {
             /* 3c. Corresponding key is dead (key is locator+flags) */
-            key = keylist_lookup(sc->keys, rrsigs->key_locator);
+            key = keylist_lookup_by_locator(sc->keys, rrsigs->key_locator);
             if (!key) {
                 drop_sig = 1;
                 ods_log_deeebug("[%s] refresh signature for RRset[%i]: "
@@ -1043,6 +1043,7 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, ldns_rdf* owner,
     key_type* key = NULL;
     time_t inception = 0;
     time_t expiration = 0;
+    uint16_t i = 0;
 
     if (!rrset) {
         ods_log_error("[%s] unable to sign RRset: no RRset", rrset_str);
@@ -1085,20 +1086,18 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, ldns_rdf* owner,
     }
     rrset_sigvalid_period(sc, rrset->rr_type, signtime,
          &inception, &expiration);
-
-    key = sc->keys->first_key;
-    while (key) {
+    /* Walk keys */
+    for (i=0; i < sc->keys->count; i++) {
+        key = &sc->keys->keys[i];
         /* ksk or zsk ? */
         if (!key->zsk && rrset->rr_type != LDNS_RR_TYPE_DNSKEY) {
             ods_log_deeebug("[%s] skipping key %s for signing RRset[%i]: no "
                 "active ZSK", rrset_str, key->locator, rrset->rr_type);
-            key = key->next;
             continue;
         }
         if (!key->ksk && rrset->rr_type == LDNS_RR_TYPE_DNSKEY) {
             ods_log_deeebug("[%s] skipping key %s for signing RRset[%i]: no "
                 "active KSK", rrset_str, key->locator, rrset->rr_type);
-            key = key->next;
             continue;
         }
 
@@ -1106,7 +1105,6 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, ldns_rdf* owner,
         if (rrset_signed_with_algorithm(rrset, key->algorithm)) {
             ods_log_deeebug("skipping key %s for signing: RRset[%i] "
                 "already has signature with same algorithm", key->locator);
-            key = key->next;
             continue;
         }
 
@@ -1140,7 +1138,6 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, ldns_rdf* owner,
             return status;
         }
         /* next key */
-        key = key->next;
     }
 
     /* signing completed, add the signatures to the right RRset */

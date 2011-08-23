@@ -33,10 +33,9 @@
 
 #include "parser/confparser.h"
 #include "parser/signconfparser.h"
-#include "shared/allocator.h"
 #include "shared/duration.h"
 #include "shared/log.h"
-#include "signer/keys.h"
+#include "signer/signconf.h"
 
 #include <libxml/parser.h>
 #include <libxml/xpath.h>
@@ -52,7 +51,7 @@ static const char* parser_str = "parser";
  *
  */
 keylist_type*
-parse_sc_keys(allocator_type* allocator, const char* cfgfile)
+parse_sc_keys(void* sc, const char* cfgfile)
 {
     xmlDocPtr doc = NULL;
     xmlXPathContextPtr xpathCtx = NULL;
@@ -66,7 +65,7 @@ parse_sc_keys(allocator_type* allocator, const char* cfgfile)
     char* algorithm = NULL;
     int ksk, zsk, publish, i;
 
-    if (!cfgfile) {
+    if (!cfgfile || !sc) {
         return NULL;
     }
     /* Load XML document */
@@ -95,7 +94,7 @@ parse_sc_keys(allocator_type* allocator, const char* cfgfile)
         return NULL;
     }
     /* Parse keys */
-    kl = keylist_create(allocator);
+    kl = keylist_create(sc);
     if (xpathObj->nodesetval && xpathObj->nodesetval->nodeNr > 0) {
         for (i = 0; i < xpathObj->nodesetval->nodeNr; i++) {
             locator = NULL;
@@ -123,10 +122,10 @@ parse_sc_keys(allocator_type* allocator, const char* cfgfile)
                 curNode = curNode->next;
             }
             if (locator && algorithm && flags) {
-                new_key = key_create(allocator, locator,
+                new_key = keylist_push(kl, locator,
                     (uint8_t) atoi(algorithm), (uint32_t) atoi(flags),
                     publish, ksk, zsk);
-                if (keylist_push(kl, new_key) != ODS_STATUS_OK) {
+                if (!new_key) {
                     ods_log_error("[%s] failed to push key %s to key list",
                         parser_str, locator);
                 }

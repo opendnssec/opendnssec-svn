@@ -44,11 +44,12 @@
 
 /**
  * Parse keys from the signer configuration file.
+ * \param[in] sc signer configuration reference
  * \param[in] cfgfile the configuration file name.
  * \return keylist_type* key list
  *
  */
-keylist_type* parse_sc_keys(allocator_type* allocator, const char* cfgfile);
+keylist_type* parse_sc_keys(void* sc, const char* cfgfile);
 
 /**
  * Parse elements from the configuration file.

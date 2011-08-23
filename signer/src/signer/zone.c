@@ -274,6 +274,7 @@ zone_publish_dnskeys(zone_type* zone, int recover)
     ods_status status = ODS_STATUS_OK;
     ldns_rr* dnskey = NULL;
     int do_publish = 0;
+    uint16_t i = 0;
 
     if (!zone) {
         ods_log_error("[%s] unable to publish dnskeys: no zone", zone_str);
@@ -314,8 +315,8 @@ zone_publish_dnskeys(zone_type* zone, int recover)
         return ODS_STATUS_HSM_ERR;
     }
 
-    key = zone->signconf->keys->first_key;
     for (count=0; count < zone->signconf->keys->count; count++) {
+        key = &zone->signconf->keys->keys[i];
         if (key->publish) {
             do_publish = 0;
             if (!key->dnskey) {
@@ -352,7 +353,6 @@ zone_publish_dnskeys(zone_type* zone, int recover)
                 break;
             }
         }
-        key = key->next;
     }
 
     if (status != ODS_STATUS_OK) {
@@ -1043,12 +1043,11 @@ zone_recover(zone_type* zone)
             }
         }
         /* keys part */
-        zone->signconf->keys = keylist_create(zone->signconf->allocator);
+        zone->signconf->keys = keylist_create((void*) zone->signconf);
         while (backup_read_str(fd, &token)) {
             if (ods_strcmp(token, ";;Key:") == 0) {
-                key = key_recover(fd, zone->signconf->allocator);
-                if (!key || keylist_push(zone->signconf->keys, key) !=
-                    ODS_STATUS_OK) {
+                key = key_recover(fd, zone->signconf->keys);
+                if (!key) {
                     goto recover_error;
                 }
                 key = NULL;
