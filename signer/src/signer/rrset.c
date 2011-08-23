@@ -160,6 +160,22 @@ log_rrset(ldns_rdf* dname, ldns_rr_type type, const char* pre, int level)
 
 
 /**
+ * Get the string-format of RRtype.
+ *
+ */
+const char*
+rrset_type2str(ldns_rr_type type)
+{
+    const ldns_rr_descriptor* descriptor;
+    descriptor = ldns_rr_descript(type);
+    if (descriptor && descriptor->_name) {
+        return descriptor->_name;
+    }
+    return "TYPE???";
+}
+
+
+/**
  * Create RRset.
  *
  */

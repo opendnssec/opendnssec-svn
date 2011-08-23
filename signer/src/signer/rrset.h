@@ -87,6 +87,14 @@ void log_rr(ldns_rr* rr, const char* pre, int level);
 void log_rrset(ldns_rdf* dname, ldns_rr_type type, const char* pre, int level);
 
 /**
+ * Get the string-format of RRtype.
+ * \param[in] type RRtype
+ * \return const char* string-format of RRtype
+ *
+ */
+const char* rrset_type2str(ldns_rr_type type);
+
+/**
  * Create new RRset.
  * \param[in] rrtype RRtype
  * \return rrset_type* new RRset
