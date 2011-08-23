@@ -69,6 +69,20 @@ static char* cmdh_str = "cmdhandler";
 
 
 /**
+ * Handle not implemented.
+ *
+static void
+cmdhandler_handle_cmd_notimpl(int sockfd, const char* str)
+{
+    char buf[ODS_SE_MAXLINE];
+    (void)snprintf(buf, ODS_SE_MAXLINE, "Command %s not implemented.\n", str);
+    ods_writen(sockfd, buf, strlen(buf));
+    return;
+}
+ */
+
+
+/**
  * Handle the 'help' command.
  *
  */
@@ -239,14 +253,13 @@ cmdhandler_handle_cmd_update(int sockfd, cmdhandler_type* cmdc,
         lock_basic_unlock(&zone->zone_lock);
 
         if (status != ODS_STATUS_OK) {
-            ods_log_crit("[%s] cannot schedule task for zone %s: %s",
+            ods_log_crit("[%s] unable to schedule task for zone %s: %s",
                 cmdh_str, zone->name, ods_status2str(status));
             task_cleanup(task);
             zone->task = NULL;
         } else {
             engine_wakeup_workers(cmdc->engine);
         }
-
         (void)snprintf(buf, ODS_SE_MAXLINE, "Zone %s config being updated.\n",
             tbd);
         ods_writen(sockfd, buf, strlen(buf));
@@ -642,20 +655,6 @@ cmdhandler_handle_cmd_unknown(int sockfd, const char* str)
 
 
 /**
- * Handle not implemented.
- *
-static void
-cmdhandler_handle_cmd_notimpl(int sockfd, const char* str)
-{
-    char buf[ODS_SE_MAXLINE];
-    (void)snprintf(buf, ODS_SE_MAXLINE, "Command %s not implemented.\n", str);
-    ods_writen(sockfd, buf, strlen(buf));
-    return;
-}
- */
-
-
-/**
  * Handle client command.
  *
  */
@@ -801,35 +800,29 @@ cmdhandler_create(allocator_type* allocator, const char* filename)
     int flags = 0;
     int ret = 0;
 
-    if (!allocator) {
-        ods_log_error("[%s] unable to create: no allocator", cmdh_str);
+    if (!allocator || !filename) {
         return NULL;
     }
-    if (!filename) {
-        ods_log_error("[%s] unable to create: no socket filename", cmdh_str);
-        return NULL;
-    }
-    ods_log_debug("[%s] create socket %s", cmdh_str, filename);
-
     /* new socket */
+    ods_log_debug("[%s] create socket %s", cmdh_str, filename);
     listenfd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (listenfd <= 0) {
-        ods_log_error("[%s] unable to create, socket() failed: %s", cmdh_str,
-            strerror(errno));
+        ods_log_error("[%s] unable to create cmdhandler: "
+            "socket() failed (%s)", cmdh_str, strerror(errno));
         return NULL;
     }
     /* set it to non-blocking */
     flags = fcntl(listenfd, F_GETFL, 0);
     if (flags < 0) {
-        ods_log_error("[%s] unable to create, fcntl(F_GETFL) failed: %s",
-            cmdh_str, strerror(errno));
+        ods_log_error("[%s] unable to create cmdhandler: "
+            "fcntl(F_GETFL) failed (%s)", cmdh_str, strerror(errno));
         close(listenfd);
         return NULL;
     }
     flags |= O_NONBLOCK;
     if (fcntl(listenfd, F_SETFL, flags) < 0) {
-        ods_log_error("[%s] unable to create, fcntl(F_SETFL) failed: %s",
-            cmdh_str, strerror(errno));
+        ods_log_error("[%s] unable to create cmdhandler: "
+            "fcntl(F_SETFL) failed (%s)", cmdh_str, strerror(errno));
         close(listenfd);
         return NULL;
     }
@@ -844,23 +837,24 @@ cmdhandler_create(allocator_type* allocator, const char* filename)
     ret = bind(listenfd, (const struct sockaddr*) &servaddr,
         SUN_LEN(&servaddr));
     if (ret != 0) {
-        ods_log_error("[%s] unable to create, bind() failed: %s", cmdh_str,
-            strerror(errno));
+        ods_log_error("[%s] unable to create cmdhandler: "
+            "bind() failed (%s)", cmdh_str, strerror(errno));
         close(listenfd);
         return NULL;
     }
     ret = listen(listenfd, ODS_SE_MAX_HANDLERS);
     if (ret != 0) {
-        ods_log_error("[%s] unable to create, listen() failed: %s", cmdh_str,
-            strerror(errno));
+        ods_log_error("[%s] unable to create cmdhandler: "
+            "listen() failed (%s)", cmdh_str, strerror(errno));
         close(listenfd);
         return NULL;
     }
-
     /* all ok */
     cmdh = (cmdhandler_type*) allocator_alloc(allocator,
         sizeof(cmdhandler_type));
     if (!cmdh) {
+        ods_log_error("[%s] unable to create cmdhandler: "
+            "allocator_alloc() failed", cmdh_str);
         close(listenfd);
         return NULL;
     }
