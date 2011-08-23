@@ -49,6 +49,14 @@
 
 struct schedule_struct;
 
+enum zone_zl_status_enum {
+    ZONE_ZL_OK = 0,
+    ZONE_ZL_ADDED,
+    ZONE_ZL_UPDATED,
+    ZONE_ZL_REMOVED
+};
+typedef enum zone_zl_status_enum zone_zl_status;
+
 /**
  * Zone.
  *
@@ -68,9 +76,7 @@ struct zone_struct {
     const char* name; /* string format zone name */
     const char* policy_name; /* policy identifier */
     const char* signconf_filename; /* signconf filename */
-    int just_added;
-    int just_updated;
-    int tobe_removed;
+    zone_zl_status zl_status; /* zonelist status */
     int processed;
     int prepared;
 

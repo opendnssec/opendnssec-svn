@@ -64,28 +64,21 @@ zone_create(char* name, ldns_rr_class klass)
     zone_type* zone = NULL;
 
     if (!name || !klass) {
-        ods_log_error("[%s] unable to create zone: no name or class",
-            zone_str);
         return NULL;
     }
-
     allocator = allocator_create(malloc, free);
     if (!allocator) {
-        ods_log_error("[%s] unable to create zone %s: create allocator "
+        ods_log_error("[%s] unable to create zone %s: allocator_create() "
             "failed", zone_str, name);
         return NULL;
     }
-    ods_log_assert(allocator);
-
     zone = (zone_type*) allocator_alloc(allocator, sizeof(zone_type));
     if (!zone) {
-        ods_log_error("[%s] unable to create zone %s: allocator failed",
-            zone_str, name);
+        ods_log_error("[%s] unable to create zone %s: allocator_alloc()",
+            "failed", zone_str, name);
         allocator_cleanup(allocator);
         return NULL;
     }
-    ods_log_assert(zone);
-
     zone->allocator = allocator;
     /* [start] PS 9218653: Drop trailing dot in domain name */
     if (strlen(name) > 1 && name[strlen(name)-1] == '.') {
@@ -105,9 +98,7 @@ zone_create(char* name, ldns_rr_class klass)
     zone->adinbound = NULL;
     zone->adoutbound = NULL;
     zone->nsec3params = NULL;
-    zone->just_added = 0;
-    zone->just_updated = 0;
-    zone->tobe_removed = 0;
+    zone->zl_status = ZONE_ZL_OK;
     zone->processed = 0;
     zone->prepared = 0;
     zone->fetch = 0;
@@ -1052,7 +1043,6 @@ zone_merge(zone_type* z1, zone_type* z2)
     if (!z1 || !z2) {
         return;
     }
-
     /* policy name */
     if (ods_strcmp(z2->policy_name, z1->policy_name) != 0) {
         if (z2->policy_name) {
@@ -1063,15 +1053,14 @@ zone_merge(zone_type* z1, zone_type* z2)
             } else {
                 free((void*)z1->policy_name);
                 z1->policy_name = str;
-                z1->just_updated = 1;
+                z1->zl_status = ZONE_ZL_UPDATED;
             }
         } else {
             free((void*)z1->policy_name);
             z1->policy_name = NULL;
-            z1->just_updated = 1;
+            z1->zl_status = ZONE_ZL_UPDATED;
         }
     }
-
     /* signconf filename */
     if (ods_strcmp(z2->signconf_filename, z1->signconf_filename) != 0) {
         if (z2->signconf_filename) {
@@ -1082,15 +1071,14 @@ zone_merge(zone_type* z1, zone_type* z2)
             } else {
                 free((void*)z1->signconf_filename);
                 z1->signconf_filename = str;
-                z1->just_updated = 1;
+                z1->zl_status = ZONE_ZL_UPDATED;
             }
         } else {
             free((void*)z1->signconf_filename);
             z1->signconf_filename = NULL;
-            z1->just_updated = 1;
+            z1->zl_status = ZONE_ZL_UPDATED;
         }
     }
-
     /* adapters */
     if (adapter_compare(z2->adinbound, z1->adinbound) != 0) {
         adtmp = z2->adinbound;
@@ -1225,14 +1213,11 @@ zone_cleanup(zone_type* zone)
 {
     allocator_type* allocator;
     lock_basic_type zone_lock;
-
     if (!zone) {
         return;
     }
-
     allocator = zone->allocator;
     zone_lock = zone->zone_lock;
-
     ldns_rdf_deep_free(zone->apex);
     adapter_cleanup(zone->adinbound);
     adapter_cleanup(zone->adoutbound);
