@@ -165,6 +165,7 @@ parse_zonelist_zones(void* zlist, const char* zlfile)
     char* zone_name = NULL;
     zone_type* new_zone = NULL;
     int ret = 0;
+    int error = 0;
     xmlTextReaderPtr reader = NULL;
     xmlDocPtr doc = NULL;
     xmlXPathContextPtr xpathCtx = NULL;
@@ -172,20 +173,13 @@ parse_zonelist_zones(void* zlist, const char* zlfile)
     xmlChar* policy_expr = (unsigned char*) "//Zone/Policy";
     xmlChar* signconf_expr = (unsigned char*) "//Zone/SignerConfiguration";
 
-    if (!zlist) {
-        ods_log_error("[%s] unable to parse zone list: no storage",
-            parser_str);
+    if (!zlist || !zlfile) {
         return ODS_STATUS_ASSERT_ERR;
     }
-    if (!zlfile) {
-        ods_log_error("[%s] unable to parse zone list: no filename",
-            parser_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
-
     reader = xmlNewTextReaderFilename(zlfile);
     if (!reader) {
-        ods_log_error("[%s] unable to open file %s", parser_str, zlfile);
+        ods_log_error("[%s] unable to parse zonelist: failed to open file %s",
+            parser_str, zlfile);
         return ODS_STATUS_XML_ERR;
     }
     ret = xmlTextReaderRead(reader);
@@ -199,7 +193,7 @@ parse_zonelist_zones(void* zlist, const char* zlfile)
                 name_expr);
             if (!zone_name || strlen(zone_name) <= 0) {
                 ods_log_alert("[%s] unable to extract zone name from "
-                    "zonelist", parser_str);
+                    "zonelist %s, skipping...", parser_str, zlfile);
                 if (zone_name) {
                     free((void*) zone_name);
                 }
@@ -232,16 +226,31 @@ parse_zonelist_zones(void* zlist, const char* zlfile)
             new_zone->signconf_filename = parse_zonelist_element(xpathCtx,
                 signconf_expr);
             parse_zonelist_adapters(xpathCtx, new_zone);
-
-            /* ...and add it to the list */
-            if (zonelist_add_zone((zonelist_type*) zlist, new_zone) == NULL) {
-                ods_log_error("[%s] unable to add zone %s", parser_str,
-                    zone_name);
+            if (!new_zone->policy_name || !new_zone->signconf_filename ||
+                !new_zone->adinbound || !new_zone->adoutbound) {
+                zone_cleanup(new_zone);
                 new_zone = NULL;
+                ods_log_crit("[%s] unable to create zone %s", parser_str,
+                    zone_name);
+                error = 1;
+            } else if (zonelist_add_zone((zonelist_type*) zlist, new_zone)
+                == NULL) {
+                ods_log_crit("[%s] unable to add zone %s", parser_str,
+                    zone_name);
+                 zone_cleanup(new_zone);
+                 new_zone = NULL;
+                 error = 1;
+            }
+            xmlXPathFreeContext(xpathCtx);
+            xpathCtx = NULL;
+            free((void*) zone_name);
+            if (error) {
+                free((void*) tag_name);
+                tag_name = NULL;
+                ret = 1;
+                break;
             }
             ods_log_debug("[%s] zone %s added", parser_str, zone_name);
-            free((void*) zone_name);
-            xmlXPathFreeContext(xpathCtx);
         }
         free((void*) tag_name);
         ret = xmlTextReaderRead(reader);
@@ -253,7 +262,8 @@ parse_zonelist_zones(void* zlist, const char* zlfile)
         xmlFreeDoc(doc);
     }
     if (ret != 0) {
-        ods_log_error("[%s] error parsing file %s", parser_str, zlfile);
+        ods_log_error("[%s] unable to parse zonelist: parse error in %s",
+            parser_str, zlfile);
         return ODS_STATUS_PARSE_ERR;
     }
     return ODS_STATUS_OK;

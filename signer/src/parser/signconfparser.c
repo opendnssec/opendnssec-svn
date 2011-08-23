@@ -67,16 +67,12 @@ parse_sc_keys(allocator_type* allocator, const char* cfgfile)
     int ksk, zsk, publish, i;
 
     if (!cfgfile) {
-        ods_log_error("[%s] could not parse <Keys>, no cfgfile given",
-            parser_str);
         return NULL;
     }
-    ods_log_assert(cfgfile);
-
     /* Load XML document */
     doc = xmlParseFile(cfgfile);
     if (doc == NULL) {
-        ods_log_error("[%s] could not parse <Keys>, xmlParseFile failed",
+        ods_log_error("[%s] could not parse <Keys>: xmlParseFile failed",
             parser_str);
         return NULL;
     }
@@ -84,7 +80,7 @@ parse_sc_keys(allocator_type* allocator, const char* cfgfile)
     xpathCtx = xmlXPathNewContext(doc);
     if(xpathCtx == NULL) {
         xmlFreeDoc(doc);
-        ods_log_error("[%s] could not parse <Keys>, xmlXPathNewContext failed",
+        ods_log_error("[%s] could not parse <Keys>: xmlXPathNewContext failed",
             parser_str);
         return NULL;
     }
@@ -94,11 +90,11 @@ parse_sc_keys(allocator_type* allocator, const char* cfgfile)
     if(xpathObj == NULL) {
         xmlXPathFreeContext(xpathCtx);
         xmlFreeDoc(doc);
-        ods_log_error("[%s] could not parse <Keys>, xmlXPathEvalExpression "
+        ods_log_error("[%s] could not parse <Keys>: xmlXPathEvalExpression "
             "failed", parser_str);
         return NULL;
     }
-
+    /* Parse keys */
     kl = keylist_create(allocator);
     if (xpathObj->nodesetval && xpathObj->nodesetval->nodeNr > 0) {
         for (i = 0; i < xpathObj->nodesetval->nodeNr; i++) {
