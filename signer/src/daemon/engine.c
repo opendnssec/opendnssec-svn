@@ -820,7 +820,7 @@ engine_update_zones(engine_type* engine)
                 set_notify_ns(zone, engine->config->notify_command);
             }
             /* schedule task */
-            task = task_create(TASK_SIGNCONF, now, zone->name, zone);
+            task = task_create(TASK_SIGNCONF, now, zone);
             if (!task) {
                 ods_log_crit("[%s] failed to create task for zone %s",
                     engine_str, zone->name);
@@ -845,6 +845,7 @@ engine_update_zones(engine_type* engine)
                     zone->name);
                 if (task->what != TASK_SIGNCONF) {
                     task->halted = task->what;
+                    task->halted_when = task->when;
                     task->interrupt = TASK_SIGNCONF;
                 }
                 task->what = TASK_SIGNCONF;
@@ -856,7 +857,7 @@ engine_update_zones(engine_type* engine)
                     "signconf as soon as possible", engine_str, zone->name);
                 task = (task_type*) zone->task;
                 task->interrupt = TASK_SIGNCONF;
-                /* task->halted set by worker */
+                /* task->halted(_when) set by worker */
             }
             lock_basic_unlock(&engine->taskq->schedule_lock);
             lock_basic_unlock(&zone->zone_lock);

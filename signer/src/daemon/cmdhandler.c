@@ -232,6 +232,7 @@ cmdhandler_handle_cmd_update(int sockfd, cmdhandler_type* cmdc,
                 zone->name);
             if (task->what != TASK_SIGNCONF) {
                 task->halted = task->what;
+                task->halted_when = task->when;
                 task->interrupt = TASK_SIGNCONF;
             }
             task->what = TASK_SIGNCONF;
@@ -243,7 +244,7 @@ cmdhandler_handle_cmd_update(int sockfd, cmdhandler_type* cmdc,
                 "signconf as soon as possible", cmdh_str, zone->name);
             task = (task_type*) zone->task;
             task->interrupt = TASK_SIGNCONF;
-            /* task->halted set by worker */
+            /* task->halted(_when) set by worker */
         }
         lock_basic_unlock(&cmdc->engine->taskq->schedule_lock);
 
@@ -321,6 +322,7 @@ cmdhandler_handle_cmd_sign(int sockfd, cmdhandler_type* cmdc, const char* tbd)
                 zone->name);
             if (task->what != TASK_READ) {
                 task->halted = task->what;
+                task->halted_when = task->when;
                 task->interrupt = TASK_READ;
             }
             task->what = TASK_READ;
@@ -332,7 +334,7 @@ cmdhandler_handle_cmd_sign(int sockfd, cmdhandler_type* cmdc, const char* tbd)
                 "zone input as soon as possible", cmdh_str, zone->name);
             task = (task_type*) zone->task;
             task->interrupt = TASK_READ;
-            /* task->halted set by worker */
+            /* task->halted(_when) set by worker */
         }
         lock_basic_unlock(&cmdc->engine->taskq->schedule_lock);
 
@@ -490,7 +492,7 @@ cmdhandler_handle_cmd_queue(int sockfd, cmdhandler_type* cmdc)
             (void)snprintf(buf, ODS_SE_MAXLINE, "Working with task %s on "
                 "zone %s\n",
                 task_what2str(cmdc->engine->workers[i]->working_with),
-                task_who2str(task->who));
+                task_who2str(task));
             ods_writen(sockfd, buf, strlen(buf));
         }
     }
