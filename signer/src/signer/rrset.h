@@ -52,10 +52,39 @@
 #define COUNT_ADD 1
 #define COUNT_DEL 2
 
+/**
+ * RRSIG.
+ *
+ */
+typedef struct rrsig_struct rrsig_type;
+struct rrsig_struct {
+    ldns_rr* rr;
+    void* owner;
+    const char* key_locator;
+    uint32_t key_flags;
+};
+
+/**
+ * RR.
+ *
+ */
+typedef struct rr_struct rr_type;
+struct rr_struct {
+    ldns_rr* rr;
+    void* owner;
+    unsigned exists : 1;
+    unsigned is_added : 1;
+    unsigned is_removed : 1;
+};
+
+/**
+ * RRset.
+ *
+ */
 typedef struct rrset_struct rrset_type;
 struct rrset_struct {
-    allocator_type* allocator;
-    ldns_rr_type rr_type;
+    void* zone;
+    ldns_rr_type rrtype;
     uint32_t rr_count;
     uint32_t add_count;
     uint32_t del_count;
@@ -95,12 +124,13 @@ void log_rrset(ldns_rdf* dname, ldns_rr_type type, const char* pre, int level);
 const char* rrset_type2str(ldns_rr_type type);
 
 /**
- * Create new RRset.
- * \param[in] rrtype RRtype
- * \return rrset_type* new RRset
+ * Create RRset.
+ * \param[in] zoneptr zone reference
+ * \param[in] type RRtype
+ * \return rrset_type* RRset
  *
  */
-rrset_type* rrset_create(ldns_rr_type rrtype);
+rrset_type* rrset_create(void* zoneptr, ldns_rr_type type);
 
 /**
  * Recover RRSIG from backup.

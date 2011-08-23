@@ -168,7 +168,7 @@ cmdhandler_handle_cmd_update(int sockfd, cmdhandler_type* cmdc,
     ods_status status = ODS_STATUS_OK;
     zone_type* zone = NULL;
     task_type* task = NULL;
-    int zl_changed = 0;
+    ods_status zl_changed = ODS_STATUS_OK;
     ods_log_assert(tbd);
     ods_log_assert(cmdc);
     ods_log_assert(cmdc->engine);

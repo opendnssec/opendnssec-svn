@@ -38,8 +38,10 @@
 #include "shared/status.h"
 #include "shared/util.h"
 #include "signer/backup.h"
+#include "signer/denial.h"
 #include "signer/domain.h"
 #include "signer/rrset.h"
+#include "signer/zone.h"
 
 #include <ldns/ldns.h>
 
@@ -101,48 +103,36 @@ rrset_compare(const void* a, const void* b)
 
 
 /**
- * Create empty domain.
+ * Create domain.
  *
  */
 domain_type*
-domain_create(ldns_rdf* dname)
+domain_create(void* zoneptr, ldns_rdf* dname)
 {
-    allocator_type* allocator = NULL;
     domain_type* domain = NULL;
-    char* str = NULL;
+    zone_type* zone = (zone_type*) zoneptr;
 
-    if (!dname) {
-        ods_log_error("[%s] unable to create domain: no dname", dname_str);
+    if (!dname || !zoneptr) {
         return NULL;
     }
-    ods_log_assert(dname);
-
-    allocator = allocator_create(malloc, free);
-    if (!allocator) {
-        str = ldns_rdf2str(dname);
-        ods_log_error("[%s] unable to create domain %s: create allocator "
-            "failed", dname_str, str?str:"(null)");
-        free((void*)str);
-        return NULL;
-    }
-    ods_log_assert(allocator);
-
-    domain = (domain_type*) allocator_alloc(allocator, sizeof(domain_type));
+    domain = (domain_type*) allocator_alloc(
+        zone->allocator, sizeof(domain_type));
     if (!domain) {
-        str = ldns_rdf2str(dname);
-        ods_log_error("[%s] unable to create domain %s: allocator failed",
-            dname_str, str);
-        free(str);
-        allocator_cleanup(allocator);
+        ods_log_error("[%s] unable to create domain: allocator_alloc() "
+            "failed", dname_str);
         return NULL;
     }
-    ods_log_assert(domain);
-
-    domain->allocator = allocator;
     domain->dname = ldns_rdf_clone(dname);
+    if (!domain->dname) {
+        ods_log_error("[%s] unable to create domain: ldns_rdf_clone() "
+            "failed", dname_str);
+        allocator_deallocate(zone->allocator, domain);
+        return NULL;
+    }
+    domain->zone = zoneptr;
+    domain->denial = NULL; /* no reference yet */
     domain->dstatus = DOMAIN_STATUS_NONE;
     domain->parent = NULL;
-    domain->denial = NULL;
     domain->rrsets = ldns_rbtree_create(rrset_compare);
     return domain;
 }
@@ -160,6 +150,7 @@ domain_recover(domain_type* domain, FILE* fd, domain_status dstatus)
     uint32_t flags = 0;
     ldns_rr* rr = NULL;
     rrset_type* rrset = NULL;
+    denial_type* denial = NULL;
     ldns_status lstatus = LDNS_STATUS_OK;
     ldns_rr_type type_covered = LDNS_RR_TYPE_FIRST;
 
@@ -225,22 +216,24 @@ domain_recover(domain_type* domain, FILE* fd, domain_status dstatus)
 
             /* recover denial structure */
             ods_log_assert(!domain->denial);
-            domain->denial = denial_create(ldns_rr_owner(rr));
-            ods_log_assert(domain->denial);
-            domain->denial->domain = domain; /* back reference */
+            denial = denial_create(domain->zone, ldns_rr_owner(rr));
+            ods_log_assert(denial);
+            denial->domain = (void*) domain; /* back reference */
+            domain->denial = (void*) denial;
             /* add the NSEC(3) rr */
-            if (!domain->denial->rrset) {
-                domain->denial->rrset = rrset_create(ldns_rr_get_type(rr));
+            if (!denial->rrset) {
+                denial->rrset = rrset_create(domain->zone,
+                    ldns_rr_get_type(rr));
             }
-            ods_log_assert(domain->denial->rrset);
+            ods_log_assert(denial->rrset);
 
-            if (!rrset_add_rr(domain->denial->rrset, rr)) {
+            if (!rrset_add_rr(denial->rrset, rr)) {
                 ods_log_error("[%s] unable to recover denial", dname_str);
                 ldns_rr_free(rr);
                 goto recover_dname_error;
             }
             /* commit */
-            if (rrset_commit(domain->denial->rrset) != ODS_STATUS_OK) {
+            if (rrset_commit(denial->rrset) != ODS_STATUS_OK) {
                 ods_log_error("[%s] unable to recover denial", dname_str);
                 goto recover_dname_error;
             }
@@ -270,14 +263,14 @@ domain_recover(domain_type* domain, FILE* fd, domain_status dstatus)
                 ldns_rr_free(rr);
                 goto recover_dname_error;
             }
-            if (!domain->denial->rrset) {
+            if (!denial->rrset) {
                 ods_log_error("[%s] signature type not covered (denial)",
                     dname_str);
                 ldns_rr_free(rr);
                 goto recover_dname_error;
             }
-            ods_log_assert(domain->denial->rrset);
-            if (rrset_recover(domain->denial->rrset, rr, locator, flags) !=
+            ods_log_assert(denial->rrset);
+            if (rrset_recover(denial->rrset, rr, locator, flags) !=
                 ODS_STATUS_OK) {
                 ods_log_error("[%s] unable to recover signature (denial)",
                     dname_str);
@@ -325,7 +318,7 @@ rrset2node(rrset_type* rrset)
     if (!node) {
         return NULL;
     }
-    node->key = (const void*) &(rrset->rr_type);
+    node->key = (const void*) &(rrset->rrtype);
     node->data = rrset;
     return node;
 }
@@ -421,10 +414,10 @@ domain_del_rrset(domain_type* domain, rrset_type* rrset)
     ods_log_assert(domain->rrsets);
 
     del_node = ldns_rbtree_search(domain->rrsets,
-        (const void*) &(rrset->rr_type));
+        (const void*) &(rrset->rrtype));
     if (del_node) {
         del_node = ldns_rbtree_delete(domain->rrsets,
-            (const void*) &(rrset->rr_type));
+            (const void*) &(rrset->rrtype));
         del_rrset = (rrset_type*) del_node->data;
         rrset_cleanup(del_rrset);
         free((void*)del_node);
@@ -483,7 +476,7 @@ domain_diff(domain_type* domain, keylist_type* kl)
     while (node && node != LDNS_RBTREE_NULL) {
         rrset = (rrset_type*) node->data;
         /* special cases */
-        if (rrset->rr_type == LDNS_RR_TYPE_NSEC3PARAMS) {
+        if (rrset->rrtype == LDNS_RR_TYPE_NSEC3PARAMS) {
             node = ldns_rbtree_next(node);
             continue;
         }
@@ -522,12 +515,12 @@ domain_examine_data_exists(domain_type* domain, ldns_rr_type rrtype,
         if (rrset_count_RR(rrset) > 0) {
             if (rrtype) {
                 /* looking for a specific RRset */
-                if (rrset->rr_type == rrtype) {
+                if (rrset->rrtype == rrtype) {
                     return 1;
                 }
             } else if (!skip_glue ||
-                (rrset->rr_type != LDNS_RR_TYPE_A &&
-                 rrset->rr_type != LDNS_RR_TYPE_AAAA)) {
+                (rrset->rrtype != LDNS_RR_TYPE_A &&
+                 rrset->rrtype != LDNS_RR_TYPE_AAAA)) {
                 /* not glue or not skipping glue */
                 return 1;
             }
@@ -573,7 +566,7 @@ domain_examine_rrset_is_alone(domain_type* domain, ldns_rr_type rrtype)
         }
         while (node && node != LDNS_RBTREE_NULL) {
             rrset = (rrset_type*) node->data;
-            if (rrset->rr_type != rrtype && rrset_count_RR(rrset) > 0) {
+            if (rrset->rrtype != rrtype && rrset_count_RR(rrset) > 0) {
                 /* found other data next to rrtype */
                 str_name = ldns_rdf2str(domain->dname);
                 str_type = ldns_rr_type2str(rrtype);
@@ -631,17 +624,17 @@ domain_examine_valid_zonecut(domain_type* domain)
         }
         while (node && node != LDNS_RBTREE_NULL) {
             rrset = (rrset_type*) node->data;
-            if (rrset->rr_type != LDNS_RR_TYPE_DS &&
-                rrset->rr_type != LDNS_RR_TYPE_NS &&
-                rrset->rr_type != LDNS_RR_TYPE_A &&
-                rrset->rr_type != LDNS_RR_TYPE_AAAA &&
+            if (rrset->rrtype != LDNS_RR_TYPE_DS &&
+                rrset->rrtype != LDNS_RR_TYPE_NS &&
+                rrset->rrtype != LDNS_RR_TYPE_A &&
+                rrset->rrtype != LDNS_RR_TYPE_AAAA &&
                 rrset_count_RR(rrset) > 0) {
                 /* found occluded data next to delegation */
                 ods_log_error("[%s] occluded glue data at zonecut, RRtype=%u",
-                    dname_str, rrset->rr_type);
+                    dname_str, rrset->rrtype);
                 return 0;
-            } else if (rrset->rr_type == LDNS_RR_TYPE_A ||
-                rrset->rr_type == LDNS_RR_TYPE_AAAA) {
+            } else if (rrset->rrtype == LDNS_RR_TYPE_A ||
+                rrset->rrtype == LDNS_RR_TYPE_AAAA) {
                 /* check if glue is allowed at the delegation */
 /* TODO: allow for now (root zone has it)
                 if (rrset_count_RR(rrset) > 0 &&
@@ -705,6 +698,7 @@ domain_commit(domain_type* domain)
 {
     ldns_rbnode_t* node = LDNS_RBTREE_NULL;
     rrset_type* rrset = NULL;
+    denial_type* denial = NULL;
     ods_status status = ODS_STATUS_OK;
     size_t numadd = 0;
     size_t numdel = 0;
@@ -717,13 +711,14 @@ domain_commit(domain_type* domain)
     if (domain->rrsets->root != LDNS_RBTREE_NULL) {
         node = ldns_rbtree_first(domain->rrsets);
     }
+    denial = (denial_type*) domain->denial;
     while (node && node != LDNS_RBTREE_NULL) {
         rrset = (rrset_type*) node->data;
         numrrs = rrset_count_rr(rrset, COUNT_RR);
         numadd = rrset_count_rr(rrset, COUNT_ADD);
         numdel = rrset_count_rr(rrset, COUNT_DEL);
 
-        if (rrset->rr_type == LDNS_RR_TYPE_SOA && rrset->rrs &&
+        if (rrset->rrtype == LDNS_RR_TYPE_SOA && rrset->rrs &&
             rrset->rrs->rr) {
             rrset->needs_signing = 1;
         }
@@ -733,19 +728,18 @@ domain_commit(domain_type* domain)
         }
         node = ldns_rbtree_next(node);
         numnew = rrset_count_rr(rrset, COUNT_RR);
-
         if (numrrs > 0 && numnew <= 0) {
             if (domain_del_rrset(domain, rrset) != NULL) {
                 ods_log_warning("[%s] unable to commit: failed ",
                     "to delete RRset", dname_str);
                 return ODS_STATUS_UNCHANGED;
             }
-            if (domain->denial) {
-                domain->denial->bitmap_changed = 1;
+            if (denial) {
+                denial->bitmap_changed = 1;
             }
         } else if (numrrs <= 0 && numnew == numadd) {
-            if (domain->denial) {
-                domain->denial->bitmap_changed = 1;
+            if (denial) {
+                denial->bitmap_changed = 1;
             }
         }
     }
@@ -832,6 +826,7 @@ domain_queue(domain_type* domain, fifoq_type* q, worker_type* worker)
 {
     ldns_rbnode_t* node = LDNS_RBTREE_NULL;
     rrset_type* rrset = NULL;
+    denial_type* denial = NULL;
     ods_status status = ODS_STATUS_OK;
 
     if (!domain || !domain->rrsets) {
@@ -842,6 +837,7 @@ domain_queue(domain_type* domain, fifoq_type* q, worker_type* worker)
         return ODS_STATUS_OK;
     }
 
+    denial = (denial_type*) domain->denial;
     if (domain->rrsets->root != LDNS_RBTREE_NULL) {
         node = ldns_rbtree_first(domain->rrsets);
     }
@@ -850,15 +846,15 @@ domain_queue(domain_type* domain, fifoq_type* q, worker_type* worker)
 
         /* skip delegation RRsets */
         if (domain->dstatus != DOMAIN_STATUS_APEX &&
-            rrset->rr_type == LDNS_RR_TYPE_NS) {
+            rrset->rrtype == LDNS_RR_TYPE_NS) {
             node = ldns_rbtree_next(node);
             continue;
         }
         /* skip glue at the delegation */
         if ((domain->dstatus == DOMAIN_STATUS_DS ||
              domain->dstatus == DOMAIN_STATUS_NS) &&
-            (rrset->rr_type == LDNS_RR_TYPE_A ||
-             rrset->rr_type == LDNS_RR_TYPE_AAAA)) {
+            (rrset->rrtype == LDNS_RR_TYPE_A ||
+             rrset->rrtype == LDNS_RR_TYPE_AAAA)) {
             node = ldns_rbtree_next(node);
             continue;
         }
@@ -871,8 +867,8 @@ domain_queue(domain_type* domain, fifoq_type* q, worker_type* worker)
     }
 
     /* queue NSEC(3) RRset for signing */
-    if (domain->denial && domain->denial->rrset) {
-        status = rrset_queue(domain->denial->rrset, q, worker);
+    if (denial && denial->rrset) {
+        status = rrset_queue(denial->rrset, q, worker);
     }
     return status;
 }
@@ -897,6 +893,79 @@ domain_examine_ns_rdata(domain_type* domain, ldns_rdf* nsdname)
         }
     }
     return 0;
+}
+
+
+/**
+ * Print domain.
+ *
+ */
+void
+domain_print(FILE* fd, domain_type* domain)
+{
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+    int print_glue = 0;
+    rrset_type* rrset = NULL;
+    rrset_type* soa_rrset = NULL;
+    rrset_type* cname_rrset = NULL;
+    denial_type* denial = NULL;
+
+    if (!domain || !fd) {
+        return;
+    }
+    ods_log_assert(fd);
+    ods_log_assert(domain);
+
+    if (domain->rrsets) {
+        node = ldns_rbtree_first(domain->rrsets);
+    }
+    /* no other data may accompany a CNAME */
+    cname_rrset = domain_lookup_rrset(domain, LDNS_RR_TYPE_CNAME);
+    if (cname_rrset) {
+        rrset_print(fd, cname_rrset, 0);
+    } else {
+        /* if SOA, print soa first */
+        if (domain->dstatus == DOMAIN_STATUS_APEX) {
+            soa_rrset = domain_lookup_rrset(domain, LDNS_RR_TYPE_SOA);
+            if (soa_rrset) {
+                rrset_print(fd, soa_rrset, 0);
+            }
+        }
+        /* print other RRsets */
+        while (node && node != LDNS_RBTREE_NULL) {
+            rrset = (rrset_type*) node->data;
+            /* skip SOA RRset */
+            if (rrset->rrtype != LDNS_RR_TYPE_SOA) {
+                if (domain->dstatus == DOMAIN_STATUS_OCCLUDED) {
+                    /* glue?  */
+                    print_glue = 1;
+/* TODO: allow for now (root zone has it)
+                    parent = domain->parent;
+                    while (parent && parent->dstatus != DOMAIN_STATUS_APEX) {
+                        if (domain_examine_ns_rdata(parent, domain->dname)) {
+                            print_glue = 1;
+                            break;
+                        }
+                        parent = parent->parent;
+                    }
+*/
+                    if (print_glue && (rrset->rrtype == LDNS_RR_TYPE_A ||
+                        rrset->rrtype == LDNS_RR_TYPE_AAAA)) {
+                        rrset_print(fd, rrset, 0);
+                    }
+                } else {
+                    rrset_print(fd, rrset, 0);
+                }
+            }
+            node = ldns_rbtree_next(node);
+        }
+    }
+    /* denial of existence */
+    denial = (denial_type*) domain->denial;
+    if (denial) {
+        rrset_print(fd, denial->rrset, 0);
+    }
+    return;
 }
 
 
@@ -928,95 +997,18 @@ rrset_delfunc(ldns_rbnode_t* elem)
 void
 domain_cleanup(domain_type* domain)
 {
-    allocator_type* allocator;
-
+    zone_type* zone = NULL;
     if (!domain) {
         return;
     }
-    allocator = domain->allocator;
-
-    if (domain->dname) {
-        ldns_rdf_deep_free(domain->dname);
-        domain->dname = NULL;
-    }
+    zone = (zone_type*) domain->zone;
+    ldns_rdf_deep_free(domain->dname);
     if (domain->rrsets) {
         rrset_delfunc(domain->rrsets->root);
         ldns_rbtree_free(domain->rrsets);
         domain->rrsets = NULL;
     }
-    allocator_deallocate(allocator, (void*) domain);
-    allocator_cleanup(allocator);
-    return;
-}
-
-
-/**
- * Print domain.
- *
- */
-void
-domain_print(FILE* fd, domain_type* domain)
-{
-    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
-    int print_glue = 0;
-    rrset_type* rrset = NULL;
-    rrset_type* soa_rrset = NULL;
-    rrset_type* cname_rrset = NULL;
-
-    if (!domain || !fd) {
-        return;
-    }
-    ods_log_assert(fd);
-    ods_log_assert(domain);
-
-    if (domain->rrsets) {
-        node = ldns_rbtree_first(domain->rrsets);
-    }
-    /* no other data may accompany a CNAME */
-    cname_rrset = domain_lookup_rrset(domain, LDNS_RR_TYPE_CNAME);
-    if (cname_rrset) {
-        rrset_print(fd, cname_rrset, 0);
-    } else {
-        /* if SOA, print soa first */
-        if (domain->dstatus == DOMAIN_STATUS_APEX) {
-            soa_rrset = domain_lookup_rrset(domain, LDNS_RR_TYPE_SOA);
-            if (soa_rrset) {
-                rrset_print(fd, soa_rrset, 0);
-            }
-        }
-        /* print other RRsets */
-        while (node && node != LDNS_RBTREE_NULL) {
-            rrset = (rrset_type*) node->data;
-            /* skip SOA RRset */
-            if (rrset->rr_type != LDNS_RR_TYPE_SOA) {
-                if (domain->dstatus == DOMAIN_STATUS_OCCLUDED) {
-                    /* glue?  */
-                    print_glue = 1;
-/* TODO: allow for now (root zone has it)
-                    parent = domain->parent;
-                    while (parent && parent->dstatus != DOMAIN_STATUS_APEX) {
-                        if (domain_examine_ns_rdata(parent, domain->dname)) {
-                            print_glue = 1;
-                            break;
-                        }
-                        parent = parent->parent;
-                    }
-*/
-                    if (print_glue && (rrset->rr_type == LDNS_RR_TYPE_A ||
-                        rrset->rr_type == LDNS_RR_TYPE_AAAA)) {
-                        rrset_print(fd, rrset, 0);
-                    }
-                } else {
-                    rrset_print(fd, rrset, 0);
-                }
-            }
-            node = ldns_rbtree_next(node);
-        }
-    }
-    /* denial of existence */
-    if (domain->denial) {
-        rrset_print(fd, domain->denial->rrset, 0);
-    }
+    allocator_deallocate(zone->allocator, (void*)domain);
     return;
 }
 
@@ -1031,6 +1023,7 @@ domain_backup(FILE* fd, domain_type* domain)
     ldns_rbnode_t* node = LDNS_RBTREE_NULL;
     char* str = NULL;
     rrset_type* rrset = NULL;
+    denial_type* denial = NULL;
 
     if (!domain || !fd) {
         return;
@@ -1050,10 +1043,11 @@ domain_backup(FILE* fd, domain_type* domain)
     free((void*)str);
 
     /* denial of existence */
-    if (domain->denial) {
+    denial = (denial_type*) domain->denial;
+    if (denial) {
         fprintf(fd, ";;Denial\n");
-        rrset_print(fd, domain->denial->rrset, 1);
-        rrset_backup(fd, domain->denial->rrset);
+        rrset_print(fd, denial->rrset, 1);
+        rrset_backup(fd, denial->rrset);
     }
 
     fprintf(fd, ";;Domaindone\n");

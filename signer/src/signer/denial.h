@@ -41,29 +41,28 @@
 
 #include <ldns/ldns.h>
 
-struct domain_struct;
-
 /**
  * Denial of Existence data point.
  *
  */
 typedef struct denial_struct denial_type;
 struct denial_struct {
-    allocator_type* allocator;
+    void* zone;
+    void* domain;
     ldns_rdf* owner;
     rrset_type* rrset;
-    struct domain_struct* domain;
     uint8_t bitmap_changed;
     uint8_t nxt_changed;
 };
 
 /**
  * Create new Denial of Existence data point.
+ * \param[in] zoneptr zone reference
  * \param[in] owner owner name of the NSEC or NSEC3 RRset
  * \return denial_type* denial of existence data
  *
  */
-denial_type* denial_create(ldns_rdf* owner);
+denial_type* denial_create(void* zoneptr, ldns_rdf* owner);
 
 /**
  * Add NSEC to the Denial of Existence data point.

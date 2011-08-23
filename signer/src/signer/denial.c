@@ -37,6 +37,7 @@
 #include "signer/denial.h"
 #include "signer/domain.h"
 #include "signer/nsec3params.h"
+#include "signer/zone.h"
 
 #include <ldns/ldns.h>
 
@@ -50,52 +51,32 @@ static const char* denial_str = "denial";
  *
  */
 denial_type*
-denial_create(ldns_rdf* owner)
+denial_create(void* zoneptr, ldns_rdf* dname)
 {
-    allocator_type* allocator = NULL;
     denial_type* denial = NULL;
-    char* str = NULL;
-
-    if (!owner) {
-        ods_log_error("[%s] unable to create denial of existence data point: "
-            "no owner name", denial_str);
+    zone_type* zone = (zone_type*) zoneptr;
+    if (!dname || !zoneptr) {
         return NULL;
     }
-    ods_log_assert(owner);
-
-    allocator = allocator_create(malloc, free);
-    if (!allocator) {
-        str = ldns_rdf2str(owner);
-        ods_log_error("[%s] unable to create denial of existence data point: "
-            "%s: create allocator failed", denial_str, str?str:"(null)");
-        free((void*)str);
-        return NULL;
-    }
-    ods_log_assert(allocator);
-
-    denial = (denial_type*) allocator_alloc(allocator, sizeof(denial_type));
+    denial = (denial_type*) allocator_alloc(
+        zone->allocator, sizeof(denial_type));
     if (!denial) {
-        str = ldns_rdf2str(denial->owner);
-        ods_log_error("[%s] unable to create denial of existence data point: "
-            "%s: allocator failed", denial_str, str?str:"(null)");
-        free((void*)str);
-        allocator_cleanup(allocator);
+        ods_log_error("[%s] unable to create denial: allocator_alloc() "
+            "failed", denial_str);
         return NULL;
     }
-    ods_log_assert(denial);
-
-    denial->allocator = allocator;
-    denial->owner = ldns_rdf_clone(owner);
+    denial->zone = zoneptr;
+    denial->domain = NULL; /* no back reference yet */
+    denial->owner = ldns_rdf_clone(dname);
     denial->bitmap_changed = 0;
     denial->nxt_changed = 0;
     denial->rrset = NULL;
-    denial->domain = NULL;
     return denial;
 }
 
 
 /**
- * Create NSEC(3) bitmap.
+ * Create NSEC(3) Type Bitmaps Field.
  *
  */
 static void
@@ -114,7 +95,7 @@ denial_create_bitmap(denial_type* denial, ldns_rr_type types[],
 
     while (node && node != LDNS_RBTREE_NULL) {
         rrset = (rrset_type*) node->data;
-        types[*types_count] = rrset->rr_type;
+        types[*types_count] = rrset->rrtype;
         *types_count = *types_count + 1;
         node = ldns_rbtree_next(node);
     }
@@ -215,7 +196,7 @@ denial_nsecify(denial_type* denial, denial_type* nxt, uint32_t ttl,
     if (denial->nxt_changed || denial->bitmap_changed) {
         /* assert there is a NSEC RRset */
         if (!denial->rrset) {
-            denial->rrset = rrset_create(LDNS_RR_TYPE_NSEC);
+            denial->rrset = rrset_create(denial->zone, LDNS_RR_TYPE_NSEC);
             if (!denial->rrset) {
                  ods_log_alert("[%s] unable to nsecify: failed to "
                 "create NSEC RRset", denial_str);
@@ -394,7 +375,7 @@ denial_nsecify3(denial_type* denial, denial_type* nxt, uint32_t ttl,
     if (denial->nxt_changed || denial->bitmap_changed) {
         /* assert there is a NSEC RRset */
         if (!denial->rrset) {
-            denial->rrset = rrset_create(LDNS_RR_TYPE_NSEC3);
+            denial->rrset = rrset_create(denial->zone, LDNS_RR_TYPE_NSEC3);
             if (!denial->rrset) {
                  ods_log_alert("[%s] unable to nsecify3: failed to "
                 "create NSEC3 RRset", denial_str);
@@ -439,30 +420,19 @@ denial_nsecify3(denial_type* denial, denial_type* nxt, uint32_t ttl,
 
 
 /**
- * Clean up Denial of Existence data point.
+ * Cleanup Denial of Existence data point.
  *
  */
 void
 denial_cleanup(denial_type* denial)
 {
-    allocator_type* allocator;
-
+    zone_type* zone = NULL;
     if (!denial) {
         return;
     }
-    allocator = denial->allocator;
-
-    if (denial->owner) {
-        ldns_rdf_deep_free(denial->owner);
-        denial->owner = NULL;
-    }
-    if (denial->rrset) {
-        rrset_cleanup(denial->rrset);
-        denial->rrset = NULL;
-    }
-
-    allocator_deallocate(allocator, (void*) denial);
-    allocator_cleanup(allocator);
+    zone = (zone_type*) denial->zone;
+    ldns_rdf_deep_free(denial->owner);
+    rrset_cleanup(denial->rrset);
+    allocator_deallocate(zone->allocator, (void*) denial);
     return;
-
 }

@@ -69,18 +69,11 @@ typedef enum domain_status_enum domain_status;
  */
 typedef struct domain_struct domain_type;
 struct domain_struct {
-    /* General domain info */
+    void* zone;
+    void* denial;
     ldns_rdf* dname;
     domain_status dstatus;
-    allocator_type* allocator;
-
-    /* Family */
     domain_type* parent;
-
-    /* Denial of Existence */
-    denial_type* denial;
-
-    /* RRsets */
     ldns_rbtree_t* rrsets;
 };
 
@@ -94,12 +87,13 @@ struct domain_struct {
 void log_dname(ldns_rdf* rdf, const char* pre, int level);
 
 /**
- * Create empty domain.
+ * Create domain.
+ * \param[in] zoneptr zone reference
  * \param[in] dname owner name
- * \return domain_type* empty domain
+ * \return domain_type* domain
  *
  */
-domain_type* domain_create(ldns_rdf* dname);
+domain_type* domain_create(void* zoneptr, ldns_rdf* dname);
 
 /**
  * Recover domain from backup.

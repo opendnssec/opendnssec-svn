@@ -180,6 +180,7 @@ zonedata_create(allocator_type* allocator)
     }
     ods_log_assert(zd);
 
+    zd->zone = NULL;
     zd->allocator = allocator;
     zonedata_init_domains(zd);
     zonedata_init_denial(zd);
@@ -531,7 +532,7 @@ zonedata_add_denial(zonedata_type* zd, domain_type* domain, ldns_rdf* apex,
         return ODS_STATUS_CONFLICT_ERR;
     }
     /* create */
-    denial = denial_create(owner);
+    denial = denial_create(zd->zone, owner);
     new_node = denial2node(denial);
     ldns_rdf_deep_free(owner);
     /* insert */
@@ -553,8 +554,8 @@ zonedata_add_denial(zonedata_type* zd, domain_type* domain, ldns_rdf* apex,
     prev_denial = (denial_type*) prev_node->data;
     ods_log_assert(prev_denial);
     prev_denial->nxt_changed = 1;
-    domain->denial = denial;
-    domain->denial->domain = domain; /* back reference */
+    domain->denial = (void*) denial;
+    denial->domain = (void*) domain; /* back reference */
     return ODS_STATUS_OK;
 }
 
@@ -874,7 +875,7 @@ domain_entize(zonedata_type* zd, domain_type* domain, ldns_rdf* apex)
 
         parent_domain = zonedata_lookup_domain(zd, parent_rdf);
         if (!parent_domain) {
-            parent_domain = domain_create(parent_rdf);
+            parent_domain = domain_create(zd->zone, parent_rdf);
             ldns_rdf_deep_free(parent_rdf);
             if (!parent_domain) {
                 log_rdf(domain->dname, "unable to entize domain, create "

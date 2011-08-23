@@ -108,6 +108,7 @@ zone_create(char* name, ldns_rr_class klass)
         zone_cleanup(zone);
         return NULL;
     }
+    zone->zonedata->zone = (void*) zone;
     zone->signconf = signconf_create();
     if (!zone->signconf) {
         ods_log_error("[%s] unable to create zone %s: create signconf "
@@ -505,7 +506,7 @@ zone_update_serial(zone_type* zone)
         return ODS_STATUS_ERR;
     }
     ods_log_assert(rrset);
-    ods_log_assert(rrset->rr_type == LDNS_RR_TYPE_SOA);
+    ods_log_assert(rrset->rrtype == LDNS_RR_TYPE_SOA);
 
     if (rrset->rrs && rrset->rrs->rr) {
         serial = ldns_rr_set_rdf(rrset->rrs->rr,
@@ -624,7 +625,7 @@ zone_add_rr(zone_type* zone, ldns_rr* rr, int do_stats)
     domain = zonedata_lookup_domain(zone->zonedata, ldns_rr_owner(rr));
     if (!domain) {
         /* add domain */
-        domain = domain_create(ldns_rr_owner(rr));
+        domain = domain_create((void*) zone, ldns_rr_owner(rr));
         if (!domain) {
             ods_log_error("[%s] unable to add RR: create domain failed",
                 zone_str);
@@ -645,7 +646,7 @@ zone_add_rr(zone_type* zone, ldns_rr* rr, int do_stats)
     rrset = domain_lookup_rrset(domain, ldns_rr_get_type(rr));
     if (!rrset) {
         /* add RRset */
-        rrset = rrset_create(ldns_rr_get_type(rr));
+        rrset = rrset_create((void*) zone, ldns_rr_get_type(rr));
         if (!rrset) {
             ods_log_error("[%s] unable to add RR: create RRset failed",
                 zone_str);
@@ -1206,6 +1207,7 @@ recover_error:
     zonedata_cleanup(zone->zonedata);
     zone->zonedata = zonedata_create(zone->allocator);
     ods_log_assert(zone->zonedata);
+    zone->zonedata->zone = (void*) zone;
 
     if (zone->stats) {
        lock_basic_lock(&zone->stats->stats_lock);
