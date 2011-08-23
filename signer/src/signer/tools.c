@@ -225,9 +225,9 @@ tools_nsecify(zone_type* zone)
             ods_log_debug("[%s] OptOut is being used for zone %s",
                 tools_str, zone->name);
         }
-        ods_log_assert(zone->nsec3params);
+        ods_log_assert(zone->signconf->nsec3params);
         status = zonedata_nsecify3(zone->zonedata, zone->klass, ttl,
-            zone->nsec3params, &num_added);
+            zone->signconf->nsec3params, &num_added);
     } else {
         ods_log_error("[%s] unable to nsecify zone %s: unknown RRtype %u for ",
             "denial of existence", tools_str, zone->name,

@@ -56,19 +56,17 @@ signconf_create(void)
     signconf_type* sc;
     allocator_type* allocator = allocator_create(malloc, free);
     if (!allocator) {
-        ods_log_error("[%s] unable to create: create allocator failed",
-            sc_str);
+        ods_log_error("[%s] unable to create signconf: allocator_create() "
+            " failed", sc_str);
         return NULL;
     }
-    ods_log_assert(allocator);
-
     sc = (signconf_type*) allocator_alloc(allocator, sizeof(signconf_type));
     if (!sc) {
-        ods_log_error("[%s] unable to create: allocator failed", sc_str);
+        ods_log_error("[%s] unable to create signconf: allocator_alloc() "
+            " failed", sc_str);
         allocator_cleanup(allocator);
         return NULL;
     }
-    ods_log_assert(sc);
     sc->allocator = allocator;
     sc->filename = NULL;
     /* Signatures */
@@ -84,6 +82,7 @@ signconf_create(void)
     sc->nsec3_algo = 0;
     sc->nsec3_iterations = 0;
     sc->nsec3_salt = NULL;
+    sc->nsec3params = NULL;
     /* Keys */
     sc->dnskey_ttl = NULL;
     sc->keys = NULL;
@@ -109,17 +108,16 @@ signconf_read(signconf_type* signconf, const char* scfile)
     ods_status status = ODS_STATUS_OK;
     FILE* fd = NULL;
 
-    ods_log_assert(scfile);
-    ods_log_assert(signconf);
-    ods_log_debug("[%s] read file %s", sc_str, scfile);
-
+    if (!scfile || !signconf) {
+        return ODS_STATUS_ASSERT_ERR;
+    }
+    ods_log_debug("[%s] read signconf file %s", sc_str, scfile);
     status = parse_file_check(scfile, rngfile);
     if (status != ODS_STATUS_OK) {
-        ods_log_error("[%s] unable to parse file %s: %s", sc_str, scfile,
-            ods_status2str(status));
+        ods_log_error("[%s] unable to read signconf: parse error in "
+            "file %s (%s)", sc_str, scfile, ods_status2str(status));
         return status;
     }
-
     fd = ods_fopen(scfile, NULL, "r");
     if (fd) {
         signconf->filename = allocator_strdup(signconf->allocator, scfile);
@@ -136,6 +134,14 @@ signconf_read(signconf_type* signconf, const char* scfile)
             signconf->nsec3_iterations = parse_sc_nsec3_iterations(scfile);
             signconf->nsec3_salt = parse_sc_nsec3_salt(signconf->allocator,
                 scfile);
+            signconf->nsec3params = nsec3params_create((void*) signconf,
+            (uint8_t) signconf->nsec3_algo, (uint8_t) signconf->nsec3_optout,
+            (uint16_t)signconf->nsec3_iterations, signconf->nsec3_salt);
+            if (!signconf->nsec3params) {
+                ods_log_error("[%s] unable to read signconf %s: "
+                    "nsec3params_create() failed", sc_str, scfile);
+                return ODS_STATUS_MALLOC_ERR;
+            }
         }
         signconf->keys = parse_sc_keys(signconf->allocator, scfile);
         signconf->dnskey_ttl = parse_sc_dnskey_ttl(scfile);
@@ -147,7 +153,8 @@ signconf_read(signconf_type* signconf, const char* scfile)
         ods_fclose(fd);
         return ODS_STATUS_OK;
     }
-    ods_log_error("[%s] unable to read signconf file %s", sc_str, scfile);
+    ods_log_error("[%s] unable to read signconf: failed to open file %s",
+        sc_str, scfile);
     return ODS_STATUS_ERR;
 }
 
@@ -164,41 +171,34 @@ signconf_update(signconf_type** signconf, const char* scfile,
     time_t st_mtime = 0;
     ods_status status = ODS_STATUS_OK;
 
-    if (!signconf) {
-        ods_log_error("[%s] no signconf storage", sc_str);
+    if (!scfile || !signconf) {
         return ODS_STATUS_UNCHANGED;
     }
-    ods_log_assert(signconf);
-    if (!scfile) {
-        ods_log_error("[%s] no signconf filename", sc_str);
-        return ODS_STATUS_UNCHANGED;
-    }
-    ods_log_assert(scfile);
-
     /* is the file updated? */
     st_mtime = ods_file_lastmodified(scfile);
     if (st_mtime <= last_modified) {
         return ODS_STATUS_UNCHANGED;
     }
-
+    /* if so, read the new signer configuration */
     new_sc = signconf_create();
     if (!new_sc) {
-        ods_log_error("[%s] error creating new signconf", sc_str);
-        return ODS_STATUS_ERR;
+         ods_log_error("[%s] unable to update signconf: signconf_create() "
+            "failed", sc_str);
+       return ODS_STATUS_ERR;
     }
-
     status = signconf_read(new_sc, scfile);
     if (status == ODS_STATUS_OK) {
         new_sc->last_modified = st_mtime;
         if (signconf_check(new_sc) != ODS_STATUS_OK) {
-            ods_log_error("[%s] signconf %s has errors", sc_str, scfile);
+            ods_log_error("[%s] unable to update signconf: signconf %s has "
+                "errors (%s)", sc_str, scfile, ods_status2str(status));
             signconf_cleanup(new_sc);
             return ODS_STATUS_CFG_ERR;
         }
         *signconf = new_sc;
     } else {
-        ods_log_error("[%s] unable to read file %s: %s", sc_str, scfile,
-            ods_status2str(status));
+        ods_log_error("[%s] unable to update signconf: failed to read file "
+            "%s (%s)", sc_str, scfile, ods_status2str(status));
         signconf_cleanup(new_sc);
     }
     return status;
@@ -342,6 +342,7 @@ signconf_soa_serial_check(const char* serial) {
     return 1;
 }
 
+
 /**
  * Check signer configuration settings.
  *
@@ -418,7 +419,6 @@ signconf_check(signconf_type* sc)
             sc->soa_serial);
         status = ODS_STATUS_CFG_ERR;
     }
-
     return status;
 }
 
@@ -578,38 +578,6 @@ signconf_compare(signconf_type* a, signconf_type* b)
 
 
 /**
- * Clean up signer configuration.
- *
- */
-void
-signconf_cleanup(signconf_type* sc)
-{
-    allocator_type* allocator;
-    if (!sc) {
-        return;
-    }
-    duration_cleanup(sc->sig_resign_interval);
-    duration_cleanup(sc->sig_refresh_interval);
-    duration_cleanup(sc->sig_validity_default);
-    duration_cleanup(sc->sig_validity_denial);
-    duration_cleanup(sc->sig_jitter);
-    duration_cleanup(sc->sig_inception_offset);
-    duration_cleanup(sc->dnskey_ttl);
-    duration_cleanup(sc->soa_ttl);
-    duration_cleanup(sc->soa_min);
-    keylist_cleanup(sc->keys);
-
-    allocator = sc->allocator;
-    allocator_deallocate(allocator, (void*) sc->filename);
-    allocator_deallocate(allocator, (void*) sc->nsec3_salt);
-    allocator_deallocate(allocator, (void*) sc->soa_serial);
-    allocator_deallocate(allocator, (void*) sc);
-    allocator_cleanup(allocator);
-    return;
-}
-
-
-/**
  * Print sign configuration.
  *
  */
@@ -619,45 +587,34 @@ signconf_print(FILE* out, signconf_type* sc, const char* name)
     char* s = NULL;
 
     fprintf(out, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-
     if (sc) {
         fprintf(out, "<SignerConfiguration>\n");
         fprintf(out, "\t<Zone name=\"%s\">\n", name?name:"(null)");
-
         /* Signatures */
         fprintf(out, "\t\t<Signatures>\n");
         s = duration2string(sc->sig_resign_interval);
         fprintf(out, "\t\t\t<Resign>%s</Resign>\n", s?s:"(null)");
         free((void*)s);
-
         s = duration2string(sc->sig_refresh_interval);
         fprintf(out, "\t\t\t<Refresh>%s</Refresh>\n", s?s:"(null)");
         free((void*)s);
-
         fprintf(out, "\t\t\t<Validity>\n");
-
         s = duration2string(sc->sig_validity_default);
         fprintf(out, "\t\t\t\t<Default>%s</Default>\n", s?s:"(null)");
         free((void*)s);
-
         s = duration2string(sc->sig_validity_denial);
         fprintf(out, "\t\t\t\t<Denial>%s</Denial>\n", s?s:"(null)");
         free((void*)s);
-
         fprintf(out, "\t\t\t</Validity>\n");
-
         s = duration2string(sc->sig_jitter);
         fprintf(out, "\t\t\t<Jitter>%s</Jitter>\n", s?s:"(null)");
         free((void*)s);
-
         s = duration2string(sc->sig_inception_offset);
         fprintf(out, "\t\t\t<InceptionOffset>%s</InceptionOffset>\n",
             s?s:"(null)");
         free((void*)s);
-
         fprintf(out, "\t\t</Signatures>\n");
         fprintf(out, "\n");
-
         /* Denial */
         fprintf(out, "\t\t<Denial>\n");
         if (sc->nsec_type == LDNS_RR_TYPE_NSEC) {
@@ -679,7 +636,6 @@ signconf_print(FILE* out, signconf_type* sc, const char* name)
         }
         fprintf(out, "\t\t</Denial>\n");
         fprintf(out, "\n");
-
         /* Keys */
         fprintf(out, "\t\t<Keys>\n");
         s = duration2string(sc->dnskey_ttl);
@@ -689,28 +645,23 @@ signconf_print(FILE* out, signconf_type* sc, const char* name)
         keylist_print(out, sc->keys);
         fprintf(out, "\t\t</Keys>\n");
         fprintf(out, "\n");
-
         /* SOA */
         fprintf(out, "\t\t<SOA>\n");
         s = duration2string(sc->soa_ttl);
         fprintf(out, "\t\t\t<TTL>%s</TTL>\n", s?s:"(null)");
         free((void*)s);
-
         s = duration2string(sc->soa_min);
         fprintf(out, "\t\t\t<Minimum>%s</Minimum>\n", s?s:"(null)");
         free((void*)s);
-
         fprintf(out, "\t\t\t<Serial>%s</Serial>\n",
             sc->soa_serial?sc->soa_serial:"(null)");
         fprintf(out, "\t\t</SOA>\n");
         fprintf(out, "\n");
-
         /* Audit */
         if (sc->audit) {
             fprintf(out, "\t\t<Audit />\n");
             fprintf(out, "\n");
         }
-
         fprintf(out, "\t</Zone>\n");
         fprintf(out, "</SignerConfiguration>\n");
     }
@@ -745,7 +696,7 @@ signconf_log(signconf_type* sc, const char* name)
         dnskeyttl = duration2string(sc->dnskey_ttl);
         soattl = duration2string(sc->soa_ttl);
         soamin = duration2string(sc->soa_min);
-
+        /* signconf */
         ods_log_info("[%s] zone %s signconf: RESIGN[%s] REFRESH[%s] "
             "VALIDITY[%s] DENIAL[%s] JITTER[%s] OFFSET[%s] NSEC[%i] "
             "DNSKEYTTL[%s] SOATTL[%s] MINIMUM[%s] SERIAL[%s] AUDIT[%i]",
@@ -753,17 +704,16 @@ signconf_log(signconf_type* sc, const char* name)
             jitter, offset, (int) sc->nsec_type, dnskeyttl, soattl,
             soamin, sc->soa_serial?sc->soa_serial:"(null)",
             (int) sc->audit);
-
+        /* nsec3 parameters */
         if (sc->nsec_type == LDNS_RR_TYPE_NSEC3) {
             ods_log_debug("[%s] zone %s nsec3: OPTOUT[%i] ALGORITHM[%u] "
                 "ITERATIONS[%u] SALT[%s]", sc_str, name, sc->nsec3_optout,
                 sc->nsec3_algo, sc->nsec3_iterations,
                 sc->nsec3_salt?sc->nsec3_salt:"(null)");
         }
-
-        /* Keys */
+        /* keys */
         keylist_log(sc->keys, name);
-
+        /* cleanup */
         free((void*)resign);
         free((void*)refresh);
         free((void*)validity);
@@ -774,5 +724,37 @@ signconf_log(signconf_type* sc, const char* name)
         free((void*)soattl);
         free((void*)soamin);
     }
+    return;
+}
+
+
+/**
+ * Clean up signer configuration.
+ *
+ */
+void
+signconf_cleanup(signconf_type* sc)
+{
+    allocator_type* allocator;
+    if (!sc) {
+        return;
+    }
+    duration_cleanup(sc->sig_resign_interval);
+    duration_cleanup(sc->sig_refresh_interval);
+    duration_cleanup(sc->sig_validity_default);
+    duration_cleanup(sc->sig_validity_denial);
+    duration_cleanup(sc->sig_jitter);
+    duration_cleanup(sc->sig_inception_offset);
+    duration_cleanup(sc->dnskey_ttl);
+    duration_cleanup(sc->soa_ttl);
+    duration_cleanup(sc->soa_min);
+    keylist_cleanup(sc->keys);
+    nsec3params_cleanup(sc->nsec3params);
+    allocator = sc->allocator;
+    allocator_deallocate(allocator, (void*) sc->filename);
+    allocator_deallocate(allocator, (void*) sc->nsec3_salt);
+    allocator_deallocate(allocator, (void*) sc->soa_serial);
+    allocator_deallocate(allocator, (void*) sc);
+    allocator_cleanup(allocator);
     return;
 }

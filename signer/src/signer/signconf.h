@@ -38,6 +38,7 @@
 #include "shared/allocator.h"
 #include "shared/duration.h"
 #include "signer/keys.h"
+#include "signer/nsec3params.h"
 
 #include <ldns/ldns.h>
 #include <time.h>
@@ -65,6 +66,7 @@ struct signconf_struct {
     uint32_t nsec3_algo;
     uint32_t nsec3_iterations;
     const char* nsec3_salt;
+    nsec3params_type* nsec3params;
     /* Keys */
     duration_type* dnskey_ttl;
     keylist_type* keys;
@@ -150,13 +152,6 @@ task_id signconf_compare_keys(signconf_type* a, signconf_type* b,
 task_id signconf_compare(signconf_type* a, signconf_type* b);
 
 /**
- * Clean up signer configuration.
- * \param[in] sc signconf to cleanup
- *
- */
-void signconf_cleanup(signconf_type* sc);
-
-/**
  * Print signer configuration.
  * \param[in] out file descriptor
  * \param[in] sc signconf to print
@@ -172,5 +167,12 @@ void signconf_print(FILE* out, signconf_type* sc, const char* name);
  *
  */
 void signconf_log(signconf_type* sc, const char* name);
+
+/**
+ * Clean up signer configuration.
+ * \param[in] sc signconf to cleanup
+ *
+ */
+void signconf_cleanup(signconf_type* sc);
 
 #endif /* SIGNER_SIGNCONF_H */

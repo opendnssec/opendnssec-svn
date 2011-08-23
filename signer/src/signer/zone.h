@@ -40,7 +40,6 @@
 #include "shared/allocator.h"
 #include "shared/locks.h"
 #include "shared/status.h"
-#include "signer/nsec3params.h"
 #include "signer/signconf.h"
 #include "signer/stats.h"
 #include "signer/zonedata.h"
@@ -82,7 +81,6 @@ struct zone_struct {
     adapter_type* adoutbound; /* outbound adapter */
     /* from signconf.xml */
     signconf_type* signconf; /* signer configuration values */
-    nsec3params_type* nsec3params; /* NSEC3 parameters */
     /* zone data */
     zonedata_type* zonedata;
     /* worker variables */
