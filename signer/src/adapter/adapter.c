@@ -153,7 +153,7 @@ adapter_write(void* zone)
         case ADAPTER_FILE:
             ods_log_verbose("[%s] write zone %s serial %u to output file "
                 "adapter %s", adapter_str, adzone->name,
-                adzone->zonedata->outbound_serial,
+                adzone->zonedata->outserial,
                 adzone->adinbound->configstr);
             return adfile_write(zone, adzone->adoutbound->configstr);
             break;

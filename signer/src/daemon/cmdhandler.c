@@ -386,9 +386,9 @@ cmdhandler_handle_cmd_clear(int sockfd, cmdhandler_type* cmdc, const char* tbd)
     char buf[ODS_SE_MAXLINE];
     zone_type* zone = NULL;
     task_type* task = NULL;
-    uint32_t inbound_serial = 0;
-    uint32_t internal_serial = 0;
-    uint32_t outbound_serial = 0;
+    uint32_t inbserial = 0;
+    uint32_t intserial = 0;
+    uint32_t outserial = 0;
     ods_status status = ODS_STATUS_OK;
 
     ods_log_assert(tbd);
@@ -407,16 +407,16 @@ cmdhandler_handle_cmd_clear(int sockfd, cmdhandler_type* cmdc, const char* tbd)
     if (zone) {
         /* [LOCK] zone */
         lock_basic_lock(&zone->zone_lock);
-        inbound_serial = zone->zonedata->inbound_serial;
-        internal_serial = zone->zonedata->internal_serial;
-        outbound_serial = zone->zonedata->outbound_serial;
+        inbserial = zone->zonedata->inbserial;
+        intserial = zone->zonedata->intserial;
+        outserial = zone->zonedata->outserial;
         zonedata_cleanup(zone->zonedata);
         zone->zonedata = NULL;
         zone->zonedata = zonedata_create(zone->allocator);
-        zone->zonedata->initialized = 1;
-        zone->zonedata->inbound_serial = inbound_serial;
-        zone->zonedata->internal_serial = internal_serial;
-        zone->zonedata->outbound_serial = outbound_serial;
+        zone->zonedata->is_initialized = 1;
+        zone->zonedata->inbserial = inbserial;
+        zone->zonedata->intserial = intserial;
+        zone->zonedata->outserial = outserial;
 
         status = zone_publish_dnskeys(zone, 1);
         if (status == ODS_STATUS_OK) {

@@ -250,7 +250,7 @@ parse_zonelist_zones(void* zlist, const char* zlfile)
                 ret = 1;
                 break;
             }
-            ods_log_debug("[%s] zone %s added", parser_str, zone_name);
+            ods_log_debug("[%s] zone %s added", parser_str, new_zone->name);
         }
         free((void*) tag_name);
         ret = xmlTextReaderRead(reader);

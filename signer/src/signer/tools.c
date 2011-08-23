@@ -341,7 +341,7 @@ tools_output(zone_type* zone)
     ods_status status = ODS_STATUS_OK;
     char str[SYSTEM_MAXLEN];
     int error = 0;
-    uint32_t outbound_serial = 0;
+    uint32_t outserial = 0;
 
     if (!zone) {
         ods_log_error("[%s] unable to write zone: no zone", tools_str);
@@ -362,28 +362,28 @@ tools_output(zone_type* zone)
             (zone->stats->sig_count <= zone->stats->sig_soa_count)) {
             ods_log_verbose("[%s] skip write zone %s serial %u (zone not "
                 "changed)", tools_str, zone->name?zone->name:"(null)",
-                zone->zonedata->internal_serial);
+                zone->zonedata->intserial);
             stats_clear(zone->stats);
             lock_basic_unlock(&zone->stats->stats_lock);
-            zone->zonedata->internal_serial =
-                zone->zonedata->outbound_serial;
+            zone->zonedata->intserial =
+                zone->zonedata->outserial;
             return ODS_STATUS_OK;
         }
         lock_basic_unlock(&zone->stats->stats_lock);
     }
 
-    outbound_serial = zone->zonedata->outbound_serial;
-    zone->zonedata->outbound_serial = zone->zonedata->internal_serial;
+    outserial = zone->zonedata->outserial;
+    zone->zonedata->outserial = zone->zonedata->intserial;
     status = adapter_write(zone);
     if (status != ODS_STATUS_OK) {
         ods_log_error("[%s] unable to write zone %s: adapter failed",
             tools_str, zone->name);
-        zone->zonedata->outbound_serial = outbound_serial;
+        zone->zonedata->outserial = outserial;
         return status;
     }
 
     /* initialize zonedata */
-    zone->zonedata->initialized = 1;
+    zone->zonedata->is_initialized = 1;
 
     /* kick the nameserver */
     if (zone->notify_ns) {

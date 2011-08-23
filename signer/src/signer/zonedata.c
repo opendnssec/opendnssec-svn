@@ -40,12 +40,14 @@
 #include "signer/domain.h"
 #include "signer/nsec3params.h"
 #include "signer/zonedata.h"
+#include "signer/zone.h"
 
 #include <ldns/ldns.h> /* ldns_dname_*(), ldns_rbtree_*() */
 
 static const char* zd_str = "data";
 
 static ldns_rbnode_t* domain2node(domain_type* domain);
+
 
 /**
  * Log RDF.
@@ -100,7 +102,7 @@ domain2node(domain_type* domain)
 
 
 /**
- * Convert a denial of existence data point to a tree node.
+ * Convert a denial to a tree node.
  *
  */
 static ldns_rbnode_t*
@@ -137,7 +139,7 @@ void
 zonedata_init_denial(zonedata_type* zd)
 {
     if (zd) {
-        zd->denial_chain = ldns_rbtree_create(domain_compare);
+        zd->denials = ldns_rbtree_create(domain_compare);
     }
     return;
 }
@@ -162,32 +164,28 @@ zonedata_init_domains(zonedata_type* zd)
  *
  */
 zonedata_type*
-zonedata_create(allocator_type* allocator)
+zonedata_create(void* zone)
 {
     zonedata_type* zd = NULL;
+    zone_type* z = (zone_type*) zone;
 
-    if (!allocator) {
-        ods_log_error("[%s] cannot create zonedata: no allocator", zd_str);
-        return NULL;
-    }
-    ods_log_assert(allocator);
-
-    zd = (zonedata_type*) allocator_alloc(allocator, sizeof(zonedata_type));
+    ods_log_assert(z);
+    ods_log_assert(z->name);
+    ods_log_assert(z->allocator);
+    zd = (zonedata_type*) allocator_alloc(z->allocator, sizeof(zonedata_type));
     if (!zd) {
-        ods_log_error("[%s] cannot create zonedata: allocator failed",
-            zd_str);
+        ods_log_error("[%s] unable to create zonedata for zone %s: "
+            "allocator_alloc() failed", zd_str, z->name);
         return NULL;
     }
-    ods_log_assert(zd);
+    zd->zone = zone;
 
-    zd->zone = NULL;
-    zd->allocator = allocator;
     zonedata_init_domains(zd);
     zonedata_init_denial(zd);
-    zd->initialized = 0;
-    zd->inbound_serial = 0;
-    zd->internal_serial = 0;
-    zd->outbound_serial = 0;
+    zd->inbserial = 0;
+    zd->intserial = 0;
+    zd->outserial = 0;
+    zd->is_initialized = 0;
     return zd;
 }
 
@@ -241,7 +239,7 @@ zonedata_recover(zonedata_type* zd, FILE* fd)
             if (domain->denial) {
                 denial_node = denial2node(domain->denial);
                 /* insert */
-                if (!ldns_rbtree_insert(zd->denial_chain, denial_node)) {
+                if (!ldns_rbtree_insert(zd->denials, denial_node)) {
                     ods_log_error("[%s] unable to recover denial", zd_str);
                     free((void*)denial_node);
                     goto recover_domain_error;
@@ -438,7 +436,7 @@ zonedata_lookup_denial(zonedata_type* zd, ldns_rdf* dname)
 {
     if (!zd) return NULL;
 
-    return zonedata_denial_search(zd->denial_chain, dname);
+    return zonedata_denial_search(zd->denials, dname);
 }
 
 
@@ -499,13 +497,13 @@ zonedata_add_denial(zonedata_type* zd, domain_type* domain, ldns_rdf* apex,
     }
     ods_log_assert(domain);
 
-    if (!zd || !zd->denial_chain) {
+    if (!zd || !zd->denials) {
         log_rdf(domain->dname, "unable to add denial of existence data "
             "point for domain, no denial chain", 1);
         return ODS_STATUS_ASSERT_ERR;
     }
     ods_log_assert(zd);
-    ods_log_assert(zd->denial_chain);
+    ods_log_assert(zd->denials);
 
     if (!apex) {
         log_rdf(domain->dname, "unable to add denial of existence data "
@@ -536,7 +534,7 @@ zonedata_add_denial(zonedata_type* zd, domain_type* domain, ldns_rdf* apex,
     new_node = denial2node(denial);
     ldns_rdf_deep_free(owner);
     /* insert */
-    if (!ldns_rbtree_insert(zd->denial_chain, new_node)) {
+    if (!ldns_rbtree_insert(zd->denials, new_node)) {
         log_rdf(domain->dname, "unable to add denial of existence for "
             "domain, insert failed", 1);
         free((void*)new_node);
@@ -548,7 +546,7 @@ zonedata_add_denial(zonedata_type* zd, domain_type* domain, ldns_rdf* apex,
     denial->nxt_changed = 1;
     prev_node = ldns_rbtree_previous(new_node);
     if (!prev_node || prev_node == LDNS_RBTREE_NULL) {
-        prev_node = ldns_rbtree_last(zd->denial_chain);
+        prev_node = ldns_rbtree_last(zd->denials);
     }
     ods_log_assert(prev_node);
     prev_denial = (denial_type*) prev_node->data;
@@ -635,15 +633,15 @@ zonedata_del_denial(zonedata_type* zd, denial_type* denial)
     }
     ods_log_assert(denial);
 
-    if (!zd || !zd->denial_chain) {
+    if (!zd || !zd->denials) {
         log_rdf(denial->owner, "unable to delete denial of existence data "
             "point, no zone data", 1);
         return denial;
     }
     ods_log_assert(zd);
-    ods_log_assert(zd->denial_chain);
+    ods_log_assert(zd->denials);
 
-    return zonedata_del_denial_fixup(zd->denial_chain, denial);
+    return zonedata_del_denial_fixup(zd->denials, denial);
 }
 
 
@@ -1014,12 +1012,12 @@ zonedata_nsecify(zonedata_type* zd, ldns_rr_class klass, uint32_t ttl,
     }
 
     /** Now we have the complete denial of existence chain */
-    node = ldns_rbtree_first(zd->denial_chain);
+    node = ldns_rbtree_first(zd->denials);
     while (node && node != LDNS_RBTREE_NULL) {
         denial = (denial_type*) node->data;
         nxt_node = ldns_rbtree_next(node);
         if (!nxt_node || nxt_node == LDNS_RBTREE_NULL) {
-             nxt_node = ldns_rbtree_first(zd->denial_chain);
+             nxt_node = ldns_rbtree_first(zd->denials);
         }
         nxt = (denial_type*) nxt_node->data;
 
@@ -1153,12 +1151,12 @@ zonedata_nsecify3(zonedata_type* zd, ldns_rr_class klass,
     }
 
     /** Now we have the complete denial of existence chain */
-    node = ldns_rbtree_first(zd->denial_chain);
+    node = ldns_rbtree_first(zd->denials);
     while (node && node != LDNS_RBTREE_NULL) {
         denial = (denial_type*) node->data;
         nxt_node = ldns_rbtree_next(node);
         if (!nxt_node || nxt_node == LDNS_RBTREE_NULL) {
-             nxt_node = ldns_rbtree_first(zd->denial_chain);
+             nxt_node = ldns_rbtree_first(zd->denials);
         }
         nxt = (denial_type*) nxt_node->data;
 
@@ -1182,7 +1180,7 @@ zonedata_nsecify3(zonedata_type* zd, ldns_rr_class klass,
  *
  */
 ods_status
-zonedata_update_serial(zonedata_type* zd, signconf_type* sc)
+zonedata_update_serial(zonedata_type* zd, signconf_type* sc, uint32_t serial)
 {
     uint32_t soa = 0;
     uint32_t prev = 0;
@@ -1191,12 +1189,12 @@ zonedata_update_serial(zonedata_type* zd, signconf_type* sc)
     ods_log_assert(zd);
     ods_log_assert(sc);
 
-    prev = zd->outbound_serial;
-    if (!zd->initialized) {
-        prev = zd->inbound_serial;
+    prev = zd->outserial;
+    if (!zd->is_initialized) {
+        prev = serial;
     }
     ods_log_debug("[%s] update serial: in=%u internal=%u out=%u now=%u",
-        zd_str, zd->inbound_serial, zd->internal_serial, zd->outbound_serial,
+        zd_str, zd->inbserial, zd->intserial, zd->outserial,
         (uint32_t) time_now());
 
     if (!sc->soa_serial) {
@@ -1210,8 +1208,8 @@ zonedata_update_serial(zonedata_type* zd, signconf_type* sc)
             soa = prev + 1;
         }
     } else if (strncmp(sc->soa_serial, "counter", 7) == 0) {
-        soa = zd->inbound_serial;
-        if (zd->initialized && !DNS_SERIAL_GT(soa, prev)) {
+        soa = serial;
+        if (zd->is_initialized && !DNS_SERIAL_GT(soa, prev)) {
             soa = prev + 1;
         }
     } else if (strncmp(sc->soa_serial, "datecounter", 11) == 0) {
@@ -1220,8 +1218,8 @@ zonedata_update_serial(zonedata_type* zd, signconf_type* sc)
             soa = prev + 1;
         }
     } else if (strncmp(sc->soa_serial, "keep", 4) == 0) {
-        soa = zd->inbound_serial;
-        if (zd->initialized && !DNS_SERIAL_GT(soa, prev)) {
+        soa = serial;
+        if (zd->is_initialized && !DNS_SERIAL_GT(soa, prev)) {
             ods_log_error("[%s] cannot keep SOA SERIAL from input zone "
                 " (%u): previous output SOA SERIAL is %u", zd_str, soa, prev);
             return ODS_STATUS_CONFLICT_ERR;
@@ -1237,13 +1235,13 @@ zonedata_update_serial(zonedata_type* zd, signconf_type* sc)
         update = 0x7FFFFFFF;
     }
 
-    if (!zd->initialized) {
-        zd->internal_serial = soa;
+    if (!zd->is_initialized) {
+        zd->intserial = soa;
     } else {
-        zd->internal_serial += update; /* automatically does % 2^32 */
+        zd->intserial += update; /* automatically does % 2^32 */
     }
     ods_log_debug("[%s] update serial: %u + %u = %u", zd_str, prev, update,
-        zd->internal_serial);
+        zd->intserial);
     return ODS_STATUS_OK;
 }
 
@@ -1420,8 +1418,8 @@ zonedata_wipe_denial(zonedata_type* zd)
     ldns_rbnode_t* node = LDNS_RBTREE_NULL;
     denial_type* denial = NULL;
 
-    if (zd && zd->denial_chain) {
-        node = ldns_rbtree_first(zd->denial_chain);
+    if (zd && zd->denials) {
+        node = ldns_rbtree_first(zd->denials);
         while (node && node != LDNS_RBTREE_NULL) {
             denial = (denial_type*) node->data;
             if (denial->rrset) {
@@ -1508,10 +1506,10 @@ zonedata_cleanup_domains(zonedata_type* zd)
 void
 zonedata_cleanup_chain(zonedata_type* zd)
 {
-    if (zd && zd->denial_chain) {
-        denial_delfunc(zd->denial_chain->root);
-        ldns_rbtree_free(zd->denial_chain);
-        zd->denial_chain = NULL;
+    if (zd && zd->denials) {
+        denial_delfunc(zd->denials->root);
+        ldns_rbtree_free(zd->denials);
+        zd->denials = NULL;
     }
     return;
 }
@@ -1524,15 +1522,14 @@ zonedata_cleanup_chain(zonedata_type* zd)
 void
 zonedata_cleanup(zonedata_type* zd)
 {
-    allocator_type* allocator;
-
+    zone_type* z = NULL;
     if (!zd) {
         return;
     }
+    z = (zone_type*) zd->zone;
     zonedata_cleanup_chain(zd);
     zonedata_cleanup_domains(zd);
-    allocator = zd->allocator;
-    allocator_deallocate(allocator, (void*) zd);
+    allocator_deallocate(z->allocator, (void*) zd);
     return;
 }
 

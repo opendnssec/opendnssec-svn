@@ -56,7 +56,7 @@ adapi_get_serial(zone_type* zone)
             "no zone data", adapi_str);
         return 0;
     }
-    return zone->zonedata->inbound_serial;
+    return zone->zonedata->inbserial;
 }
 
 
@@ -72,7 +72,7 @@ adapi_set_serial(zone_type* zone, uint32_t serial)
             "no zone data", adapi_str);
         return;
     }
-    zone->zonedata->inbound_serial = serial;
+    zone->zonedata->inbserial = serial;
     return;
 }
 

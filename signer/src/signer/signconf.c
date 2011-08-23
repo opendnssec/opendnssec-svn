@@ -468,11 +468,9 @@ signconf_compare_keys(signconf_type* a, signconf_type* b, ldns_rr_list* del)
     int copy = 0;
     uint16_t i = 0;
 
-    if (!a || !b) {
+    if (!a || !b || !a->keys || !b->keys) {
        return TASK_NONE;
     }
-    ods_log_assert(a);
-    ods_log_assert(b);
 
     /* keys deleted? */
     for (i=0; i < a->keys->count; i++) {

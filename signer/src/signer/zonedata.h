@@ -58,13 +58,12 @@
 typedef struct zonedata_struct zonedata_type;
 struct zonedata_struct {
     void* zone;
-    allocator_type* allocator;
     ldns_rbtree_t* domains;
-    ldns_rbtree_t* denial_chain;
-    int initialized;
-    uint32_t inbound_serial; /* last seen inbound soa serial */
-    uint32_t internal_serial; /* latest internal soa serial */
-    uint32_t outbound_serial; /* last written outbound soa serial */
+    ldns_rbtree_t* denials;
+    uint32_t inbserial;
+    uint32_t intserial;
+    uint32_t outserial;
+    unsigned is_initialized : 1;
 };
 
 /**
@@ -76,20 +75,31 @@ void zonedata_init_denial(zonedata_type* zd);
 
 /**
  * Create empty zone data.
- * \param[in] allocator memory allocator
+ * \param[in] zone zone reference
  * \return zonedata_type* empty zone data tree
  *
  */
-zonedata_type* zonedata_create(allocator_type* allocator);
+zonedata_type* zonedata_create(void* zone);
 
 /**
- * Recover zone data from backup.
+ * Update the serial.
  * \param[in] zd zone data
- * \param[in] fd backup file descriptor
+ * \param[in] sc signer configuration
+ * \param[in] serial inbound serial
  * \return ods_status status
  *
  */
-ods_status zonedata_recover(zonedata_type* zd, FILE* fd);
+ods_status zonedata_update_serial(zonedata_type* zd, signconf_type* sc,
+    uint32_t serial);
+
+/**
+ * Add empty non-terminals to zone data.
+ * \param[in] zd zone data
+ * \param[in] apex zone apex
+ * \return ods_status status
+ *
+ */
+ods_status zonedata_entize(zonedata_type* zd, ldns_rdf* apex);
 
 /**
  * Look up domain.
@@ -184,15 +194,6 @@ ods_status zonedata_commit(zonedata_type* zd);
 void zonedata_rollback(zonedata_type* zd);
 
 /**
- * Add empty non-terminals to zone data.
- * \param[in] zd zone data
- * \param[in] apex zone apex
- * \return ods_status status
- *
- */
-ods_status zonedata_entize(zonedata_type* zd, ldns_rdf* apex);
-
-/**
  * Add NSEC records to zone data.
  * \param[in] zd zone data
  * \param[in] klass zone class
@@ -218,15 +219,6 @@ ods_status zonedata_nsecify3(zonedata_type* zd, ldns_rr_class klass,
     uint32_t ttl, nsec3params_type* nsec3params, uint32_t* num_added);
 
 /**
- * Update the serial.
- * \param[in] zd zone data
- * \param[in] sc signer configuration
- * \return ods_status status
- *
- */
-ods_status zonedata_update_serial(zonedata_type* zd, signconf_type* sc);
-
-/**
  * Queue all RRsets.
  * \param[in] zd zone data
  * \param[in] q queue
@@ -236,6 +228,15 @@ ods_status zonedata_update_serial(zonedata_type* zd, signconf_type* sc);
  */
 ods_status zonedata_queue(zonedata_type* zd, fifoq_type* q,
     worker_type* worker);
+
+/**
+ * Print zone data.
+ * \param[in] fd output file descriptor
+ * \param[in] zd zone data
+ * \return ods_status status
+ *
+ */
+ods_status zonedata_print(FILE* fd, zonedata_type* zd);
 
 /**
  * Wipe out all NSEC(3) RRsets.
@@ -267,13 +268,14 @@ void zonedata_cleanup(zonedata_type* zd);
 void zonedata_backup(FILE* fd, zonedata_type* zd);
 
 /**
- * Print zone data.
- * \param[in] fd output file descriptor
+ * Recover zone data from backup.
  * \param[in] zd zone data
+ * \param[in] fd backup file descriptor
  * \return ods_status status
  *
  */
-ods_status zonedata_print(FILE* fd, zonedata_type* zd);
+ods_status zonedata_recover(zonedata_type* zd, FILE* fd);
+
 
 /**
  * Log RDF.

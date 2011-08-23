@@ -251,7 +251,7 @@ worker_perform_task(worker_type* worker)
             ods_log_verbose("[%s[%i]] sign zone %s",
                 worker2str(worker->type), worker->thread_num,
                 task_who2str(task));
-            tmpserial = zone->zonedata->internal_serial;
+            tmpserial = zone->zonedata->intserial;
             status = zone_update_serial(zone);
             if (status != ODS_STATUS_OK) {
                 ods_log_error("[%s[%i]] unable to sign zone %s: "
@@ -320,7 +320,7 @@ worker_perform_task(worker_type* worker)
             /* what to do next */
             if (status != ODS_STATUS_OK) {
                 /* rollback serial */
-                zone->zonedata->internal_serial = tmpserial;
+                zone->zonedata->intserial = tmpserial;
                 if (task->halted == TASK_NONE) {
                     goto task_perform_fail;
                 }

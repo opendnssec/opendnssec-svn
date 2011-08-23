@@ -101,14 +101,13 @@ zone_create(char* name, ldns_rr_class klass)
     zone->processed = 0;
     zone->prepared = 0;
     zone->fetch = 0;
-    zone->zonedata = zonedata_create(zone->allocator);
+    zone->zonedata = zonedata_create((void*)zone);
     if (!zone->zonedata) {
         ods_log_error("[%s] unable to create zone %s: create zonedata "
             "failed", zone_str, name);
         zone_cleanup(zone);
         return NULL;
     }
-    zone->zonedata->zone = (void*) zone;
     zone->signconf = signconf_create();
     if (!zone->signconf) {
         ods_log_error("[%s] unable to create zone %s: create signconf "
@@ -482,7 +481,8 @@ zone_update_serial(zone_type* zone)
     }
     ods_log_assert(zone->zonedata);
 
-    status = zonedata_update_serial(zone->zonedata, zone->signconf);
+    status = zonedata_update_serial(zone->zonedata, zone->signconf,
+        zone->zonedata->inbserial);
     if (status != ODS_STATUS_OK) {
         ods_log_error("[%s] unable to update serial: failed to increment",
             zone_str);
@@ -511,10 +511,10 @@ zone_update_serial(zone_type* zone)
     if (rrset->rrs && rrset->rrs->rr) {
         serial = ldns_rr_set_rdf(rrset->rrs->rr,
             ldns_native2rdf_int32(LDNS_RDF_TYPE_INT32,
-            zone->zonedata->internal_serial), SE_SOA_RDATA_SERIAL);
+            zone->zonedata->intserial), SE_SOA_RDATA_SERIAL);
         if (serial) {
             if (ldns_rdf2native_int32(serial) !=
-                zone->zonedata->internal_serial) {
+                zone->zonedata->intserial) {
                 rrset->needs_signing = 1;
             }
             ldns_rdf_deep_free(serial);
@@ -882,9 +882,9 @@ zone_backup(zone_type* zone)
             zone->name?zone->name:"(null)",
             (int) zone->klass,
             (unsigned) zone->default_ttl,
-            (unsigned) zone->zonedata->inbound_serial,
-            (unsigned) zone->zonedata->internal_serial,
-            (unsigned) zone->zonedata->outbound_serial);
+            (unsigned) zone->zonedata->inbserial,
+            (unsigned) zone->zonedata->intserial,
+            (unsigned) zone->zonedata->outserial);
         /** Backup task */
         if (zone->task) {
             task_backup(fd, (task_type*) zone->task);
@@ -1074,9 +1074,9 @@ zone_recover(zone_type* zone)
 
         zone->klass = (ldns_rr_class) klass;
         zone->default_ttl = ttl;
-        zone->zonedata->inbound_serial = inbound;
-        zone->zonedata->internal_serial = internal;
-        zone->zonedata->outbound_serial = outbound;
+        zone->zonedata->inbserial = inbound;
+        zone->zonedata->intserial = internal;
+        zone->zonedata->outserial = outbound;
         zone->signconf->nsec3_salt = allocator_strdup(
             zone->signconf->allocator, salt);
         free((void*) salt);
@@ -1128,7 +1128,7 @@ zone_recover(zone_type* zone)
         ods_fclose(fd);
 
         /* all ok */
-        zone->zonedata->initialized = 1;
+        zone->zonedata->is_initialized = 1;
         if (zone->stats) {
             lock_basic_lock(&zone->stats->stats_lock);
             stats_clear(zone->stats);
@@ -1150,11 +1150,11 @@ zone_recover(zone_type* zone)
                 !backup_read_int(fd, &fetch) ||
                 !backup_read_check_str(fd, ";default_ttl:") ||
                 !backup_read_uint32_t(fd, &ttl) ||
-                !backup_read_check_str(fd, ";inbound_serial:") ||
+                !backup_read_check_str(fd, ";inbserial:") ||
                 !backup_read_uint32_t(fd, &inbound) ||
-                !backup_read_check_str(fd, ";internal_serial:") ||
+                !backup_read_check_str(fd, ";intserial:") ||
                 !backup_read_uint32_t(fd, &internal) ||
-                !backup_read_check_str(fd, ";outbound_serial:") ||
+                !backup_read_check_str(fd, ";outserial:") ||
                 !backup_read_uint32_t(fd, &outbound) ||
                 !backup_read_check_str(fd, ODS_SE_FILE_MAGIC_V1))
             {
@@ -1162,11 +1162,11 @@ zone_recover(zone_type* zone)
             }
             zone->klass = (ldns_rr_class) klass;
             zone->default_ttl = ttl;
-            zone->zonedata->inbound_serial = inbound;
-            zone->zonedata->internal_serial = internal;
-            zone->zonedata->outbound_serial = outbound;
+            zone->zonedata->inbserial = inbound;
+            zone->zonedata->intserial = internal;
+            zone->zonedata->outserial = outbound;
             /* all ok */
-            zone->zonedata->initialized = 1;
+            zone->zonedata->is_initialized = 1;
             if (zone->stats) {
                 lock_basic_lock(&zone->stats->stats_lock);
                 stats_clear(zone->stats);
@@ -1205,9 +1205,8 @@ recover_error:
 
     /* zonedata cleanup */
     zonedata_cleanup(zone->zonedata);
-    zone->zonedata = zonedata_create(zone->allocator);
+    zone->zonedata = zonedata_create((void*)zone);
     ods_log_assert(zone->zonedata);
-    zone->zonedata->zone = (void*) zone;
 
     if (zone->stats) {
        lock_basic_lock(&zone->stats->stats_lock);
