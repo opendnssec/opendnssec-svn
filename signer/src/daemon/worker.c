@@ -559,6 +559,7 @@ worker_drudge(worker_type* worker)
     hsm_ctx_t* ctx = NULL;
 
     ods_log_assert(worker);
+    ods_log_assert(worker->engine);
     ods_log_assert(worker->type == WORKER_DRUDGER);
 
     ctx = hsm_create_context();
@@ -568,6 +569,7 @@ worker_drudge(worker_type* worker)
             worker->thread_num);
     }
 
+    engine = worker->engine;
     while (worker->need_to_exit == 0) {
         ods_log_deeebug("[%s[%i]] report for duty", worker2str(worker->type),
             worker->thread_num);
