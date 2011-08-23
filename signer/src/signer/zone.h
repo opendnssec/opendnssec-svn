@@ -67,11 +67,9 @@ struct zone_struct {
     ldns_rdf* apex; /* wire format zone name */
     ldns_rr_class klass; /* class */
     uint32_t default_ttl; /* ttl */
-
     /* from conf.xml */
     const char* notify_ns; /* master name server reload command */
     int fetch; /* zone fetcher enabled */
-
     /* from zonelist.xml */
     const char* name; /* string format zone name */
     const char* policy_name; /* policy identifier */
@@ -79,24 +77,18 @@ struct zone_struct {
     zone_zl_status zl_status; /* zonelist status */
     int processed;
     int prepared;
-
     /* adapters */
     adapter_type* adinbound; /* inbound adapter */
     adapter_type* adoutbound; /* outbound adapter */
-
     /* from signconf.xml */
     signconf_type* signconf; /* signer configuration values */
     nsec3params_type* nsec3params; /* NSEC3 parameters */
-
     /* zone data */
     zonedata_type* zonedata;
-
     /* worker variables */
     void* task; /* next assigned task */
-
     /* statistics */
     stats_type* stats;
-
     lock_basic_type zone_lock;
 };
 
@@ -108,32 +100,6 @@ struct zone_struct {
  *
  */
 zone_type* zone_create(char* name, ldns_rr_class klass);
-
-/**
- * Add RR.
- * \param[in] zone zone
- * \param[in] rr rr
- * \param[in] do_stats true if we need to maintain statistics
- * \return ods_status status
- *         ODS_STATUS_OK: rr to be added to zone
- *         ODS_STATUS_UNCHANGED: rr not added to zone, rr already exists
- *         other: rr not added to zone, error occurred
- *
- */
-ods_status zone_add_rr(zone_type* zone, ldns_rr* rr, int do_stats);
-
-/**
- * Delete RR.
- * \param[in] zone zone
- * \param[in] rr rr
- * \param[in] do_stats true if we need to maintain statistics
- * \return ods_status status
- *         ODS_STATUS_OK: rr to be removed from zone
- *         ODS_STATUS_UNCHANGED: rr not removed from zone, rr does not exist
- *         other: rr not removed from zone, error occurred
- *
- */
-ods_status zone_del_rr(zone_type* zone, ldns_rr* rr, int do_stats);
 
 /**
  * Load signer configuration for zone.
@@ -166,19 +132,38 @@ ods_status zone_publish_dnskeys(zone_type* zone, int recover);
 ods_status zone_prepare_nsec3(zone_type* zone, int recover);
 
 /**
- * Backup zone.
- * \param[in] zone corresponding zone
+ * Update SOA SERIAL.
+ * \param[in] zone zone
  * \return ods_status status
  *
  */
-ods_status zone_backup(zone_type* zone);
+ods_status zone_update_serial(zone_type* zone);
 
 /**
- * Recover zone from backup.
- * \param[in] zone corresponding zone
+ * Add RR.
+ * \param[in] zone zone
+ * \param[in] rr rr
+ * \param[in] do_stats true if we need to maintain statistics
+ * \return ods_status status
+ *         ODS_STATUS_OK: rr to be added to zone
+ *         ODS_STATUS_UNCHANGED: rr not added to zone, rr already exists
+ *         other: rr not added to zone, error occurred
  *
  */
-ods_status zone_recover(zone_type* zone);
+ods_status zone_add_rr(zone_type* zone, ldns_rr* rr, int do_stats);
+
+/**
+ * Delete RR.
+ * \param[in] zone zone
+ * \param[in] rr rr
+ * \param[in] do_stats true if we need to maintain statistics
+ * \return ods_status status
+ *         ODS_STATUS_OK: rr to be removed from zone
+ *         ODS_STATUS_UNCHANGED: rr not removed from zone, rr does not exist
+ *         other: rr not removed from zone, error occurred
+ *
+ */
+ods_status zone_del_rr(zone_type* zone, ldns_rr* rr, int do_stats);
 
 /**
  * Merge zones. Values that are merged:
@@ -191,14 +176,6 @@ ods_status zone_recover(zone_type* zone);
  *
  */
 void zone_merge(zone_type* z1, zone_type* z2);
-
-/**
- * Update serial.
- * \param[in] zone zone
- * \return ods_status status
- *
- */
-ods_status zone_update_serial(zone_type* zone);
 
 /**
  * Print zone.
@@ -222,5 +199,20 @@ ods_status zone_examine(zone_type* zone);
  *
  */
 void zone_cleanup(zone_type* zone);
+
+/**
+ * Backup zone.
+ * \param[in] zone corresponding zone
+ * \return ods_status status
+ *
+ */
+ods_status zone_backup(zone_type* zone);
+
+/**
+ * Recover zone from backup.
+ * \param[in] zone corresponding zone
+ *
+ */
+ods_status zone_recover(zone_type* zone);
 
 #endif /* SIGNER_ZONE_H */
