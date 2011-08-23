@@ -33,12 +33,8 @@
 
 #include "config.h"
 #include "daemon/cfg.h"
-#include "daemon/cmdhandler.h"
 #include "daemon/engine.h"
 #include "daemon/signal.h"
-#include "daemon/worker.h"
-#include "scheduler/schedule.h"
-#include "scheduler/task.h"
 #include "shared/allocator.h"
 #include "shared/file.h"
 #include "shared/locks.h"
@@ -46,7 +42,6 @@
 #include "shared/privdrop.h"
 #include "shared/status.h"
 #include "shared/util.h"
-#include "signer/zone.h"
 #include "signer/zonelist.h"
 #include "tools/zone_fetcher.h"
 
@@ -77,10 +72,14 @@ engine_create(void)
     engine_type* engine;
     allocator_type* allocator = allocator_create(malloc, free);
     if (!allocator) {
+        ods_log_error("[%s] unable to create engine: allocator_create() "
+            "failed", engine_str);
         return NULL;
     }
     engine = (engine_type*) allocator_alloc(allocator, sizeof(engine_type));
     if (!engine) {
+        ods_log_error("[%s] unable to create engine: allocator_alloc() "
+            "failed", engine_str);
         allocator_cleanup(allocator);
         return NULL;
     }
@@ -217,11 +216,9 @@ engine_privdrop(engine_type* engine)
     ods_status status = ODS_STATUS_OK;
     uid_t uid = -1;
     gid_t gid = -1;
-
     ods_log_assert(engine);
     ods_log_assert(engine->config);
     ods_log_debug("[%s] drop privileges", engine_str);
-
     if (engine->config->username && engine->config->group) {
         ods_log_verbose("[%s] drop privileges to user %s, group %s",
            engine_str, engine->config->username, engine->config->group);
@@ -561,7 +558,7 @@ engine_setup(engine_type* engine)
     int result = 0;
     ods_status status = ODS_STATUS_OK;
 
-    ods_log_debug("[%s] signer setup", engine_str);
+    ods_log_debug("[%s] setup signer engine", engine_str);
     if (!engine || !engine->config) {
         return ODS_STATUS_ASSERT_ERR;
     }
@@ -569,8 +566,6 @@ engine_setup(engine_type* engine)
     engine->cmdhandler = cmdhandler_create(engine->allocator,
         engine->config->clisock_filename);
     if (!engine->cmdhandler) {
-        ods_log_error("[%s] create command handler to %s failed",
-            engine_str, engine->config->clisock_filename);
         return ODS_STATUS_CMDHANDLER_ERR;
     }
     /* fork of fetcher */
@@ -581,7 +576,7 @@ engine_setup(engine_type* engine)
     /* initialize adapters */
     status = engine_init_adapters(engine);
     if (status != ODS_STATUS_OK) {
-        ods_log_error("[%s] initializing adapters failed", engine_str);
+        ods_log_error("[%s] setup: unable to initalize adapters", engine_str);
         return status;
     }
     /* privdrop */
@@ -597,19 +592,18 @@ engine_setup(engine_type* engine)
     }
     if (engine->config->working_dir &&
         chdir(engine->config->working_dir) != 0) {
-        ods_log_error("[%s] chdir to %s failed: %s", engine_str,
+        ods_log_error("[%s] setup: unable to chdir to %s (%s)", engine_str,
             engine->config->working_dir, strerror(errno));
         return ODS_STATUS_CHDIR_ERR;
     }
     if (engine_privdrop(engine) != ODS_STATUS_OK) {
-        ods_log_error("[%s] unable to drop privileges", engine_str);
         return ODS_STATUS_PRIVDROP_ERR;
     }
     /* daemonize */
     if (engine->daemonize) {
         switch ((engine->pid = fork())) {
             case -1: /* error */
-                ods_log_error("[%s] unable to fork daemon: %s",
+                ods_log_error("[%s] setup: unable to fork daemon (%s)",
                     engine_str, strerror(errno));
                 return ODS_STATUS_FORK_ERR;
             case 0: /* child */
@@ -623,7 +617,7 @@ engine_setup(engine_type* engine)
                 exit(0);
         }
         if (setsid() == -1) {
-            ods_log_error("[%s] unable to setsid daemon (%s)",
+            ods_log_error("[%s] setup: unable to setsid daemon (%s)",
                 engine_str, strerror(errno));
             return ODS_STATUS_SETSID_ERR;
         }
@@ -642,12 +636,9 @@ engine_setup(engine_type* engine)
     result = hsm_open(engine->config->cfg_filename, hsm_prompt_pin, NULL);
     if (result != HSM_OK) {
         char *error =  hsm_get_error(NULL);
-        if (error != NULL) {
-            ods_log_error("[%s] %s", engine_str, error);
-            free(error);
-        }
-        ods_log_error("[%s] error initializing libhsm (errno %i)",
-            engine_str, result);
+        ods_log_error("[%s] setup: error initializing libhsm errno=%i (%s)",
+            engine_str, result, error?error:"NULL");
+        free((void*)error);
         return ODS_STATUS_HSM_ERR;
     }
     /* create workers */
@@ -658,10 +649,9 @@ engine_setup(engine_type* engine)
     /* write pidfile */
     if (util_write_pidfile(engine->config->pid_filename, engine->pid) == -1) {
         hsm_close();
-        ods_log_error("[%s] unable to write pid file", engine_str);
         return ODS_STATUS_WRITE_PIDFILE_ERR;
     }
-
+    /* setup done */
     return ODS_STATUS_OK;
 }
 
@@ -723,7 +713,7 @@ engine_run(engine_type* engine, int single_run)
                 engine->need_to_exit = 1;
                 break;
             default:
-                ods_log_warning("[%s] invalid signal captured: %d, "
+                ods_log_warning("[%s] invalid signal %d captured, "
                     "keep running", engine_str, signal);
                 engine->signal = SIGNAL_RUN;
                 break;
@@ -793,11 +783,8 @@ engine_update_zones(engine_type* engine)
     time_t now;
 
     if (!engine || !engine->zonelist || !engine->zonelist->zones) {
-        ods_log_error("[%s] cannot update zones: no engine or zonelist",
-            engine_str);
         return;
     }
-
     now = time_now();
     reload_zonefetcher(engine);
 
@@ -828,7 +815,7 @@ engine_update_zones(engine_type* engine)
             lock_basic_lock(&zone->zone_lock);
             ods_log_assert(!zone->task);
             zone->just_added = 0;
-            /* notify nameserver */
+            /* set notify nameserver command */
             if (engine->config->notify_command && !zone->notify_ns) {
                 set_notify_ns(zone, engine->config->notify_command);
             }
