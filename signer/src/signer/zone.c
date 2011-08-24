@@ -149,7 +149,7 @@ dnskey_withdraw(zone_type* zone, ldns_rr_list* del)
  *
  */
 ods_status
-zone_load_signconf(zone_type* zone, task_id* tbs)
+zone_load_signconf(zone_type* zone)
 {
     ods_status status = ODS_STATUS_OK;
     signconf_type* signconf = NULL;
@@ -158,7 +158,6 @@ zone_load_signconf(zone_type* zone, task_id* tbs)
     uint32_t ustamp = 0;
     task_id denial_what;
     task_id keys_what;
-    task_id what;
 
     if (!zone) {
         ods_log_error("[%s] unable to load signconf: no zone", zone_str);
@@ -223,17 +222,6 @@ zone_load_signconf(zone_type* zone, task_id* tbs)
         }
 
         /* all ok, switch to new signconf */
-        if (keys_what != TASK_NONE) {
-            what = keys_what;
-        } else {
-            what = denial_what;
-        }
-        if (what == TASK_NONE) { /* no major changes, continue signing */
-            what = TASK_SIGN;
-        }
-        *tbs = what;
-        ods_log_debug("[%s] tbs for zone %s set to: %s", zone_str,
-            zone->name, task_what2str(*tbs));
         signconf_cleanup(zone->signconf);
         ods_log_debug("[%s] zone %s switch to new signconf", zone_str,
             zone->name);
@@ -242,9 +230,6 @@ zone_load_signconf(zone_type* zone, task_id* tbs)
         zone->default_ttl =
             (uint32_t) duration2time(zone->signconf->soa_min);
     } else if (status == ODS_STATUS_UNCHANGED) {
-        *tbs = TASK_READ;
-        ods_log_debug("[%s] tbs for zone %s set to: %s", zone_str,
-            zone->name, task_what2str(*tbs));
         ustamp = time_datestamp(zone->signconf->last_modified,
             "%Y-%m-%d %T", &datestamp);
         ods_log_verbose("[%s] zone %s signconf file %s is unchanged since "

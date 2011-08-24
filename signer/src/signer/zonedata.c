@@ -312,7 +312,7 @@ zonedata_update_serial(zonedata_type* zd, signconf_type* sc, uint32_t serial)
     uint32_t soa = 0;
     uint32_t prev = 0;
     uint32_t update = 0;
-    if (!db || !sc) {
+    if (!zd || !sc) {
         return ODS_STATUS_ASSERT_ERR;
     }
     prev = zd->outserial;

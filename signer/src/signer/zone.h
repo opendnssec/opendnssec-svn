@@ -102,14 +102,13 @@ zone_type* zone_create(char* name, ldns_rr_class klass);
 /**
  * Load signer configuration for zone.
  * \param[in] zone zone
- * \param[out] tbs task to be scheduled
  * \return ods_status status
  *         ODS_STATUS_OK: new signer configuration loaded
  *         ODS_STATUS_UNCHANGED: signer configuration has not changed
  *         other: signer configuration not loaded, error occurred
  *
  */
-ods_status zone_load_signconf(zone_type* zone, task_id* tbs);
+ods_status zone_load_signconf(zone_type* zone);
 
 /**
  * Publish DNSKEYs.

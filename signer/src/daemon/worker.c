@@ -107,6 +107,29 @@ worker2str(worker_id type)
 
 
 /**
+ * Worker working with...
+ *
+ */
+static void
+worker_working_with(worker_type* worker, task_id with, task_id next,
+    const char* str, const char* name, task_id* what, time_t* when,
+    int* fallthrough)
+{
+    worker->working_with = with;
+    ods_log_verbose("[%s[%i]] %s zone %s", worker2str(worker->type),
+       worker->thread_num, str, name);
+    *what = next;
+    *when = time_now();
+    if (with == TASK_SIGNCONF || with == TASK_WRITE) {
+        *fallthrough = 0;
+    } else {
+        *fallthrough = 1;
+    }
+    return;
+}
+
+
+/**
  * Has this worker measured up to all appointed jobs?
  *
  */
@@ -152,12 +175,11 @@ worker_perform_task(worker_type* worker)
     /* do what you have been told to do */
     switch (task->what) {
         case TASK_SIGNCONF:
-            worker->working_with = TASK_SIGNCONF;
             /* perform 'load signconf' task */
-            ods_log_verbose("[%s[%i]] load signconf for zone %s",
-                worker2str(worker->type), worker->thread_num,
-                task_who2str(task));
-            status = zone_load_signconf(zone, &what);
+            worker_working_with(worker, TASK_SIGNCONF, TASK_READ,
+                "configure", task_who2str(task),
+                &what, &when, &fallthrough);
+            status = zone_load_signconf(zone);
             if (status == ODS_STATUS_UNCHANGED) {
                 if (!zone->signconf->last_modified) {
                     ods_log_debug("[%s[%i]] no signconf.xml for zone %s yet",
@@ -166,9 +188,6 @@ worker_perform_task(worker_type* worker)
                 }
                 status = ODS_STATUS_ERR;
             }
-
-            /* what to do next */
-            when = time_now();
             if (status == ODS_STATUS_UNCHANGED) {
                 if (task->halted != TASK_NONE) {
                     goto task_perform_continue;
