@@ -259,7 +259,6 @@ zone_publish_dnskeys(zone_type* zone, int recover)
     ods_status status = ODS_STATUS_OK;
     ldns_rr* dnskey = NULL;
     int do_publish = 0;
-    uint16_t i = 0;
 
     if (!zone) {
         ods_log_error("[%s] unable to publish dnskeys: no zone", zone_str);
@@ -301,7 +300,7 @@ zone_publish_dnskeys(zone_type* zone, int recover)
     }
 
     for (count=0; count < zone->signconf->keys->count; count++) {
-        key = &zone->signconf->keys->keys[i];
+        key = &zone->signconf->keys->keys[count];
         if (key->publish) {
             do_publish = 0;
             if (!key->dnskey) {
