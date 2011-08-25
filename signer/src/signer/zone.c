@@ -31,10 +31,7 @@
  *
  */
 
-#include "adapter/adapi.h"
 #include "adapter/adapter.h"
-#include "scheduler/schedule.h"
-#include "scheduler/task.h"
 #include "shared/allocator.h"
 #include "shared/file.h"
 #include "shared/hsm.h"
@@ -43,10 +40,7 @@
 #include "shared/status.h"
 #include "shared/util.h"
 #include "signer/backup.h"
-#include "signer/nsec3params.h"
-#include "signer/signconf.h"
 #include "signer/zone.h"
-#include "signer/namedb.h"
 
 #include <ldns/ldns.h>
 
@@ -100,6 +94,7 @@ zone_create(char* name, ldns_rr_class klass)
     zone->zl_status = ZONE_ZL_OK;
     zone->prepared = 0;
     zone->fetch = 0;
+    zone->task = NULL;
     zone->db = namedb_create((void*)zone);
     if (!zone->db) {
         ods_log_error("[%s] unable to create zone %s: create namedb "
@@ -115,7 +110,6 @@ zone_create(char* name, ldns_rr_class klass)
         return NULL;
     }
     zone->stats = stats_create();
-    zone->task = NULL;
     lock_basic_init(&zone->zone_lock);
     return zone;
 }
@@ -174,7 +168,7 @@ zone_load_signconf(zone_type* zone, signconf_type** new_signconf)
 
 
 /**
- * Publish DNSKEYs.
+ * Publish the keys as indicated by the signer configuration.
  *
  */
 ods_status
@@ -183,106 +177,83 @@ zone_publish_dnskeys(zone_type* zone, int recover)
     hsm_ctx_t* ctx = NULL;
     key_type* key = NULL;
     uint32_t ttl = 0;
-    size_t count = 0;
+    uint16_t i = 0;
     ods_status status = ODS_STATUS_OK;
     ldns_rr* dnskey = NULL;
     int do_publish = 0;
 
-    if (!zone) {
-        ods_log_error("[%s] unable to publish dnskeys: no zone", zone_str);
+    if (!zone || !zone->db || !zone->signconf || !zone->signconf->keys) {
         return ODS_STATUS_ASSERT_ERR;
     }
-    ods_log_assert(zone);
+    ods_log_assert(zone->name);
 
-    if (!zone->signconf) {
-        ods_log_error("[%s] unable to publish dnskeys zone %s: no signconf",
-            zone_str, zone->name);
-        return ODS_STATUS_ASSERT_ERR;
+    /* hsm access */
+    ctx = hsm_create_context();
+    if (ctx == NULL) {
+        ods_log_error("[%s] unable to publish keys for zone %s: "
+            "error creating libhsm context", zone_str, zone->name);
+        return ODS_STATUS_HSM_ERR;
     }
-    ods_log_assert(zone->signconf);
-
-    if (!zone->signconf->keys) {
-        ods_log_error("[%s] unable to publish dnskeys zone %s: no keys",
-            zone_str, zone->name);
-        return ODS_STATUS_ASSERT_ERR;
-    }
-    ods_log_assert(zone->signconf->keys);
-
-    if (!zone->db) {
-        ods_log_error("[%s] unable to publish dnskeys zone %s: no namedb",
-            zone_str, zone->name);
-        return ODS_STATUS_ASSERT_ERR;
-    }
-    ods_log_assert(zone->db);
-
+    /* dnskey ttl */
     ttl = zone->default_ttl;
     if (zone->signconf->dnskey_ttl) {
         ttl = (uint32_t) duration2time(zone->signconf->dnskey_ttl);
     }
+    /* publish keys */
+    for (i=0; i < zone->signconf->keys->count; i++) {
+        key = &zone->signconf->keys->keys[i];
+        if (!key->publish) {
+            continue;
+        }
+        do_publish = 0;
+        if (!key->dnskey) {
+            do_publish = 1;
+        }
+        /* get dnskey */
+        status = lhsm_get_key(ctx, zone->apex, key);
+        if (status != ODS_STATUS_OK) {
+            ods_log_error("[%s] unable to publish dnskeys for zone %s: "
+                "error creating dnskey for key %s", zone_str,
+                zone->name, key->locator?key->locator:"(null)");
+            break;
+        }
+        ods_log_assert(key->dnskey);
 
-    ctx = hsm_create_context();
-    if (ctx == NULL) {
-        ods_log_error("[%s] unable to publish dnskeys for zone %s: error "
-            "creating libhsm context", zone_str, zone->name);
-        return ODS_STATUS_HSM_ERR;
-    }
-
-    for (count=0; count < zone->signconf->keys->count; count++) {
-        key = &zone->signconf->keys->keys[count];
-        if (key->publish) {
-            do_publish = 0;
-            if (!key->dnskey) {
-                do_publish = 1;
-            }
-
-            status = lhsm_get_key(ctx, zone->apex, key);
-            if (status != ODS_STATUS_OK) {
-                ods_log_error("[%s] unable to publish dnskeys zone %s: "
-                    "error creating DNSKEY for key %s", zone_str,
-                    zone->name, key->locator?key->locator:"(null)");
-                break;
-            }
-            ods_log_assert(key->dnskey);
-
-            if (recover) {
-                dnskey = ldns_rr_clone(key->dnskey);
-                status = zone_add_rr(zone, dnskey, 0);
-            } else if (do_publish) {
-                ldns_rr_set_ttl(key->dnskey, ttl);
-                ldns_rr_set_class(key->dnskey, zone->klass);
-                ldns_rr2canonical(key->dnskey);
-                dnskey = ldns_rr_clone(key->dnskey);
-                status = zone_add_rr(zone, dnskey, 0);
-            } else {
-                status = ODS_STATUS_OK;
-            }
-
-            if (status != ODS_STATUS_OK) {
-                ods_log_error("[%s] unable to publish dnskeys zone %s: "
-                    "error adding DNSKEY[%u] for key %s", zone_str,
-                    zone->name, ldns_calc_keytag(dnskey),
-                    key->locator?key->locator:"(null)");
-                break;
-            }
+        if (recover) {
+            dnskey = ldns_rr_clone(key->dnskey);
+            status = zone_add_rr(zone, dnskey, 0);
+        } else if (do_publish) {
+            ldns_rr_set_ttl(key->dnskey, ttl);
+            ldns_rr_set_class(key->dnskey, zone->klass);
+            ldns_rr2canonical(key->dnskey);
+            dnskey = ldns_rr_clone(key->dnskey);
+            status = zone_add_rr(zone, dnskey, 0);
+        } else {
+            status = ODS_STATUS_OK;
+        }
+        if (status != ODS_STATUS_OK) {
+            ods_log_error("[%s] unable to publish dnskeys zone %s: "
+                "error adding DNSKEY[%u] for key %s", zone_str,
+                 zone->name, ldns_calc_keytag(dnskey),
+                 key->locator?key->locator:"(null)");
+            break;
         }
     }
-
     if (status != ODS_STATUS_OK) {
         namedb_rollback(zone->db);
     }
-
+    /* done */
     hsm_destroy_context(ctx);
-    ctx = NULL;
     return status;
 }
 
 
 /**
- * Prepare for NSEC3.
+ * Publish the NSEC3 parameters as indicated by the signer configuration.
  *
  */
 ods_status
-zone_prepare_nsec3(zone_type* zone, int recover)
+zone_publish_nsec3param(zone_type* zone, int recover)
 {
     ldns_rr* nsec3params_rr = NULL;
     domain_type* apex = NULL;
@@ -985,7 +956,7 @@ zone_recover(zone_type* zone)
             zone->task = NULL;
             goto recover_error;
         }
-        status = zone_prepare_nsec3(zone, 1);
+        status = zone_publish_nsec3param(zone, 1);
         if (status != ODS_STATUS_OK) {
             zone->task = NULL;
             goto recover_error;

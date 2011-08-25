@@ -200,7 +200,7 @@ worker_perform_task(worker_type* worker)
                 status = zone_publish_dnskeys(zone, 0);
             }
             if (status == ODS_STATUS_OK) {
-                status = zone_prepare_nsec3(zone, 0);
+                status = zone_publish_nsec3param(zone, 0);
             }
             if (status == ODS_STATUS_OK) {
                 status = namedb_commit(zone->db);

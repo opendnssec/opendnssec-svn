@@ -41,7 +41,7 @@
 
 #include <ldns/ldns.h>
 
-static const char* adapi_str = "adapter";
+/* static const char* adapi_str = "adapter"; */
 
 
 /**
