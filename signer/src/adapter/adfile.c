@@ -33,6 +33,7 @@
 
 #include "config.h"
 #include "adapter/adapi.h"
+#include "adapter/adapter.h"
 #include "adapter/adfile.h"
 #include "adapter/adutil.h"
 #include "shared/duration.h"
@@ -54,14 +55,16 @@ static ods_status adfile_read_file(FILE* fd, zone_type* zone);
  * Initialize file adapters.
  *
  */
-ods_status
-adfile_init(const char* configstr)
+void
+adfile_init(void* adapter)
 {
-    if (configstr) {
-        ods_log_warning("[%s] File Adapter init not implemented %s",
-            adapter_str);
-    }
-    return ODS_STATUS_OK;
+    adapter_type* ad = (adapter_type*) adapter;
+    ods_log_assert(ad);
+    ods_log_assert(ad->type == ADAPTER_FILE);
+    ods_log_assert(ad->configstr);
+    ods_log_info("[%s] initialize file adapter %s", adapter_str,
+        ad->configstr);
+    return;
 }
 
 

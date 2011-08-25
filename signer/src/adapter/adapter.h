@@ -71,10 +71,9 @@ struct adapter_struct {
 /**
  * Initialize adapter.
  * \param[in] adapter adapter
- * /return ods_status stats
  *
  */
-ods_status adapter_init(adapter_type* adapter);
+void adapter_init(adapter_type* adapter);
 
 /**
  * Create new adapter.

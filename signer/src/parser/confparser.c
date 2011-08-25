@@ -27,8 +27,8 @@
  */
 
 /**
- *
  * Parsing configuration files.
+ *
  */
 
 #include "parser/confparser.h"

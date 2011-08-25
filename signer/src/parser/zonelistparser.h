@@ -27,8 +27,8 @@
  */
 
 /**
- *
  * Parsing zonelist files.
+ *
  */
 
 #ifndef PARSER_ZONELISTPARSER_H

@@ -27,8 +27,8 @@
  */
 
 /**
- *
  * Parsing zonelist files.
+ *
  */
 
 #include "adapter/adapter.h"

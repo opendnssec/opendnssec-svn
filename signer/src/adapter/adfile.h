@@ -48,11 +48,10 @@
 
 /**
  * Initialize file adapters.
- * \param[in] configstr init configuration file location
- * \return ods_status status
+ * \param[in] adapter
  *
  */
-ods_status adfile_init(const char* configstr);
+void adfile_init(void* adapter);
 
 /**
  * Read zone from input file adapter.

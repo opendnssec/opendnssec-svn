@@ -47,20 +47,20 @@ static const char* adapter_str = "adapter";
  * Initialize adapter.
  *
  */
-ods_status
+void
 adapter_init(adapter_type* adapter)
 {
-    if (adapter) {
-        switch(adapter->type) {
-            case ADAPTER_FILE:
-                return adfile_init(adapter->configstr);
-            default:
-                ods_log_error("[%s] unable to initialize adapter: "
-                    "unknown adapter", adapter_str);
-                return ODS_STATUS_ERR;
-        }
+    ods_log_assert(adapter);
+    switch(adapter->type) {
+        case ADAPTER_FILE:
+            adfile_init(adapter);
+            break;
+        default:
+            ods_log_error("[%s] unable to initialize adapter: "
+                "unknown adapter", adapter_str);
+            break;
     }
-    return ODS_STATUS_ERR;
+    return;
 }
 
 
@@ -153,8 +153,7 @@ adapter_write(void* zone)
         case ADAPTER_FILE:
             ods_log_verbose("[%s] write zone %s serial %u to output file "
                 "adapter %s", adapter_str, adzone->name,
-                adzone->db->outserial,
-                adzone->adinbound->configstr);
+                adzone->db->outserial, adzone->adinbound->configstr);
             return adfile_write(zone, adzone->adoutbound->configstr);
             break;
         default:

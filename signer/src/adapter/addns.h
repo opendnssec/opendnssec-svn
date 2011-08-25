@@ -48,11 +48,10 @@
 
 /**
  * Initialize DNS adapters.
- * \param[in] configstr configstr init configuration file location
- * \return ods_status status
+ * \param[in] adapter adapter
  *
  */
-ods_status addns_init(const char* str);
+void addns_init(void* adapter);
 
 /**
  * Read zone from input DNS adapter.

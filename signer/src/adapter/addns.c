@@ -33,6 +33,7 @@
 
 #include "config.h"
 #include "adapter/adapi.h"
+#include "adapter/adapter.h"
 #include "adapter/addns.h"
 #include "adapter/adutil.h"
 #include "shared/duration.h"
@@ -53,11 +54,16 @@ static const char* adapter_str = "adapter";
  * Initialize DNS adapters.
  *
  */
-ods_status
-addns_init(const char* str)
+void
+addns_init(void* adapter)
 {
-    ods_log_assert(str);
-    return ODS_STATUS_OK;
+    adapter_type* ad = (adapter_type*) adapter;
+    ods_log_assert(ad);
+    ods_log_assert(ad->type == ADAPTER_DNS);
+    ods_log_assert(ad->configstr);
+    ods_log_debug("[%s] initialize dns adapter %s", adapter_str,
+        ad->configstr);
+    return;
 }
 
 
@@ -66,8 +72,8 @@ addns_init(const char* str)
  *
  */
 static ldns_rr*
-addns_read_rr(FILE* fd, char* line, ldns_rdf** orig,
-    ldns_rdf** prev, uint32_t* ttl, ldns_status* status, unsigned int* l)
+addns_read_rr(FILE* fd, char* line, ldns_rdf** orig, ldns_rdf** prev,
+    uint32_t* ttl, ldns_status* status, unsigned int* l)
 {
     ldns_rr* rr = NULL;
     int len = 0;
@@ -77,13 +83,11 @@ addns_read_line:
     if (ttl) {
         new_ttl = *ttl;
     }
-
     len = adutil_readline_frm_file(fd, line, l);
     adutil_rtrim_line(line, &len);
-
     if (len >= 0) {
         switch (line[0]) {
-            /* directives not allowed */
+            /* no directives */
 
             /* comments, empty lines */
             case ';':
@@ -96,7 +100,6 @@ addns_read_line:
                     goto addns_read_line; /* perhaps next line is rr */
                     break;
                 }
-
                 *status = ldns_rr_new_frm_str(&rr, line, new_ttl, *orig, prev);
                 if (*status == LDNS_STATUS_OK) {
                     ldns_rr2canonical(rr); /* TODO: canonicalize or not? */
@@ -125,7 +128,6 @@ addns_read_line:
                 break;
         }
     }
-
     /* -1, EOF */
     *status = LDNS_STATUS_OK;
     return NULL;

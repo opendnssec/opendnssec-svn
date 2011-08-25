@@ -27,8 +27,8 @@
  */
 
 /**
- *
  * Parsing signer configuration files.
+ *
  */
 
 #ifndef PARSER_SIGNCONFPARSER_H

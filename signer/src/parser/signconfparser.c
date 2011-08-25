@@ -27,8 +27,8 @@
  */
 
 /**
- *
  * Parsing signer configuration files.
+ *
  */
 
 #include "parser/confparser.h"
@@ -71,16 +71,16 @@ parse_sc_keys(void* sc, const char* cfgfile)
     /* Load XML document */
     doc = xmlParseFile(cfgfile);
     if (doc == NULL) {
-        ods_log_error("[%s] could not parse <Keys>: xmlParseFile failed",
-            parser_str);
+        ods_log_error("[%s] could not parse <Keys>: "
+            "xmlParseFile() failed", parser_str);
         return NULL;
     }
     /* Create xpath evaluation context */
     xpathCtx = xmlXPathNewContext(doc);
     if(xpathCtx == NULL) {
         xmlFreeDoc(doc);
-        ods_log_error("[%s] could not parse <Keys>: xmlXPathNewContext failed",
-            parser_str);
+        ods_log_error("[%s] could not parse <Keys>: "
+            "xmlXPathNewContext() failed", parser_str);
         return NULL;
     }
     /* Evaluate xpath expression */
@@ -89,12 +89,13 @@ parse_sc_keys(void* sc, const char* cfgfile)
     if(xpathObj == NULL) {
         xmlXPathFreeContext(xpathCtx);
         xmlFreeDoc(doc);
-        ods_log_error("[%s] could not parse <Keys>: xmlXPathEvalExpression "
-            "failed", parser_str);
+        ods_log_error("[%s] could not parse <Keys>: "
+            "xmlXPathEvalExpression() failed", parser_str);
         return NULL;
     }
     /* Parse keys */
     kl = keylist_create(sc);
+    ods_log_assert(kl);
     if (xpathObj->nodesetval && xpathObj->nodesetval->nodeNr > 0) {
         for (i = 0; i < xpathObj->nodesetval->nodeNr; i++) {
             locator = NULL;
