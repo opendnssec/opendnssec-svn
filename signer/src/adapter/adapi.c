@@ -51,12 +51,12 @@ static const char* adapi_str = "adapter";
 uint32_t
 adapi_get_serial(zone_type* zone)
 {
-    if (!zone || !zone->zonedata) {
+    if (!zone || !zone->db) {
         ods_log_error("[%s] unable to get serial: "
             "no zone data", adapi_str);
         return 0;
     }
-    return zone->zonedata->inbserial;
+    return zone->db->inbserial;
 }
 
 
@@ -67,12 +67,12 @@ adapi_get_serial(zone_type* zone)
 void
 adapi_set_serial(zone_type* zone, uint32_t serial)
 {
-    if (!zone || !zone->zonedata) {
+    if (!zone || !zone->db) {
         ods_log_error("[%s] unable to set serial: "
             "no zone data", adapi_str);
         return;
     }
-    zone->zonedata->inbserial = serial;
+    zone->db->inbserial = serial;
     return;
 }
 
@@ -132,7 +132,7 @@ adapi_get_ttl(zone_type* zone)
 ods_status
 adapi_trans_full(zone_type* zone)
 {
-    if (!zone || !zone->zonedata) {
+    if (!zone || !zone->db) {
         ods_log_error("[%s] unable to start full zone transaction: "
             "no zone data", adapi_str);
         return ODS_STATUS_ASSERT_ERR;
@@ -144,7 +144,7 @@ adapi_trans_full(zone_type* zone)
     }
     ods_log_assert(zone->signconf);
 
-    return zonedata_diff(zone->zonedata, zone->signconf->keys);
+    return namedb_diff(zone->db, zone->signconf->keys);
 }
 
 
@@ -155,7 +155,7 @@ adapi_trans_full(zone_type* zone)
 ods_status
 adapi_trans_diff(zone_type* zone)
 {
-    if (!zone || !zone->zonedata) {
+    if (!zone || !zone->db) {
         ods_log_error("[%s] unable to start incremental zone transaction: "
             "no zone data", adapi_str);
         return ODS_STATUS_ASSERT_ERR;

@@ -40,9 +40,9 @@
 #include "shared/allocator.h"
 #include "shared/locks.h"
 #include "shared/status.h"
+#include "signer/namedb.h"
 #include "signer/signconf.h"
 #include "signer/stats.h"
-#include "signer/zonedata.h"
 
 #include <ldns/ldns.h>
 
@@ -82,7 +82,7 @@ struct zone_struct {
     /* from signconf.xml */
     signconf_type* signconf; /* signer configuration values */
     /* zone data */
-    zonedata_type* zonedata;
+    namedb_type* db;
     /* worker variables */
     void* task; /* next assigned task */
     /* statistics */

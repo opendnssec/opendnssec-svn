@@ -910,7 +910,7 @@ engine_recover(engine_type* engine)
         status = zone_recover(zone);
         if (status == ODS_STATUS_OK) {
             ods_log_assert(zone->task);
-            ods_log_assert(zone->zonedata);
+            ods_log_assert(zone->db);
             ods_log_assert(zone->signconf);
             /* notify nameserver */
             if (engine->config->notify_command && !zone->notify_ns) {

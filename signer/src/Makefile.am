@@ -46,6 +46,7 @@ ods_signerd_SOURCES=		ods-signerd.c \
 				signer/denial.c signer/denial.h \
 				signer/domain.c signer/domain.h \
 				signer/keys.c signer/keys.h \
+				signer/namedb.c signer/namedb.h \
 				signer/nsec3params.c signer/nsec3params.h \
 				signer/rrset.c signer/rrset.h \
 				signer/rrsigs.c signer/rrsigs.h \
@@ -53,7 +54,6 @@ ods_signerd_SOURCES=		ods-signerd.c \
 				signer/stats.c signer/stats.h \
 				signer/tools.c signer/tools.h \
 				signer/zone.c signer/zone.h \
-				signer/zonedata.c signer/zonedata.h \
 				signer/zonelist.c signer/zonelist.h \
 				tools/toolutil.c tools/toolutil.h \
 				tools/zone_fetcher.c tools/zone_fetcher.h

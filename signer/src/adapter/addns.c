@@ -287,7 +287,7 @@ addns_read_ixfr(FILE* fd, zone_type* zone)
             continue;
         }
 
-        /* add to the zonedata */
+        /* add/del to the database */
         if (del_rr) {
             result = adapi_del_rr(zone, rr);
         } else {

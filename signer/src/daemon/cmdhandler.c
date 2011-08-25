@@ -407,16 +407,16 @@ cmdhandler_handle_cmd_clear(int sockfd, cmdhandler_type* cmdc, const char* tbd)
     if (zone) {
         /* [LOCK] zone */
         lock_basic_lock(&zone->zone_lock);
-        inbserial = zone->zonedata->inbserial;
-        intserial = zone->zonedata->intserial;
-        outserial = zone->zonedata->outserial;
-        zonedata_cleanup(zone->zonedata);
-        zone->zonedata = NULL;
-        zone->zonedata = zonedata_create(zone->allocator);
-        zone->zonedata->is_initialized = 1;
-        zone->zonedata->inbserial = inbserial;
-        zone->zonedata->intserial = intserial;
-        zone->zonedata->outserial = outserial;
+        inbserial = zone->db->inbserial;
+        intserial = zone->db->intserial;
+        outserial = zone->db->outserial;
+        namedb_cleanup(zone->db);
+        zone->db = NULL;
+        zone->db = namedb_create(zone->allocator);
+        zone->db->is_initialized = 1;
+        zone->db->inbserial = inbserial;
+        zone->db->intserial = intserial;
+        zone->db->outserial = outserial;
 
         status = zone_publish_dnskeys(zone, 1);
         if (status == ODS_STATUS_OK) {
@@ -426,7 +426,7 @@ cmdhandler_handle_cmd_clear(int sockfd, cmdhandler_type* cmdc, const char* tbd)
                 " reloading signconf", cmdh_str, zone->name);
         }
         if (status == ODS_STATUS_OK) {
-            status = zonedata_commit(zone->zonedata);
+            status = namedb_commit(zone->db);
         } else {
             ods_log_warning("[%s] unable to restore NSEC3PARAM RRset for "
                 " zone %s d1reloading signconf", cmdh_str, zone->name);

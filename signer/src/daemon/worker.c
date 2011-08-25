@@ -41,9 +41,9 @@
 #include "shared/log.h"
 #include "shared/status.h"
 #include "shared/util.h"
+#include "signer/namedb.h"
 #include "signer/tools.h"
 #include "signer/zone.h"
-#include "signer/zonedata.h"
 
 #include <time.h> /* time() */
 
@@ -203,7 +203,7 @@ worker_perform_task(worker_type* worker)
                 status = zone_prepare_nsec3(zone, 0);
             }
             if (status == ODS_STATUS_OK) {
-                status = zonedata_commit(zone->zonedata);
+                status = namedb_commit(zone->db);
             }
 
             if (status == ODS_STATUS_OK) {
@@ -270,7 +270,7 @@ worker_perform_task(worker_type* worker)
             ods_log_verbose("[%s[%i]] sign zone %s",
                 worker2str(worker->type), worker->thread_num,
                 task_who2str(task));
-            tmpserial = zone->zonedata->intserial;
+            tmpserial = zone->db->intserial;
             status = zone_update_serial(zone);
             if (status != ODS_STATUS_OK) {
                 ods_log_error("[%s[%i]] unable to sign zone %s: "
@@ -293,7 +293,7 @@ worker_perform_task(worker_type* worker)
                 }
 
                 /* queue menial, hard signing work */
-                status = zonedata_queue(zone->zonedata, engine->signq, worker);
+                status = namedb_queue(zone->db, engine->signq, worker);
                 ods_log_debug("[%s[%i]] wait until drudgers are finished "
                     " signing zone %s, %u signatures queued",
                     worker2str(worker->type), worker->thread_num,
@@ -339,7 +339,7 @@ worker_perform_task(worker_type* worker)
             /* what to do next */
             if (status != ODS_STATUS_OK) {
                 /* rollback serial */
-                zone->zonedata->intserial = tmpserial;
+                zone->db->intserial = tmpserial;
                 if (task->halted == TASK_NONE) {
                     goto task_perform_fail;
                 }

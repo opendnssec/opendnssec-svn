@@ -262,7 +262,7 @@ adfile_read_file(FILE* fd, zone_type* zone)
             rr = NULL;
             continue;
         }
-        /* add to the zonedata */
+        /* add to the database */
         result = adapi_add_rr(zone, rr);
         if (result != ODS_STATUS_OK) {
             ods_log_error("[%s] error adding RR at line %i: %s",

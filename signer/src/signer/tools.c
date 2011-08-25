@@ -61,11 +61,11 @@ tools_input(zone_type* zone)
     }
     ods_log_assert(zone);
 
-    if (!zone->zonedata) {
+    if (!zone->db) {
         ods_log_error("[%s] unable to read zone: no zone data", tools_str);
         return ODS_STATUS_ASSERT_ERR;
     }
-    ods_log_assert(zone->zonedata);
+    ods_log_assert(zone->db);
 
     ods_log_assert(zone->adinbound);
     ods_log_assert(zone->signconf);
@@ -144,11 +144,11 @@ lock_fetch:
     if (status == ODS_STATUS_OK) {
         ods_log_verbose("[%s] commit updates for zone %s", tools_str,
             zone->name?zone->name:"(null)");
-        status = zonedata_commit(zone->zonedata);
+        status = namedb_commit(zone->db);
     } else {
         ods_log_warning("[%s] rollback updates for zone %s", tools_str,
             zone->name?zone->name:"(null)");
-        zonedata_rollback(zone->zonedata);
+        namedb_rollback(zone->db);
     }
     end = time(NULL);
 
@@ -182,12 +182,12 @@ tools_nsecify(zone_type* zone)
     }
     ods_log_assert(zone);
 
-    if (!zone->zonedata) {
-        ods_log_error("[%s] unable to nsecify zone %s: no zonedata",
+    if (!zone->db) {
+        ods_log_error("[%s] unable to nsecify zone %s: no namedb",
             tools_str, zone->name);
         return ODS_STATUS_ASSERT_ERR;
     }
-    ods_log_assert(zone->zonedata);
+    ods_log_assert(zone->db);
 
     if (!zone->signconf) {
         ods_log_error("[%s] unable to nsecify zone %s: no signconf",
@@ -210,7 +210,7 @@ tools_nsecify(zone_type* zone)
         ttl = (uint32_t) duration2time(zone->signconf->soa_min);
     }
     /* add missing empty non-terminals */
-    status = zonedata_entize(zone->zonedata, zone->apex);
+    status = namedb_entize(zone->db, zone->apex);
     if (status != ODS_STATUS_OK) {
         ods_log_error("[%s] unable to nsecify zone %s: failed to add empty ",
             "non-terminals", tools_str, zone->name);
@@ -218,7 +218,7 @@ tools_nsecify(zone_type* zone)
     }
     /* nsecify(3) */
     if (zone->signconf->nsec_type == LDNS_RR_TYPE_NSEC) {
-        status = zonedata_nsecify(zone->zonedata, zone->klass, ttl,
+        status = namedb_nsecify(zone->db, zone->klass, ttl,
             &num_added);
     } else if (zone->signconf->nsec_type == LDNS_RR_TYPE_NSEC3) {
         if (zone->signconf->nsec3_optout) {
@@ -226,7 +226,7 @@ tools_nsecify(zone_type* zone)
                 tools_str, zone->name);
         }
         ods_log_assert(zone->signconf->nsec3params);
-        status = zonedata_nsecify3(zone->zonedata, zone->klass, ttl,
+        status = namedb_nsecify3(zone->db, zone->klass, ttl,
             zone->signconf->nsec3params, &num_added);
     } else {
         ods_log_error("[%s] unable to nsecify zone %s: unknown RRtype %u for ",
@@ -362,28 +362,28 @@ tools_output(zone_type* zone)
             (zone->stats->sig_count <= zone->stats->sig_soa_count)) {
             ods_log_verbose("[%s] skip write zone %s serial %u (zone not "
                 "changed)", tools_str, zone->name?zone->name:"(null)",
-                zone->zonedata->intserial);
+                zone->db->intserial);
             stats_clear(zone->stats);
             lock_basic_unlock(&zone->stats->stats_lock);
-            zone->zonedata->intserial =
-                zone->zonedata->outserial;
+            zone->db->intserial =
+                zone->db->outserial;
             return ODS_STATUS_OK;
         }
         lock_basic_unlock(&zone->stats->stats_lock);
     }
 
-    outserial = zone->zonedata->outserial;
-    zone->zonedata->outserial = zone->zonedata->intserial;
+    outserial = zone->db->outserial;
+    zone->db->outserial = zone->db->intserial;
     status = adapter_write(zone);
     if (status != ODS_STATUS_OK) {
         ods_log_error("[%s] unable to write zone %s: adapter failed",
             tools_str, zone->name);
-        zone->zonedata->outserial = outserial;
+        zone->db->outserial = outserial;
         return status;
     }
 
-    /* initialize zonedata */
-    zone->zonedata->is_initialized = 1;
+    /* initialize namedb */
+    zone->db->is_initialized = 1;
 
     /* kick the nameserver */
     if (zone->notify_ns) {
