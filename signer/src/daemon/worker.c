@@ -387,7 +387,7 @@ worker_perform_task(worker_type* worker)
                 task_who2str(task));
 
             status = tools_output(zone);
-            zone->processed = 1;
+            zone->db->is_processed = 1;
 
             /* what to do next */
             if (status != ODS_STATUS_OK) {
@@ -468,7 +468,7 @@ worker_perform_task(worker_type* worker)
 
 task_perform_fail:
     /* in case of failure, also mark zone processed (for single run usage) */
-    zone->processed = 1;
+    zone->db->is_processed = 1;
 
     if (task->backoff) {
         task->backoff *= 2;

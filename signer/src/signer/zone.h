@@ -74,13 +74,12 @@ struct zone_struct {
     const char* policy_name; /* policy identifier */
     const char* signconf_filename; /* signconf filename */
     zone_zl_status zl_status; /* zonelist status */
-    int processed;
-    int prepared;
     /* adapters */
     adapter_type* adinbound; /* inbound adapter */
     adapter_type* adoutbound; /* outbound adapter */
     /* from signconf.xml */
     signconf_type* signconf; /* signer configuration values */
+    int prepared;
     /* zone data */
     namedb_type* db;
     /* worker variables */

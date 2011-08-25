@@ -673,7 +673,9 @@ engine_all_zones_processed(engine_type* engine)
     node = ldns_rbtree_first(engine->zonelist->zones);
     while (node && node != LDNS_RBTREE_NULL) {
         zone = (zone_type*) node->key;
-        if (!zone->processed) {
+        ods_log_assert(zone);
+        ods_log_assert(zone->db);
+        if (!zone->db->is_processed) {
 		return 0;
         }
         node = ldns_rbtree_next(node);

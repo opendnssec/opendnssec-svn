@@ -68,9 +68,9 @@ engine_config(allocator_type* allocator, const char* cfgfile,
         return NULL;
     }
     /* open cfgfile */
-    ods_log_verbose("[%s] read cfgfile: %s", conf_str, cfgfile);
     cfgfd = ods_fopen(cfgfile, NULL, "r");
     if (cfgfd) {
+        ods_log_verbose("[%s] read cfgfile: %s", conf_str, cfgfile);
         /* create config */
         ecfg = (engineconfig_type*) allocator_alloc(allocator,
             sizeof(engineconfig_type));
@@ -100,7 +100,6 @@ engine_config(allocator_type* allocator, const char* cfgfile,
         ecfg->num_signer_threads = parse_conf_signer_threads(cfgfile);
         ecfg->verbosity = cmdline_verbosity;
         ecfg->num_adapters = 0;
-
         /* done */
         ods_fclose(cfgfd);
         return ecfg;

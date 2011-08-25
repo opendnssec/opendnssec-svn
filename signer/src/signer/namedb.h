@@ -63,14 +63,15 @@ struct namedb_struct {
     uint32_t intserial;
     uint32_t outserial;
     unsigned is_initialized : 1;
+    unsigned is_processed : 1;
 };
 
 /**
  * Initialize denial of existence chain.
- * \param[in] zd zone data
+ * \param[in] db namedb
  *
  */
-void namedb_init_denial(namedb_type* zd);
+void namedb_init_denials(namedb_type* db);
 
 /**
  * Create a new namedb.

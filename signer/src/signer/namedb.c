@@ -112,7 +112,7 @@ denial2node(denial_type* denial)
     if (!node) {
         return NULL;
     }
-    node->key = denial->owner;
+    node->key = denial->dname;
     node->data = denial;
     return node;
 }
@@ -136,7 +136,7 @@ domain_compare(const void* a, const void* b)
  *
  */
 void
-namedb_init_denial(namedb_type* db)
+namedb_init_denials(namedb_type* db)
 {
     if (db) {
         db->denials = ldns_rbtree_create(domain_compare);
@@ -181,11 +181,24 @@ namedb_create(void* zone)
     db->zone = zone;
 
     namedb_init_domains(db);
-    namedb_init_denial(db);
+    if (!db->domains) {
+        ods_log_error("[%s] unable to create namedb for zone %s: "
+            "init domains failed", db_str, z->name);
+        namedb_cleanup(db);
+        return NULL;
+    }
+    namedb_init_denials(db);
+    if (!db->denials) {
+        ods_log_error("[%s] unable to create namedb for zone %s: "
+            "init denials failed", db_str, z->name);
+        namedb_cleanup(db);
+        return NULL;
+    }
     db->inbserial = 0;
     db->intserial = 0;
     db->outserial = 0;
     db->is_initialized = 0;
+    db->is_processed = 0;
     return db;
 }
 
@@ -637,9 +650,9 @@ namedb_del_denial_fixup(ldns_rbtree_t* tree, denial_type* denial)
 
     ods_log_assert(tree);
     ods_log_assert(denial);
-    ods_log_assert(denial->owner);
+    ods_log_assert(denial->dname);
 
-    del_node = ldns_rbtree_search(tree, (const void*)denial->owner);
+    del_node = ldns_rbtree_search(tree, (const void*)denial->dname);
     if (del_node) {
         /**
          * [CALC] if domain removed, mark prev domain NSEC(3) nxt changed.
@@ -670,13 +683,13 @@ namedb_del_denial_fixup(ldns_rbtree_t* tree, denial_type* denial)
             }
         }
 
-        del_node = ldns_rbtree_delete(tree, (const void*)denial->owner);
+        del_node = ldns_rbtree_delete(tree, (const void*)denial->dname);
         del_denial = (denial_type*) del_node->data;
         denial_cleanup(del_denial);
         free((void*)del_node);
         return NULL;
     } else {
-        log_rdf(denial->owner, "unable to del denial of existence data "
+        log_rdf(denial->dname, "unable to del denial of existence data "
             "point, not found", 1);
     }
     return denial;
@@ -698,7 +711,7 @@ namedb_del_denial(namedb_type* db, denial_type* denial)
     ods_log_assert(denial);
 
     if (!db || !db->denials) {
-        log_rdf(denial->owner, "unable to delete denial of existence data "
+        log_rdf(denial->dname, "unable to delete denial of existence data "
             "point, no db", 1);
         return denial;
     }

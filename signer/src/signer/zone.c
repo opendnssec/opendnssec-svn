@@ -98,7 +98,6 @@ zone_create(char* name, ldns_rr_class klass)
     zone->adinbound = NULL;
     zone->adoutbound = NULL;
     zone->zl_status = ZONE_ZL_OK;
-    zone->processed = 0;
     zone->prepared = 0;
     zone->fetch = 0;
     zone->db = namedb_create((void*)zone);
@@ -218,7 +217,7 @@ zone_load_signconf(zone_type* zone)
                all NSEC(3)s become invalid */
             namedb_wipe_denial(zone->db);
             namedb_cleanup_chain(zone->db);
-            namedb_init_denial(zone->db);
+            namedb_init_denials(zone->db);
         }
 
         /* all ok, switch to new signconf */

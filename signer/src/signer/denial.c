@@ -65,12 +65,12 @@ denial_create(void* zoneptr, ldns_rdf* dname)
             "failed", denial_str);
         return NULL;
     }
+    denial->dname = dname;
     denial->zone = zoneptr;
     denial->domain = NULL; /* no back reference yet */
-    denial->owner = ldns_rdf_clone(dname);
+    denial->rrset = NULL;
     denial->bitmap_changed = 0;
     denial->nxt_changed = 0;
-    denial->rrset = NULL;
     return denial;
 }
 
@@ -117,9 +117,9 @@ denial_create_nsec(denial_type* denial, denial_type* nxt, uint32_t ttl,
     size_t types_count = 0;
 
     ods_log_assert(denial);
-    ods_log_assert(denial->owner);
+    ods_log_assert(denial->dname);
     ods_log_assert(nxt);
-    ods_log_assert(nxt->owner);
+    ods_log_assert(nxt->dname);
 
     nsec_rr = ldns_rr_new();
     if (!nsec_rr) {
@@ -130,7 +130,7 @@ denial_create_nsec(denial_type* denial, denial_type* nxt, uint32_t ttl,
     ods_log_assert(nsec_rr);
 
     ldns_rr_set_type(nsec_rr, LDNS_RR_TYPE_NSEC);
-    rdf = ldns_rdf_clone(denial->owner);
+    rdf = ldns_rdf_clone(denial->dname);
     if (!rdf) {
         ods_log_alert("[%s] unable to create NSEC RR: failed to clone owner",
             denial_str);
@@ -139,7 +139,7 @@ denial_create_nsec(denial_type* denial, denial_type* nxt, uint32_t ttl,
     }
     ldns_rr_set_owner(nsec_rr, rdf);
 
-    rdf = ldns_rdf_clone(nxt->owner);
+    rdf = ldns_rdf_clone(nxt->dname);
     if (!rdf) {
         ods_log_alert("[%s] unable to create NSEC RR: failed to clone nxt",
             denial_str);
@@ -262,9 +262,9 @@ denial_create_nsec3(denial_type* denial, denial_type* nxt, uint32_t ttl,
     int i = 0;
 
     ods_log_assert(denial);
-    ods_log_assert(denial->owner);
+    ods_log_assert(denial->dname);
     ods_log_assert(nxt);
-    ods_log_assert(nxt->owner);
+    ods_log_assert(nxt->dname);
     ods_log_assert(nsec3params);
 
     nsec_rr = ldns_rr_new();
@@ -276,7 +276,7 @@ denial_create_nsec3(denial_type* denial, denial_type* nxt, uint32_t ttl,
     ods_log_assert(nsec_rr);
 
     ldns_rr_set_type(nsec_rr, LDNS_RR_TYPE_NSEC3);
-    rdf = ldns_rdf_clone(denial->owner);
+    rdf = ldns_rdf_clone(denial->dname);
     if (!rdf) {
         ods_log_alert("[%s] unable to create NSEC3 RR: failed to clone owner",
             denial_str);
@@ -293,7 +293,7 @@ denial_create_nsec3(denial_type* denial, denial_type* nxt, uint32_t ttl,
         nsec3params->flags, nsec3params->iterations,
         nsec3params->salt_len, nsec3params->salt_data);
     /* nxt owner label */
-    next_owner_label = ldns_dname_label(nxt->owner, 0);
+    next_owner_label = ldns_dname_label(nxt->dname, 0);
     if (!next_owner_label) {
         ods_log_alert("[%s] unable to create NSEC3 RR: failed to get nxt "
             "owner label", denial_str);
@@ -431,7 +431,7 @@ denial_cleanup(denial_type* denial)
         return;
     }
     zone = (zone_type*) denial->zone;
-    ldns_rdf_deep_free(denial->owner);
+    ldns_rdf_deep_free(denial->dname);
     rrset_cleanup(denial->rrset);
     allocator_deallocate(zone->allocator, (void*) denial);
     return;
