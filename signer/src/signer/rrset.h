@@ -42,7 +42,6 @@
 #include "shared/locks.h"
 #include "shared/status.h"
 #include "signer/keys.h"
-#include "signer/rrsigs.h"
 #include "signer/signconf.h"
 #include "signer/stats.h"
 
