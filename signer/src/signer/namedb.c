@@ -713,28 +713,24 @@ namedb_del_denial(namedb_type* db, denial_type* denial)
  * Calculate differences at the namedb between current and new RRsets.
  *
  */
-ods_status
+void
 namedb_diff(namedb_type* db, keylist_type* kl)
 {
     ldns_rbnode_t* node = LDNS_RBTREE_NULL;
     domain_type* domain = NULL;
-    ods_status status = ODS_STATUS_OK;
 
     if (!db || !db->domains) {
-        return status;
+        return;
     }
     if (db->domains->root != LDNS_RBTREE_NULL) {
         node = ldns_rbtree_first(db->domains);
     }
     while (node && node != LDNS_RBTREE_NULL) {
         domain = (domain_type*) node->data;
-        status = domain_diff(domain, kl);
-        if (status != ODS_STATUS_OK) {
-            return status;
-        }
+        domain_diff(domain, kl);
         node = ldns_rbtree_next(node);
     }
-    return status;
+    return;
 }
 
 

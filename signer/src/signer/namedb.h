@@ -172,10 +172,9 @@ ods_status namedb_examine(namedb_type* zd, ldns_rdf* apex,
  * Apply differences in db.
  * \param[in] db namedb
  * \param[in] kl current key list
- * \return ods_status status
  *
  */
-ods_status namedb_diff(namedb_type* zd, keylist_type* kl);
+void namedb_diff(namedb_type* db, keylist_type* kl);
 
 /**
  * Commit updates to zone data.

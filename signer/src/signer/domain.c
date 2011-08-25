@@ -457,18 +457,17 @@ domain_count_rrset(domain_type* domain)
 
 
 /**
- * Calculate differences at this domain between current and new RRsets.
+ * Apply differences at domain.
  *
  */
-ods_status
+void
 domain_diff(domain_type* domain, keylist_type* kl)
 {
     ldns_rbnode_t* node = LDNS_RBTREE_NULL;
     rrset_type* rrset = NULL;
-    ods_status status = ODS_STATUS_OK;
 
     if (!domain || !domain->rrsets) {
-        return status;
+        return;
     }
     if (domain->rrsets->root != LDNS_RBTREE_NULL) {
         node = ldns_rbtree_first(domain->rrsets);
@@ -481,13 +480,10 @@ domain_diff(domain_type* domain, keylist_type* kl)
             continue;
         }
         /* normal cases */
-        status = rrset_diff(rrset, kl);
-        if (status != ODS_STATUS_OK) {
-            return status;
-        }
+        rrset_diff(rrset, kl);
         node = ldns_rbtree_next(node);
     }
-    return status;
+    return;
 }
 
 

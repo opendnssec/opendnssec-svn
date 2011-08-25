@@ -337,16 +337,8 @@ adfile_read(void* zone, const char* filename)
         return status;
     }
     /* [end] read zone */
-
-    /* [start] full transaction */
-    status = adapi_trans_full(adzone);
-    if (status != ODS_STATUS_OK) {
-        ods_log_error("[%s] unable to read file: start transaction failed",
-            adapter_str);
-        return status;
-    }
-    /* [end] full transaction */
-
+    adapi_trans_full(adzone);
+    
     /* [start] validate updates */
     status = zone_examine(adzone);
     if (status != ODS_STATUS_OK) {
@@ -398,15 +390,7 @@ adbackup_read(void* zone, const char* filename)
         return status;
     }
     /* [end] read zone */
-
-    /* [start] full transaction */
-    status = adapi_trans_full(adzone);
-    if (status != ODS_STATUS_OK) {
-        ods_log_error("[%s] unable to recover file: start transaction failed",
-            adapter_str);
-        return status;
-    }
-    /* [end] full transaction */
+    adapi_trans_full(adzone);
     return ODS_STATUS_OK;
 }
 

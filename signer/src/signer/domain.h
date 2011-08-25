@@ -168,13 +168,12 @@ rrset_type* domain_add_rrset(domain_type* domain, rrset_type* rrset);
 rrset_type* domain_del_rrset(domain_type* domain, rrset_type* rrset);
 
 /**
- * Calculate differences at this domain between current and new RRsets.
- * \param[in] domain the domain
+ * Apply differences at domain.
+ * \param[in] domain domain
  * \param[in] kl current key list
- * \return ods_status status
  *
  */
-ods_status domain_diff(domain_type* domain, keylist_type* kl);
+void domain_diff(domain_type* domain, keylist_type* kl);
 
 /**
  * Examine domain and verify if data exists.

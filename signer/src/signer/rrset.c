@@ -486,13 +486,12 @@ rrset_wipe_out(rrset_type* rrset)
 
 
 /**
- * Calculate differences between the current RRset and the pending new one.
+ * Apply differences at RRset.
  *
  */
-ods_status
+void
 rrset_diff(rrset_type* rrset, keylist_type* kl)
 {
-    ods_status status = ODS_STATUS_OK;
     ldns_status lstatus = LDNS_STATUS_OK;
     ldns_dnssec_rrs* current = NULL;
     ldns_dnssec_rrs* pending = NULL;
@@ -501,7 +500,7 @@ rrset_diff(rrset_type* rrset, keylist_type* kl)
     int cmp = 0;
 
     if (!rrset) {
-        return status;
+        return;
     }
 
     current = rrset->rrs;
@@ -519,7 +518,7 @@ rrset_diff(rrset_type* rrset, keylist_type* kl)
         if (lstatus != LDNS_STATUS_OK) {
                 ods_log_error("[%s] diff failed: compare failed (%s)",
                     rrset_str, ldns_get_errorstr_by_id(lstatus));
-                return ODS_STATUS_ERR;
+                return;
         }
 
         if (cmp > 0) {
@@ -536,7 +535,7 @@ rrset_diff(rrset_type* rrset, keylist_type* kl)
                 if (!rr) {
                     ods_log_error("[%s] diff failed: failed to delete RR",
                         rrset_str);
-                    return ODS_STATUS_ERR;
+                    return;
                 }
             }
 
@@ -581,13 +580,13 @@ rrset_diff(rrset_type* rrset, keylist_type* kl)
                 if (!rr) {
                     ods_log_error("[%s] diff failed: failed to delete RR",
                         rrset_str);
-                    return ODS_STATUS_ERR;
+                    return;
                 }
             }
             current = current->next;
         }
     }
-    return ODS_STATUS_OK;
+    return;
 }
 
 

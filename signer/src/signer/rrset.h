@@ -189,13 +189,12 @@ ldns_rr* rrset_del_rr(rrset_type* rrset, ldns_rr* rr, int dupallowed);
 ods_status rrset_wipe_out(rrset_type* rrset);
 
 /**
- * Calculate differences between the current RRset and the pending new one.
+ * Apply differences at RRset.
  * \param[in] rrset RRset
  * \param[in] kl current key list
- * \return ods_status status
  *
  */
-ods_status rrset_diff(rrset_type* rrset, keylist_type* kl);
+void rrset_diff(rrset_type* rrset, keylist_type* kl);
 
 /**
  * Commit updates from RRset.

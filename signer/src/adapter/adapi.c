@@ -52,8 +52,6 @@ uint32_t
 adapi_get_serial(zone_type* zone)
 {
     if (!zone || !zone->db) {
-        ods_log_error("[%s] unable to get serial: "
-            "no zone data", adapi_str);
         return 0;
     }
     return zone->db->inbserial;
@@ -68,8 +66,6 @@ void
 adapi_set_serial(zone_type* zone, uint32_t serial)
 {
     if (!zone || !zone->db) {
-        ods_log_error("[%s] unable to set serial: "
-            "no zone data", adapi_str);
         return;
     }
     zone->db->inbserial = serial;
@@ -85,8 +81,6 @@ ldns_rdf*
 adapi_get_origin(zone_type* zone)
 {
     if (!zone) {
-        ods_log_error("[%s] unable to get origin: "
-            "no zone", adapi_str);
         return NULL;
     }
     return zone->apex;
@@ -101,9 +95,7 @@ ldns_rr_class
 adapi_get_class(zone_type* zone)
 {
     if (!zone) {
-        ods_log_error("[%s] unable to get class: "
-            "no zone", adapi_str);
-        return LDNS_RR_CLASS_FIRST;
+        return LDNS_RR_CLASS_IN;
     }
     return zone->klass;
 }
@@ -117,8 +109,6 @@ uint32_t
 adapi_get_ttl(zone_type* zone)
 {
     if (!zone) {
-        ods_log_error("[%s] unable to get ttl: "
-            "no zone data", adapi_str);
         return 0;
     }
     return zone->default_ttl;
@@ -129,22 +119,13 @@ adapi_get_ttl(zone_type* zone)
  * Do full zone transaction.
  *
  */
-ods_status
+void
 adapi_trans_full(zone_type* zone)
 {
-    if (!zone || !zone->db) {
-        ods_log_error("[%s] unable to start full zone transaction: "
-            "no zone data", adapi_str);
-        return ODS_STATUS_ASSERT_ERR;
+    if (!zone || !zone->db || !zone->signconf) {
     }
-    if (!zone->signconf) {
-        ods_log_error("[%s] unable to start full zone transaction: "
-            "no signer configuration", adapi_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
-    ods_log_assert(zone->signconf);
-
-    return namedb_diff(zone->db, zone->signconf->keys);
+    namedb_diff(zone->db, zone->signconf->keys);
+    return;
 }
 
 
@@ -152,15 +133,14 @@ adapi_trans_full(zone_type* zone)
  * Do incremental zone transaction.
  *
  */
-ods_status
+void
 adapi_trans_diff(zone_type* zone)
 {
     if (!zone || !zone->db) {
-        ods_log_error("[%s] unable to start incremental zone transaction: "
-            "no zone data", adapi_str);
-        return ODS_STATUS_ASSERT_ERR;
+        return;
     }
-    return ODS_STATUS_OK;
+    /* todo */
+    return;
 }
 
 
