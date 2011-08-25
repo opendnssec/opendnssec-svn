@@ -48,10 +48,6 @@
 
 #include <ldns/ldns.h>
 
-#define COUNT_RR  0
-#define COUNT_ADD 1
-#define COUNT_DEL 2
-
 /**
  * RRSIG.
  *
@@ -83,17 +79,15 @@ struct rr_struct {
  */
 typedef struct rrset_struct rrset_type;
 struct rrset_struct {
+    rrset_type* next;
     void* zone;
+    void* domain;
     ldns_rr_type rrtype;
-    uint32_t rr_count;
-    uint32_t add_count;
-    uint32_t del_count;
-    uint32_t rrsig_count;
+    rr_type* rrs;
+    rrsig_type* rrsigs;
+    size_t rr_count;
+    size_t rrsig_count;
     int needs_signing;
-    ldns_dnssec_rrs* rrs;
-    ldns_dnssec_rrs* add;
-    ldns_dnssec_rrs* del;
-    rrsigs_type* rrsigs;
 };
 
 /**
@@ -145,21 +139,21 @@ ods_status rrset_recover(rrset_type* rrset, ldns_rr* rrsig,
     const char* locator, uint32_t flags);
 
 /**
+ * Lookup RR in RRset.
+ * \param[in] rrset RRset
+ * \param[in] rr RR
+ * \return rr_type* RR if found
+ *
+ */
+rr_type* rrset_lookup_rr(rrset_type* rrset, ldns_rr* rr);
+
+/**
  * Count the number of RRs in this RRset.
  * \param[in] rrset RRset
- * \param[in] which which RRset to be counted
  * \return size_t number of RRs
  *
  */
-size_t rrset_count_rr(rrset_type* rrset, int which);
-
-/**
- * Return the number of RRs in RRset after an update.
- * \param[in] rrset RRset
- * \return size_t number of RRs after an update
- *
- */
-size_t rrset_count_RR(rrset_type* rrset);
+size_t rrset_count_rr(rrset_type* rrset);
 
 /**
  * Add RR to RRset.
@@ -173,20 +167,30 @@ ldns_rr* rrset_add_rr(rrset_type* rrset, ldns_rr* rr);
 /**
  * Delete RR from RRset.
  * \param[in] rrset RRset
- * \param[in] rr RR
- * \param[in] dupallowed if true, allow duplicate deletions
- * \return ldns_rr* RR if failed
+ * \param[in] rrnum position of RR
  *
  */
-ldns_rr* rrset_del_rr(rrset_type* rrset, ldns_rr* rr, int dupallowed);
+void rrset_del_rr(rrset_type* rrset, uint16_t rrnum);
 
 /**
- * Wipe out current RRs in RRset.
+ * Add RRSIG to RRset.
  * \param[in] rrset RRset
- * \return ods_status status
+ * \param[in] rr RRSIG
+ * \param[in] locator key locator
+ * \param[in] flags key flags
+ * \return rr_type* added RRSIG
  *
  */
-ods_status rrset_wipe_out(rrset_type* rrset);
+rrsig_type* rrset_add_rrsig(rrset_type* rrset, ldns_rr* rr,
+    const char* locator, uint32_t flags);
+
+/**
+ * Delete RRSIG from RRset.
+ * \param[in] rrset RRset
+ * \param[in] rrnum position of RRSIG
+ *
+ */
+void rrset_del_rrsig(rrset_type* rrset, uint16_t rrnum);
 
 /**
  * Apply differences at RRset.
@@ -195,21 +199,6 @@ ods_status rrset_wipe_out(rrset_type* rrset);
  *
  */
 void rrset_diff(rrset_type* rrset, keylist_type* kl);
-
-/**
- * Commit updates from RRset.
- * \param[in] rrset RRset
- * \return ods_status status
- *
- */
-ods_status rrset_commit(rrset_type* rrset);
-
-/**
- * Rollback updates from RRset.
- * \param[in] rrset RRset
- *
- */
-void rrset_rollback(rrset_type* rrset);
 
 /**
  * Sign RRset.
@@ -245,13 +234,6 @@ ods_status rrset_queue(rrset_type* rrset, fifoq_type* q, worker_type* worker);
 int rrset_examine_ns_rdata(rrset_type* rrset, ldns_rdf* nsdname);
 
 /**
- * Clean up RRset.
- * \param[in] rrset RRset to be cleaned up
- *
- */
-void rrset_cleanup(rrset_type* rrset);
-
-/**
  * Print RRset.
  * \param[in] fd file descriptor
  * \param[in] rrset RRset to be printed
@@ -259,6 +241,13 @@ void rrset_cleanup(rrset_type* rrset);
  *
  */
 void rrset_print(FILE* fd, rrset_type* rrset, int skip_rrsigs);
+
+/**
+ * Clean up RRset.
+ * \param[in] rrset RRset to be cleaned up
+ *
+ */
+void rrset_cleanup(rrset_type* rrset);
 
 /**
  * Backup RRset.

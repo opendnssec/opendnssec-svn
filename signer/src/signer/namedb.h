@@ -178,14 +178,6 @@ ods_status namedb_examine(namedb_type* zd, ldns_rdf* apex,
 void namedb_diff(namedb_type* db, keylist_type* kl);
 
 /**
- * Commit updates to zone data.
- * \param[in] zd zone data
- * \return ods_status status
- *
- */
-ods_status namedb_commit(namedb_type* zd);
-
-/**
  * Rollback differences in db.
  * \param[in] db namedb
  *

@@ -127,7 +127,7 @@ zone_load_signconf(zone_type* zone, signconf_type** new_signconf)
     char* datestamp = NULL;
     uint32_t ustamp = 0;
 
-    if (!zone || !zone->name || !zone->signconf || new_signconf) {
+    if (!zone || !zone->name || !zone->signconf) {
         return ODS_STATUS_ASSERT_ERR;
     }
     if (!zone->signconf_filename) {
@@ -317,15 +317,7 @@ zone_publish_nsec3param(zone_type* zone, int recover)
         ods_log_assert(apex);
 
         rrset = domain_lookup_rrset(apex, LDNS_RR_TYPE_NSEC3PARAMS);
-        if (rrset) {
-            status = rrset_wipe_out(rrset);
-            if (status != ODS_STATUS_OK) {
-                ods_log_error("[%s] unable to wipe out previous "
-                    "NSEC3PARAM RR from zone %s", zone_str, zone->name);
-                rrset_rollback(rrset);
-                return status;
-            }
-        }
+        rrset_diff(rrset, NULL);
     }
     return status;
 }
@@ -548,6 +540,7 @@ zone_del_rr(zone_type* zone, ldns_rr* rr, int do_stats)
 {
     domain_type* domain = NULL;
     rrset_type* rrset = NULL;
+    rr_type* record = NULL;
 
     if (!rr) {
         ods_log_error("[%s] unable to del RR: no RR", zone_str);
@@ -581,11 +574,14 @@ zone_del_rr(zone_type* zone, ldns_rr* rr, int do_stats)
     ods_log_assert(rrset);
 
     /* del RR */
-    if (rrset_del_rr(rrset, rr, (ldns_rr_get_type(rr) == LDNS_RR_TYPE_DNSKEY))
-            == NULL) {
-        ods_log_error("[%s] unable to del RR: pend RR failed", zone_str);
-        return ODS_STATUS_ERR;
+    record = rrset_lookup_rr(rrset, rr);
+    if (!record) {
+        ods_log_error("[%s] unable to delete RR from zone %s: "
+            "RR not found", zone_str, zone->name);
+        return ODS_STATUS_UNCHANGED;
     }
+    record->is_removed = 1;
+    record->is_added = 0; /* unset is_added */
 
     /* update stats */
     if (do_stats && zone->stats) {
@@ -961,11 +957,7 @@ zone_recover(zone_type* zone)
             zone->task = NULL;
             goto recover_error;
         }
-        status = namedb_commit(zone->db);
-        if (status != ODS_STATUS_OK) {
-            zone->task = NULL;
-            goto recover_error;
-        }
+        namedb_diff(zone->db, NULL);
         status = namedb_entize(zone->db, zone->apex);
         if (status != ODS_STATUS_OK) {
             zone->task = NULL;

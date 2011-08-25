@@ -51,8 +51,8 @@ struct denial_struct {
     void* domain;
     ldns_rdf* dname;
     rrset_type* rrset;
-    uint8_t bitmap_changed;
-    uint8_t nxt_changed;
+    unsigned bitmap_changed : 1;
+    unsigned nxt_changed : 1;
 };
 
 /**

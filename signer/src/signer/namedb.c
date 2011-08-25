@@ -669,18 +669,7 @@ namedb_del_denial_fixup(ldns_rbtree_t* tree, denial_type* denial)
 
         /* delete old NSEC RR(s) */
         if (denial->rrset) {
-            status = rrset_wipe_out(denial->rrset);
-            if (status != ODS_STATUS_OK) {
-                ods_log_alert("[%s] unable to del denial of existence data "
-                    "point: failed to wipe out NSEC RRset", db_str);
-                return denial;
-            }
-            status = rrset_commit(denial->rrset);
-            if (status != ODS_STATUS_OK) {
-                ods_log_alert("[%s] unable to del denial of existence data "
-                    "point: failed to commit NSEC RRset", db_str);
-                return denial;
-            }
+            rrset_diff(denial->rrset, NULL);
         }
 
         del_node = ldns_rbtree_delete(tree, (const void*)denial->dname);
@@ -744,60 +733,6 @@ namedb_diff(namedb_type* db, keylist_type* kl)
         node = ldns_rbtree_next(node);
     }
     return;
-}
-
-
-/**
- * Commit updates to zone data.
- *
- */
-ods_status
-namedb_commit(namedb_type* db)
-{
-    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
-    ldns_rbnode_t* nxtnode = LDNS_RBTREE_NULL;
-    ldns_rbnode_t* tmpnode = LDNS_RBTREE_NULL;
-    domain_type* domain = NULL;
-    domain_type* nxtdomain = NULL;
-    ods_status status = ODS_STATUS_OK;
-    size_t oldnum = 0;
-
-    if (!db || !db->domains) {
-        return ODS_STATUS_OK;
-    }
-    if (db->domains->root != LDNS_RBTREE_NULL) {
-        node = ldns_rbtree_last(db->domains);
-    }
-    while (node && node != LDNS_RBTREE_NULL) {
-        domain = (domain_type*) node->data;
-        oldnum = domain_count_rrset(domain);
-        status = domain_commit(domain);
-        if (status != ODS_STATUS_OK) {
-            return status;
-        }
-        tmpnode = node;
-        node = ldns_rbtree_previous(node);
-
-        /* delete memory if empty leaf domain */
-        if (domain_count_rrset(domain) <= 0) {
-            /* empty domain */
-            nxtnode = ldns_rbtree_next(tmpnode);
-            nxtdomain = NULL;
-            if (nxtnode && nxtnode != LDNS_RBTREE_NULL) {
-                nxtdomain = (domain_type*) nxtnode->data;
-            }
-            if (!nxtdomain ||
-                !ldns_dname_is_subdomain(nxtdomain->dname, domain->dname)) {
-                /* leaf domain */
-                if (namedb_del_domain(db, domain) != NULL) {
-                    ods_log_warning("[%s] unable to delete obsoleted "
-                        "domain", db_str);
-                    return ODS_STATUS_ERR;
-                }
-            }
-        } /* if (domain_count_rrset(domain) <= 0) */
-    }
-    return status;
 }
 
 

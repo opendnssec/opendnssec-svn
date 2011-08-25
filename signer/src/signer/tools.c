@@ -229,7 +229,7 @@ lock_fetch:
     if (status == ODS_STATUS_OK) {
         ods_log_verbose("[%s] commit updates for zone %s", tools_str,
             zone->name?zone->name:"(null)");
-        status = namedb_commit(zone->db);
+        namedb_diff(zone->db, NULL);
     } else {
         ods_log_warning("[%s] rollback updates for zone %s", tools_str,
             zone->name?zone->name:"(null)");

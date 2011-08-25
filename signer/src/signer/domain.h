@@ -74,7 +74,7 @@ struct domain_struct {
     ldns_rdf* dname;
     domain_status dstatus;
     domain_type* parent;
-    ldns_rbtree_t* rrsets;
+    rrset_type* rrsets;
 };
 
 /**
@@ -161,11 +161,11 @@ rrset_type* domain_add_rrset(domain_type* domain, rrset_type* rrset);
 /**
  * Delete RRset from domain.
  * \param[in] domain domain
- * \param[in] rrset RRset
- * \return rrset_type* RRset if failed
+ * \param[in] rrtype RRtype of RRset
+ * \return rrset_type* deleted RRset
  *
  */
-rrset_type* domain_del_rrset(domain_type* domain, rrset_type* rrset);
+rrset_type* domain_del_rrset(domain_type* domain, ldns_rr_type rrtype);
 
 /**
  * Apply differences at domain.
@@ -220,14 +220,6 @@ int domain_examine_rrset_is_alone(domain_type* domain, ldns_rr_type rrtype);
  *
  */
 int domain_examine_rrset_is_singleton(domain_type* domain, ldns_rr_type rrtype);
-
-/**
- * Commit updates to domain.
- * \param[in] domain the domain
- * \return ods_status status
- *
- */
-ods_status domain_commit(domain_type* domain);
 
 /**
  * Rollback updates from domain.

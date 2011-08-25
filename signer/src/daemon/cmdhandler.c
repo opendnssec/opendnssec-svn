@@ -425,12 +425,7 @@ cmdhandler_handle_cmd_clear(int sockfd, cmdhandler_type* cmdc, const char* tbd)
             ods_log_warning("[%s] unable to restore DNSKEY RRset for zone %s,"
                 " reloading signconf", cmdh_str, zone->name);
         }
-        if (status == ODS_STATUS_OK) {
-            status = namedb_commit(zone->db);
-        } else {
-            ods_log_warning("[%s] unable to restore NSEC3PARAM RRset for "
-                " zone %s d1reloading signconf", cmdh_str, zone->name);
-        }
+        namedb_diff(zone->db, NULL);
 
         task = (task_type*) zone->task;
         task->what = TASK_READ;

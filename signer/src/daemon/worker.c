@@ -203,9 +203,8 @@ worker_perform_task(worker_type* worker)
                 status = zone_publish_nsec3param(zone, 0);
             }
             if (status == ODS_STATUS_OK) {
-                status = namedb_commit(zone->db);
+                namedb_diff(zone->db, NULL);
             }
-
             if (status == ODS_STATUS_OK) {
                 zone->prepared = 1;
                 task->interrupt = TASK_NONE;
