@@ -444,28 +444,13 @@ zone_update_serial(zone_type* zone)
     rrset_type* rrset = NULL;
     ldns_rdf* serial = NULL;
 
-    if (!zone) {
-        ods_log_error("[%s] unable to update serial: no zone",
-            zone_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
     ods_log_assert(zone);
-
-    if (!zone->signconf) {
-        ods_log_error("[%s] unable to update serial: no signconf",
-            zone_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
+    ods_log_assert(zone->apex);
+    ods_log_assert(zone->name);
+    ods_log_assert(zone->db);
     ods_log_assert(zone->signconf);
 
-    if (!zone->db) {
-        ods_log_error("[%s] unable to update serial: no namedb",
-            zone_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
-    ods_log_assert(zone->db);
-
-    status = namedb_update_serial(zone->db, zone->signconf,
+    status = namedb_update_serial(zone->db, zone->signconf->soa_serial,
         zone->db->inbserial);
     if (status != ODS_STATUS_OK) {
         ods_log_error("[%s] unable to update serial: failed to increment",
@@ -480,8 +465,6 @@ zone_update_serial(zone_type* zone)
             zone_str);
         return ODS_STATUS_ERR;
     }
-    ods_log_assert(domain);
-
     /* lookup RRset */
     rrset = domain_lookup_rrset(domain, LDNS_RR_TYPE_SOA);
     if (!rrset) {
@@ -489,7 +472,6 @@ zone_update_serial(zone_type* zone)
             zone_str);
         return ODS_STATUS_ERR;
     }
-    ods_log_assert(rrset);
     ods_log_assert(rrset->rrtype == LDNS_RR_TYPE_SOA);
 
     if (rrset->rrs && rrset->rrs->rr) {
