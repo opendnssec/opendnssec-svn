@@ -49,6 +49,7 @@ typedef struct denial_struct denial_type;
 struct denial_struct {
     void* zone;
     void* domain;
+    ldns_rbnode_t* node;
     ldns_rdf* dname;
     rrset_type* rrset;
     unsigned bitmap_changed : 1;

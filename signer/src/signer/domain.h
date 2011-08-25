@@ -46,6 +46,12 @@
 #include <ldns/ldns.h>
 #include <time.h>
 
+#define SE_NSEC_RDATA_NXT          0
+#define SE_NSEC_RDATA_BITMAP       1
+#define SE_NSEC3_RDATA_NSEC3PARAMS 4
+#define SE_NSEC3_RDATA_NXT         4
+#define SE_NSEC3_RDATA_BITMAP      5
+
 enum domain_status_enum {
     DOMAIN_STATUS_NONE = 0, /* initial domain status [UNSIGNED] */
     DOMAIN_STATUS_APEX,     /* apex domain, authoritative [SIGNED] */
@@ -57,12 +63,6 @@ enum domain_status_enum {
 };
 typedef enum domain_status_enum domain_status;
 
-#define SE_NSEC_RDATA_NXT          0
-#define SE_NSEC_RDATA_BITMAP       1
-#define SE_NSEC3_RDATA_NSEC3PARAMS 4
-#define SE_NSEC3_RDATA_NXT         4
-#define SE_NSEC3_RDATA_BITMAP      5
-
 /**
  * Domain.
  *
@@ -71,10 +71,12 @@ typedef struct domain_struct domain_type;
 struct domain_struct {
     void* zone;
     void* denial;
+    ldns_rbnode_t* node;
     ldns_rdf* dname;
-    domain_status dstatus;
     domain_type* parent;
     rrset_type* rrsets;
+    unsigned is_new : 1;
+    unsigned is_apex : 1; /* apex */
 };
 
 /**
@@ -228,11 +230,34 @@ int domain_examine_rrset_is_singleton(domain_type* domain, ldns_rr_type rrtype);
 void domain_rollback(domain_type* domain);
 
 /**
- * Set domain status.
- * \param[in] domain the domain
+ * Check whether a domain is an empty non-terminal to an unsigned delegation.
+ * \param[in] domain domain
+ * \return int yes or no
  *
  */
-void domain_dstatus(domain_type* domain);
+int domain_ent2unsignedns(domain_type* domain);
+
+/**
+ * Check whether a domain is a delegation, regardless of parent.
+ * \param[in] domain domain
+ * \return ldns_rr_type RRtype that hints whether the domain is occluded.
+ *         LDNS_RR_TYPE_NS Unsigned delegation
+ *         LDNS_RR_TYPE_DS Signed delegation
+ *         LDNS_RR_TYPE_SOA Authoritative data (or signed delegation)
+ *
+ */
+ldns_rr_type domain_is_delegpt(domain_type* domain);
+
+/**
+ * Check whether the domain is occluded.
+ * \param[in] domain domain
+ * \return ldns_rr_type RRtype that hints whether the domain is occluded.
+ *         LDNS_RR_TYPE_DNAME Occluded
+ *         LDNS_RR_TYPE_A Glue
+ *         LDNS_RR_TYPE_SOA Authoritative data or delegation
+ *
+ */
+ldns_rr_type domain_is_occluded(domain_type* domain);
 
 /**
  * Queue all RRsets at this domain.
@@ -246,19 +271,19 @@ ods_status domain_queue(domain_type* domain, fifoq_type* q,
     worker_type* worker);
 
 /**
- * Clean up domain.
- * \param[in] domain domain to cleanup
- *
- */
-void domain_cleanup(domain_type* domain);
-
-/**
  * Print domain.
  * \param[in] fd file descriptor
  * \param[in] domain domain
  *
  */
 void domain_print(FILE* fd, domain_type* domain);
+
+/**
+ * Clean up domain.
+ * \param[in] domain domain to cleanup
+ *
+ */
+void domain_cleanup(domain_type* domain);
 
 /**
  * Backup domain.

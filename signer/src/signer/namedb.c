@@ -217,6 +217,7 @@ namedb_recover(namedb_type* db, FILE* fd)
     domain_type* domain = NULL;
     ldns_rdf* rdf = NULL;
     ldns_rbnode_t* denial_node = LDNS_RBTREE_NULL;
+    denial_type* denial = NULL;
 
     ods_log_assert(db);
     ods_log_assert(fd);
@@ -250,13 +251,15 @@ namedb_recover(namedb_type* db, FILE* fd)
                 goto recover_domain_error;
             }
             if (domain->denial) {
-                denial_node = denial2node((denial_type*)domain->denial);
+                denial = (void*) domain->denial;
+                denial_node = denial2node(denial);
                 /* insert */
                 if (!ldns_rbtree_insert(db->denials, denial_node)) {
                     ods_log_error("[%s] unable to recover denial", db_str);
                     free((void*)denial_node);
                     goto recover_domain_error;
                 }
+                denial->node = denial_node;
                 denial_node = NULL;
             }
 
@@ -303,7 +306,6 @@ static domain_type*
 namedb_domain_search(ldns_rbtree_t* tree, ldns_rdf* dname)
 {
     ldns_rbnode_t* node = LDNS_RBTREE_NULL;
-
     if (!tree || !dname) {
         return NULL;
     }
@@ -420,6 +422,8 @@ namedb_add_domain(namedb_type* db, domain_type* domain)
         free((void*)new_node);
         return NULL;
     }
+    domain->node = new_node;
+    domain->is_new = 1;
     log_rdf(domain->dname, "+DD", 6);
     return domain;
 }
@@ -646,7 +650,6 @@ namedb_del_denial_fixup(ldns_rbtree_t* tree, denial_type* denial)
     denial_type* prev_denial = NULL;
     ldns_rbnode_t* prev_node = LDNS_RBTREE_NULL;
     ldns_rbnode_t* del_node = LDNS_RBTREE_NULL;
-    ods_status status = ODS_STATUS_OK;
 
     ods_log_assert(tree);
     ods_log_assert(denial);
@@ -759,85 +762,6 @@ namedb_rollback(namedb_type* db)
 
 
 /**
- * See if the domain is an empty non-terminal to glue.
- *
- */
-static int
-domain_ent2glue(ldns_rbnode_t* node)
-{
-    ldns_rbnode_t* nextnode = LDNS_RBTREE_NULL;
-    domain_type* nextdomain = NULL;
-    domain_type* domain = NULL;
-    ods_log_assert(node && node != LDNS_RBTREE_NULL);
-    domain = (domain_type*) node->data;
-    if (domain->dstatus == DOMAIN_STATUS_ENT) {
-        ods_log_assert(domain_count_rrset(domain) == 0);
-        nextnode = ldns_rbtree_next(node);
-        while (nextnode && nextnode != LDNS_RBTREE_NULL) {
-            nextdomain = (domain_type*) nextnode->data;
-            if (!ldns_dname_is_subdomain(nextdomain->dname, domain->dname)) {
-                /* we are done, no non-glue found */
-                return 1;
-            }
-            if (nextdomain->dstatus != DOMAIN_STATUS_OCCLUDED &&
-                nextdomain->dstatus != DOMAIN_STATUS_ENT &&
-                nextdomain->dstatus != DOMAIN_STATUS_NONE) {
-                /* found non-glue */
-                return 0;
-            }
-            nextnode = ldns_rbtree_next(nextnode);
-        }
-    } else {
-        /* no empty non-terminal */
-        ods_log_assert(domain_count_rrset(domain) != 0);
-        return 0;
-    }
-    /* no non-glue found */
-    return 1;
-}
-
-
-/**
- * See if the domain is an empty non-terminal to unsigned data.
- *
- */
-static int
-domain_ent2unsigned(ldns_rbnode_t* node)
-{
-    ldns_rbnode_t* nextnode = LDNS_RBTREE_NULL;
-    domain_type* nextdomain = NULL;
-    domain_type* domain = NULL;
-    ods_log_assert(node && node != LDNS_RBTREE_NULL);
-    domain = (domain_type*) node->data;
-    if (domain->dstatus == DOMAIN_STATUS_ENT) {
-        ods_log_assert(domain_count_rrset(domain) == 0);
-        nextnode = ldns_rbtree_next(node);
-        while (nextnode && nextnode != LDNS_RBTREE_NULL) {
-            nextdomain = (domain_type*) nextnode->data;
-            if (!ldns_dname_is_subdomain(nextdomain->dname, domain->dname)) {
-                /* we are done, no unsigned delegation found */
-                return 1;
-            }
-            if (nextdomain->dstatus != DOMAIN_STATUS_OCCLUDED &&
-                nextdomain->dstatus != DOMAIN_STATUS_ENT &&
-                nextdomain->dstatus != DOMAIN_STATUS_NS &&
-                nextdomain->dstatus != DOMAIN_STATUS_NONE) {
-                /* found data that has to be signed */
-                return 0;
-            }
-            nextnode = ldns_rbtree_next(nextnode);
-        }
-    } else {
-        /* no empty non-terminal */
-        ods_log_assert(domain_count_rrset(domain) != 0);
-        return 0;
-    }
-    /* no unsigned delegation found */
-    return 1;
-}
-
-
-/**
  * Add empty non-terminals to zone data from this domain up.
  *
  */
@@ -892,7 +816,6 @@ domain_entize(namedb_type* db, domain_type* domain, ldns_rdf* apex)
                 domain_cleanup(parent_domain);
                 return ODS_STATUS_ERR;
             }
-            parent_domain->dstatus = DOMAIN_STATUS_ENT;
             domain->parent = parent_domain;
             /* continue with the parent domain */
             domain = parent_domain;
@@ -942,7 +865,6 @@ namedb_entize(namedb_type* db, ldns_rdf* apex)
                 "failed", db_str);
             return status;
         }
-        domain_dstatus(domain);
         node = ldns_rbtree_next(node);
     }
     return ODS_STATUS_OK;
@@ -965,6 +887,8 @@ namedb_nsecify(namedb_type* db, ldns_rr_class klass, uint32_t ttl,
     denial_type* denial = NULL;
     denial_type* nxt = NULL;
     size_t nsec_added = 0;
+    ldns_rr_type occluded = LDNS_RR_TYPE_SOA;
+    ldns_rr_type delegpt = LDNS_RR_TYPE_SOA;
 
     if (!db || !db->domains) {
         return ODS_STATUS_OK;
@@ -975,13 +899,14 @@ namedb_nsecify(namedb_type* db, ldns_rr_class klass, uint32_t ttl,
     node = ldns_rbtree_first(db->domains);
     while (node && node != LDNS_RBTREE_NULL) {
         domain = (domain_type*) node->data;
-        if (domain->dstatus == DOMAIN_STATUS_APEX) {
+        if (domain->is_apex) {
             apex = domain;
         }
+        occluded = domain_is_occluded(domain);
+        delegpt = domain_is_delegpt(domain);
+
         /* don't do glue-only or empty domains */
-        if (domain->dstatus == DOMAIN_STATUS_NONE ||
-            domain->dstatus == DOMAIN_STATUS_ENT ||
-            domain->dstatus == DOMAIN_STATUS_OCCLUDED ||
+        if (occluded != LDNS_RR_TYPE_SOA ||
             domain_count_rrset(domain) <= 0) {
             if (domain_count_rrset(domain)) {
                 log_rdf(domain->dname, "nsecify: don't do glue domain", 6);
@@ -1057,6 +982,8 @@ namedb_nsecify3(namedb_type* db, ldns_rr_class klass,
     denial_type* denial = NULL;
     denial_type* nxt = NULL;
     size_t nsec3_added = 0;
+    ldns_rr_type occluded = LDNS_RR_TYPE_SOA;
+    ldns_rr_type delegpt = LDNS_RR_TYPE_SOA;
 
     if (!db || !db->domains) {
         return ODS_STATUS_OK;
@@ -1073,14 +1000,14 @@ namedb_nsecify3(namedb_type* db, ldns_rr_class klass,
     node = ldns_rbtree_first(db->domains);
     while (node && node != LDNS_RBTREE_NULL) {
         domain = (domain_type*) node->data;
-        if (domain->dstatus == DOMAIN_STATUS_APEX) {
+        if (domain->is_apex) {
             apex = domain;
         }
+        occluded = domain_is_occluded(domain);
+        delegpt = domain_is_delegpt(domain);
 
         /* don't do glue-only domains */
-        if (domain->dstatus == DOMAIN_STATUS_NONE ||
-            domain->dstatus == DOMAIN_STATUS_OCCLUDED ||
-            domain_ent2glue(node)) {
+        if (occluded != LDNS_RR_TYPE_SOA) {
             log_rdf(domain->dname, "nsecify3: don't do glue domain" , 6);
             if (domain->denial) {
                 if (namedb_del_denial(db, domain->denial) != NULL) {
@@ -1096,9 +1023,9 @@ namedb_nsecify3(namedb_type* db, ldns_rr_class klass,
         if (nsec3params->flags) {
             /* If Opt-Out is being used, owner names of unsigned delegations
                MAY be excluded. */
-            if (domain->dstatus == DOMAIN_STATUS_NS ||
-                domain_ent2unsigned(node)) {
-                if (domain->dstatus == DOMAIN_STATUS_NS) {
+            if (delegpt != LDNS_RR_TYPE_SOA ||
+                domain_ent2unsignedns(domain)) {
+                if (delegpt != LDNS_RR_TYPE_SOA) {
                     log_rdf(domain->dname, "nsecify3: opt-out (unsigned "
                         "delegation)", 5);
                 } else {

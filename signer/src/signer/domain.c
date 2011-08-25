@@ -117,9 +117,11 @@ domain_create(void* zoneptr, ldns_rdf* dname)
     }
     domain->zone = zoneptr;
     domain->denial = NULL; /* no reference yet */
+    domain->node = NULL; /* not in db yet */
     domain->rrsets = NULL;
     domain->parent = NULL;
-    domain->dstatus = DOMAIN_STATUS_NONE;
+    domain->is_apex = 0;
+    domain->is_new = 0;
     return domain;
 }
 
@@ -165,7 +167,9 @@ domain_recover(domain_type* domain, FILE* fd, domain_status dstatus)
     ods_log_assert(domain);
     ods_log_assert(fd);
 
-    domain->dstatus = dstatus;
+    if (dstatus == DOMAIN_STATUS_APEX) {
+        domain->is_apex = 1;
+    }
 
     while (backup_read_str(fd, &token)) {
         if (ods_strcmp(token, ";;RRSIG") == 0) {
@@ -352,6 +356,7 @@ domain_add_rrset(domain_type* domain, rrset_type* rrset)
         rrset->next = NULL;
     }
     log_rrset(domain->dname, rrset->rrtype, "+RRSET", LOG_DEBUG);
+    rrset->domain = (void*) domain;
     if (domain->denial) {
         denial = (denial_type*) domain->denial;
         denial->bitmap_changed = 1;
@@ -689,51 +694,6 @@ domain_examine_rrset_is_singleton(domain_type* domain, ldns_rr_type rrtype)
 
 
 /**
- * Set domain status.
- *
- */
-void
-domain_dstatus(domain_type* domain)
-{
-    domain_type* parent = NULL;
-
-    if (!domain) {
-        ods_log_error("[%s] unable to set status: no domain", dname_str);
-        return;
-    }
-    if (domain->dstatus == DOMAIN_STATUS_APEX) {
-        /* that doesn't change... */
-        return;
-    }
-    if (domain_count_rrset(domain) <= 0) {
-        domain->dstatus = DOMAIN_STATUS_ENT;
-        return;
-    }
-
-    if (domain_lookup_rrset(domain, LDNS_RR_TYPE_NS)) {
-        if (domain_lookup_rrset(domain, LDNS_RR_TYPE_DS)) {
-            domain->dstatus = DOMAIN_STATUS_DS;
-        } else {
-            domain->dstatus = DOMAIN_STATUS_NS;
-        }
-    } else {
-        domain->dstatus = DOMAIN_STATUS_AUTH;
-    }
-
-    parent = domain->parent;
-    while (parent && parent->dstatus != DOMAIN_STATUS_APEX) {
-        if (domain_lookup_rrset(parent, LDNS_RR_TYPE_DNAME) ||
-            domain_lookup_rrset(parent, LDNS_RR_TYPE_NS)) {
-            domain->dstatus = DOMAIN_STATUS_OCCLUDED;
-            return;
-        }
-        parent = parent->parent;
-    }
-    return;
-}
-
-
-/**
  * Queue all RRsets at this domain.
  *
  */
@@ -743,12 +703,15 @@ domain_queue(domain_type* domain, fifoq_type* q, worker_type* worker)
     rrset_type* rrset = NULL;
     denial_type* denial = NULL;
     ods_status status = ODS_STATUS_OK;
+    ldns_rr_type occluded = LDNS_RR_TYPE_SOA;
+    ldns_rr_type delegpt = LDNS_RR_TYPE_SOA;
 
     if (!domain || !domain->rrsets) {
         return ODS_STATUS_OK;
     }
-    if (domain->dstatus == DOMAIN_STATUS_NONE ||
-        domain->dstatus == DOMAIN_STATUS_OCCLUDED) {
+    occluded = domain_is_occluded(domain);
+    delegpt = domain_is_delegpt(domain);
+    if (occluded != LDNS_RR_TYPE_SOA) {
         return ODS_STATUS_OK;
     }
 
@@ -756,14 +719,13 @@ domain_queue(domain_type* domain, fifoq_type* q, worker_type* worker)
     rrset = domain->rrsets;
     while (rrset) {
         /* skip delegation RRsets */
-        if (domain->dstatus != DOMAIN_STATUS_APEX &&
+        if (!domain->is_apex &&
             rrset->rrtype == LDNS_RR_TYPE_NS) {
             rrset = rrset->next;
             continue;
         }
         /* skip glue at the delegation */
-        if ((domain->dstatus == DOMAIN_STATUS_DS ||
-             domain->dstatus == DOMAIN_STATUS_NS) &&
+        if (delegpt != LDNS_RR_TYPE_SOA &&
             (rrset->rrtype == LDNS_RR_TYPE_A ||
              rrset->rrtype == LDNS_RR_TYPE_AAAA)) {
             rrset = rrset->next;
@@ -806,13 +768,108 @@ domain_examine_ns_rdata(domain_type* domain, ldns_rdf* nsdname)
 
 
 /**
+ * Check whether a domain is an empty non-terminal to unsigned delegation.
+ *
+ */
+int
+domain_ent2unsignedns(domain_type* domain)
+{
+    ldns_rbnode_t* n = LDNS_RBTREE_NULL;
+    domain_type* d = NULL;
+    ldns_rr_type dstatus = LDNS_RR_TYPE_FIRST;
+
+    ods_log_assert(domain);
+    if (domain->rrsets) {
+        return 0; /* not an empty non-terminal */
+    }
+    n = ldns_rbtree_next(domain->node);
+    while (n && n != LDNS_RBTREE_NULL) {
+        d = (domain_type*) n->data;
+        if (!ldns_dname_is_subdomain(d->dname, domain->dname)) {
+            break;
+        }
+        if (d->rrsets) {
+            dstatus = domain_is_delegpt(d);
+            if (domain_is_delegpt(d) == LDNS_RR_TYPE_NS) {
+                /* domain has unsigned delegation */
+                return 1;
+            } else {
+                /* domain has authoritative data or signed delegation */
+                return 0;
+            }
+        }
+        /* maybe there is data at the next domain */
+        n = ldns_rbtree_next(n);
+    }
+    ods_log_warning("[%s] encountered empty terminal that is treated as "
+        "non-terminal", dname_str);
+    return 0;
+}
+
+
+/**
+ * Check whether the domain is a delegation point.
+ *
+ */
+ldns_rr_type
+domain_is_delegpt(domain_type* domain)
+{
+    ods_log_assert(domain);
+    if (domain->is_apex) {
+        return LDNS_RR_TYPE_SOA;
+    }
+    if (domain_lookup_rrset(domain, LDNS_RR_TYPE_NS)) {
+        if (domain_lookup_rrset(domain, LDNS_RR_TYPE_DS)) {
+            /* Signed delegation */
+            return LDNS_RR_TYPE_DS;
+        } else {
+            /* Unsigned delegation */
+            return LDNS_RR_TYPE_NS;
+        }
+    }
+    /* Authoritative */
+    return LDNS_RR_TYPE_SOA;
+}
+
+
+/**
+ * Check whether the domain is occluded.
+ *
+ */
+ldns_rr_type
+domain_is_occluded(domain_type* domain)
+{
+    domain_type* parent = NULL;
+    ods_log_assert(domain);
+    if (domain->is_apex) {
+        return LDNS_RR_TYPE_SOA;
+    }
+    parent = domain->parent;
+    while (parent && !parent->is_apex) {
+        if (domain_lookup_rrset(parent, LDNS_RR_TYPE_NS)) {
+            /* Glue / Empty non-terminal to Glue */
+            return LDNS_RR_TYPE_A;
+        }
+        if (domain_lookup_rrset(parent, LDNS_RR_TYPE_DNAME)) {
+            /* Occluded data / Empty non-terminal to Occluded data */
+            return LDNS_RR_TYPE_DNAME;
+        }
+        parent = parent->parent;
+    }
+    /* Authoritative or delegation */
+    return LDNS_RR_TYPE_SOA;
+}
+
+
+/**
  * Print domain.
  *
  */
 void
 domain_print(FILE* fd, domain_type* domain)
 {
-    int print_glue = 0;
+    ldns_rr_type dstatus = LDNS_RR_TYPE_FIRST;
+    char* str = NULL;
     rrset_type* rrset = NULL;
     rrset_type* soa_rrset = NULL;
     rrset_type* cname_rrset = NULL;
@@ -821,48 +878,59 @@ domain_print(FILE* fd, domain_type* domain)
     if (!domain || !fd) {
         return;
     }
-    rrset = domain->rrsets;
+    /* empty non-terminal? */
+    if (!domain->rrsets) {
+        str = ldns_rdf2str(domain->dname);
+        fprintf(fd, ";;Empty non-terminal %s\n", str);
+        free((void*)str);
+        /* Denial of Existence */
+        denial = (denial_type*) domain->denial;
+        if (denial) {
+            rrset_print(fd, denial->rrset, 0);
+        }
+        return;
+    }
     /* no other data may accompany a CNAME */
     cname_rrset = domain_lookup_rrset(domain, LDNS_RR_TYPE_CNAME);
     if (cname_rrset) {
         rrset_print(fd, cname_rrset, 0);
     } else {
         /* if SOA, print soa first */
-        if (domain->dstatus == DOMAIN_STATUS_APEX) {
+        if (domain->is_apex) {
             soa_rrset = domain_lookup_rrset(domain, LDNS_RR_TYPE_SOA);
             if (soa_rrset) {
                 rrset_print(fd, soa_rrset, 0);
             }
         }
         /* print other RRsets */
+        rrset = domain->rrsets;
         while (rrset) {
             /* skip SOA RRset */
             if (rrset->rrtype != LDNS_RR_TYPE_SOA) {
-                if (domain->dstatus == DOMAIN_STATUS_OCCLUDED) {
-                    /* glue?  */
-                    print_glue = 1;
-/* TODO: allow for now (root zone has it)
-                    parent = domain->parent;
-                    while (parent && parent->dstatus != DOMAIN_STATUS_APEX) {
-                        if (domain_examine_ns_rdata(parent, domain->dname)) {
-                            print_glue = 1;
-                            break;
-                        }
-                        parent = parent->parent;
-                    }
-*/
-                    if (print_glue && (rrset->rrtype == LDNS_RR_TYPE_A ||
-                        rrset->rrtype == LDNS_RR_TYPE_AAAA)) {
+                dstatus = domain_is_occluded(domain);
+                if (dstatus == LDNS_RR_TYPE_A) {
+                    /* Glue */
+                    if (rrset->rrtype == LDNS_RR_TYPE_A ||
+                        rrset->rrtype == LDNS_RR_TYPE_AAAA) {
                         rrset_print(fd, rrset, 0);
                     }
-                } else {
-                    rrset_print(fd, rrset, 0);
+                } else if (dstatus == LDNS_RR_TYPE_SOA) {
+                    /* Authoritative or delegation */
+                    dstatus = domain_is_delegpt(domain);
+                    if (dstatus == LDNS_RR_TYPE_SOA ||
+                        rrset->rrtype == LDNS_RR_TYPE_A ||
+                        rrset->rrtype == LDNS_RR_TYPE_AAAA ||
+                        rrset->rrtype == LDNS_RR_TYPE_NS ||
+                        rrset->rrtype == LDNS_RR_TYPE_DS) {
+                        rrset_print(fd, rrset, 0);
+                    }
                 }
+                /* Occluded */
             }
             rrset = rrset->next;
         }
     }
-    /* denial of existence */
+    /* Denial of Existence */
     denial = (denial_type*) domain->denial;
     if (denial) {
         rrset_print(fd, denial->rrset, 0);
@@ -904,7 +972,7 @@ domain_backup(FILE* fd, domain_type* domain)
         return;
     }
     str = ldns_rdf2str(domain->dname);
-    fprintf(fd, ";;Domain: name %s status %i\n", str, (int) domain->dstatus);
+    fprintf(fd, ";;Domain: name %s status %i\n", str, (int) domain->is_apex);
     rrset = domain->rrsets;
     while (rrset) {
         rrset_backup(fd, rrset);

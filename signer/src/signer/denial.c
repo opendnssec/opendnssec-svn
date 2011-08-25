@@ -67,6 +67,7 @@ denial_create(void* zoneptr, ldns_rdf* dname)
     denial->dname = dname;
     denial->zone = zoneptr;
     denial->domain = NULL; /* no back reference yet */
+    denial->node = NULL; /* not in db yet */
     denial->rrset = NULL;
     denial->bitmap_changed = 0;
     denial->nxt_changed = 0;
@@ -239,6 +240,8 @@ denial_create_nsec3(denial_type* denial, denial_type* nxt, uint32_t ttl,
     ldns_rr_type types[SE_MAX_RRTYPE_COUNT];
     size_t types_count = 0;
     int i = 0;
+    ldns_rr_type occluded = LDNS_RR_TYPE_SOA;
+    ldns_rr_type delegpt = LDNS_RR_TYPE_SOA;
 
     ods_log_assert(denial);
     ods_log_assert(denial->dname);
@@ -306,9 +309,8 @@ denial_create_nsec3(denial_type* denial, denial_type* nxt, uint32_t ttl,
     /* only add RRSIG type if we have authoritative data to sign */
     domain = (domain_type*) denial->domain;
     if (domain_count_rrset(domain) > 0 &&
-        (domain->dstatus == DOMAIN_STATUS_APEX ||
-         domain->dstatus == DOMAIN_STATUS_AUTH ||
-         domain->dstatus == DOMAIN_STATUS_DS)) {
+        (occluded == LDNS_RR_TYPE_SOA &&
+         delegpt != LDNS_RR_TYPE_NS)) {
         types[types_count] = LDNS_RR_TYPE_RRSIG;
         types_count++;
     }

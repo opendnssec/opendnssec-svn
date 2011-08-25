@@ -494,7 +494,7 @@ zone_add_rr(zone_type* zone, ldns_rr* rr, int do_stats)
             return ODS_STATUS_ERR;
         }
         if (ldns_dname_compare(domain->dname, zone->apex) == 0) {
-            domain->dstatus = DOMAIN_STATUS_APEX;
+            domain->is_apex = 1;
         }
     }
     ods_log_assert(domain);
