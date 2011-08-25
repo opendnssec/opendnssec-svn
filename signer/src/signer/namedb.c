@@ -1428,6 +1428,32 @@ namedb_wipe_denial(namedb_type* db)
 
 
 /**
+ * Export db to file.
+ *
+ */
+void
+namedb_export(FILE* fd, namedb_type* db)
+{
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+    domain_type* domain = NULL;
+    if (!fd || !db || !db->domains) {
+        return;
+    }
+    node = ldns_rbtree_first(db->domains);
+    if (!node || node == LDNS_RBTREE_NULL) {
+        fprintf(fd, "; empty zone\n");
+        return;
+    }
+    while (node && node != LDNS_RBTREE_NULL) {
+        domain = (domain_type*) node->data;
+        domain_print(fd, domain);
+        node = ldns_rbtree_next(node);
+    }
+    return;
+}
+
+
+/**
  * Clean up domains in zone data.
  *
  */
@@ -1549,43 +1575,4 @@ namedb_backup(FILE* fd, namedb_type* db)
     }
     fprintf(fd, ";;\n");
     return;
-}
-
-
-/**
- * Print zone data.
- *
- */
-ods_status
-namedb_print(FILE* fd, namedb_type* db)
-{
-    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
-    domain_type* domain = NULL;
-
-    if (!fd) {
-        ods_log_error("[%s] unable to print zone data: no file descriptor",
-            db_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
-    ods_log_assert(fd);
-
-    if (!db || !db->domains) {
-        ods_log_error("[%s] unable to print zone data: no zone data",
-            db_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
-    ods_log_assert(db);
-    ods_log_assert(db->domains);
-
-    node = ldns_rbtree_first(db->domains);
-    if (!node || node == LDNS_RBTREE_NULL) {
-        fprintf(fd, "; empty zone\n");
-        return ODS_STATUS_OK;
-    }
-    while (node && node != LDNS_RBTREE_NULL) {
-        domain = (domain_type*) node->data;
-        domain_print(fd, domain);
-        node = ldns_rbtree_next(node);
-    }
-    return ODS_STATUS_OK;
 }

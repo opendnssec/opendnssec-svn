@@ -763,20 +763,6 @@ zone_merge(zone_type* z1, zone_type* z2)
 
 
 /**
- * Print zone.
- *
- */
-ods_status
-zone_print(FILE* fd, zone_type* zone)
-{
-    if (fd && zone && zone->db) {
-        return namedb_print(fd, zone->db);
-    }
-    return ODS_STATUS_ASSERT_ERR;
-}
-
-
-/**
  * Examine zone.
  *
  */

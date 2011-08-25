@@ -438,8 +438,9 @@ adfile_write(void* zone, const char* filename)
     /* [start] write zone */
     fd = ods_fopen(filename, NULL, "w");
     if (fd) {
-        status = zone_print(fd, adzone);
+        adapi_printzone(fd, adzone);
         ods_fclose(fd);
+        status = ODS_STATUS_OK;
     } else {
         status = ODS_STATUS_FOPEN_ERR;
     }

@@ -360,7 +360,7 @@ addns_read_ixfr(FILE* fd, zone_type* zone)
  *
  */
 ods_status
-addns_read(struct zone_struct* zone, const char* str)
+addns_read(void* zone, const char* str)
 {
     FILE* fd = NULL;
     zone_type* adzone = (zone_type*) zone;
@@ -406,7 +406,7 @@ addns_read(struct zone_struct* zone, const char* str)
  *
  */
 ods_status
-addns_write(struct zone_struct* zone, const char* str)
+addns_write(void* zone, const char* str)
 {
     FILE* fd = NULL;
     zone_type* adzone = (zone_type*) zone;
@@ -431,8 +431,9 @@ addns_write(struct zone_struct* zone, const char* str)
     /* [start] write zone */
     fd = ods_fopen(str, NULL, "w");
     if (fd) {
-        zone_print(fd, adzone);
+        adapi_printzone(fd, adzone);
         ods_fclose(fd);
+        status = ODS_STATUS_OK;
     } else {
         status = ODS_STATUS_FOPEN_ERR;
     }

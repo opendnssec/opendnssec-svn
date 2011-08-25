@@ -229,13 +229,12 @@ ods_status namedb_queue(namedb_type* db, fifoq_type* q,
     worker_type* worker);
 
 /**
- * Print namedb.
+ * Export db to file.
  * \param[in] fd file descriptor
  * \param[in] namedb namedb
- * \return ods_status status
  *
  */
-ods_status namedb_print(FILE* fd, namedb_type* db);
+void namedb_export(FILE* fd, namedb_type* db);
 
 /**
  * Wipe out all NSEC(3) RRsets.
