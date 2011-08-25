@@ -302,7 +302,7 @@ recover_domain_error:
  * Internal lookup domain function.
  *
  */
-static domain_type*
+static void*
 namedb_domain_search(ldns_rbtree_t* tree, ldns_rdf* dname)
 {
     ldns_rbnode_t* node = LDNS_RBTREE_NULL;
@@ -311,7 +311,7 @@ namedb_domain_search(ldns_rbtree_t* tree, ldns_rdf* dname)
     }
     node = ldns_rbtree_search(tree, dname);
     if (node && node != LDNS_RBTREE_NULL) {
-        return (domain_type*) node->data;
+        return (void*) node->data;
     }
     return NULL;
 }
@@ -388,9 +388,10 @@ namedb_update_serial(namedb_type* db, const char* format, uint32_t serial)
 domain_type*
 namedb_lookup_domain(namedb_type* db, ldns_rdf* dname)
 {
-    if (!db) return NULL;
-
-    return namedb_domain_search(db->domains, dname);
+    if (!db) {
+        return NULL;
+    }
+    return (domain_type*) namedb_domain_search(db->domains, dname);
 }
 
 
@@ -399,92 +400,66 @@ namedb_lookup_domain(namedb_type* db, ldns_rdf* dname)
  *
  */
 domain_type*
-namedb_add_domain(namedb_type* db, domain_type* domain)
+namedb_add_domain(namedb_type* db, ldns_rdf* dname)
 {
+    domain_type* domain = NULL;
     ldns_rbnode_t* new_node = LDNS_RBTREE_NULL;
-
+    if (!dname || !db || !db->domains) {
+        return NULL;
+    }
+    domain = domain_create(db->zone, dname);
     if (!domain) {
-        ods_log_error("[%s] unable to add domain: no domain", db_str);
+        ods_log_error("[%s] unable to add domain: domain_create() failed",
+            db_str);
         return NULL;
     }
-    ods_log_assert(domain);
-
-    if (!db || !db->domains) {
-        log_rdf(domain->dname, "unable to add domain, no storage", 1);
-        return NULL;
-    }
-    ods_log_assert(db);
-    ods_log_assert(db->domains);
-
     new_node = domain2node(domain);
     if (ldns_rbtree_insert(db->domains, new_node) == NULL) {
-        log_rdf(domain->dname, "unable to add domain, already present", 1);
+        ods_log_error("[%s] unable to add domain: already present", db_str);
+        log_dname(domain->dname, "ERR +DOMAIN", LOG_ERR);
+        domain_cleanup(domain);
         free((void*)new_node);
         return NULL;
     }
+    domain = (domain_type*) new_node->data;
     domain->node = new_node;
     domain->is_new = 1;
-    log_rdf(domain->dname, "+DD", 6);
+    log_dname(domain->dname, "+DOMAIN", LOG_DEBUG);
     return domain;
 }
 
 
 /**
- * Internal delete domain function.
- *
- */
-static domain_type*
-namedb_del_domain_fixup(ldns_rbtree_t* tree, domain_type* domain)
-{
-    domain_type* del_domain = NULL;
-    ldns_rbnode_t* del_node = LDNS_RBTREE_NULL;
-
-    ods_log_assert(tree);
-    ods_log_assert(domain);
-    ods_log_assert(domain->dname);
-
-    del_node = ldns_rbtree_search(tree, (const void*)domain->dname);
-    if (del_node) {
-        del_node = ldns_rbtree_delete(tree, (const void*)domain->dname);
-        del_domain = (domain_type*) del_node->data;
-        domain_cleanup(del_domain);
-        free((void*)del_node);
-        return NULL;
-    } else {
-        log_rdf(domain->dname, "unable to del domain, not found", 1);
-    }
-    return domain;
-}
-
-
-/**
- * Delete domain from the zone data.
+ * Delete domain from namedb
  *
  */
 domain_type*
 namedb_del_domain(namedb_type* db, domain_type* domain)
 {
-    if (!domain) {
-        ods_log_error("[%s] unable to delete domain: no domain", db_str);
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+    if (!domain || !db || !db->domains) {
+        ods_log_error("[%s] unable to delete domain: !db || !domain", db_str);
+        log_dname(domain->dname, "ERR -DOMAIN", LOG_ERR);
         return NULL;
     }
-    ods_log_assert(domain);
-    ods_log_assert(domain->dname);
-
-    if (!db || !db->domains) {
-        log_rdf(domain->dname, "unable to delete domain, no namedb", 1);
+    if (domain->rrsets || domain->denial) {
+        ods_log_error("[%s] unable to delete domain: domain in use", db_str);
+        log_dname(domain->dname, "ERR -DOMAIN", LOG_ERR);
+        return NULL;
+    }
+    node = ldns_rbtree_delete(db->domains, (const void*)domain->dname);
+    if (node) {
+        ods_log_assert(domain->node == node);
+        ods_log_assert(!domain->rrsets);
+        ods_log_assert(!domain->denial);
+        free((void*)node);
+        domain->node = NULL;
+        log_dname(domain->dname, "-DOMAIN", LOG_DEBUG);
         return domain;
     }
-    ods_log_assert(db);
-    ods_log_assert(db->domains);
-
-    if (domain->denial && namedb_del_denial(db, domain->denial) != NULL) {
-        log_rdf(domain->dname, "unable to delete domain, failed to delete "
-            "denial of existence data point", 1);
-        return domain;
-    }
-    log_rdf(domain->dname, "-DD", 6);
-    return namedb_del_domain_fixup(db->domains, domain);
+    ods_log_error("[%s] unable to delete domain: not found", db_str);
+    log_dname(domain->dname, "ERR -DOMAIN", LOG_ERR);
+    return NULL;
 }
 
 
@@ -802,15 +777,7 @@ domain_entize(namedb_type* db, domain_type* domain, ldns_rdf* apex)
 
         parent_domain = namedb_lookup_domain(db, parent_rdf);
         if (!parent_domain) {
-            parent_domain = domain_create(db->zone, parent_rdf);
-            ldns_rdf_deep_free(parent_rdf);
-            if (!parent_domain) {
-                log_rdf(domain->dname, "unable to entize domain, create "
-                    "parent failed", 1);
-                return ODS_STATUS_ERR;
-            }
-            ods_log_assert(parent_domain);
-            if (namedb_add_domain(db, parent_domain) == NULL) {
+            if (namedb_add_domain(db, parent_rdf) == NULL) {
                 log_rdf(domain->dname, "unable to entize domain, add parent "
                     "failed", 1);
                 domain_cleanup(parent_domain);

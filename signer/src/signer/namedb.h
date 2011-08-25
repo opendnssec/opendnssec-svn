@@ -113,20 +113,20 @@ domain_type* namedb_lookup_domain(namedb_type* db, ldns_rdf* dname);
 /**
  * Add domain to namedb.
  * \param[in] db namedb
- * \param[in] domain domain to add
+ * \param[in] dname domain name
  * \return domain_type* added domain
  *
  */
-domain_type* namedb_add_domain(namedb_type* db, domain_type* domain);
+domain_type* namedb_add_domain(namedb_type* db, ldns_rdf* dname);
 
 /**
- * Delete domain from zone data.
- * \param[in] zd zone data
- * \param[in] domain domain to delete
- * \return domain_type* domain if failed
+ * Delete domain from namedb
+ * \param[in] db namedb
+ * \param[in] domain domain
+ * \return domain_type* deleted domain
  *
  */
-domain_type* namedb_del_domain(namedb_type* zd, domain_type* domain);
+domain_type* namedb_del_domain(namedb_type* db, domain_type* domain);
 
 /**
  * Lookup denial.
