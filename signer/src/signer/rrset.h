@@ -158,10 +158,10 @@ size_t rrset_count_rr(rrset_type* rrset);
  * Add RR to RRset.
  * \param[in] rrset RRset
  * \param[in] rr RR
- * \return ldns_rr* added RR
- *
+ * \return rr_type* added RR
+
  */
-ldns_rr* rrset_add_rr(rrset_type* rrset, ldns_rr* rr);
+rr_type* rrset_add_rr(rrset_type* rrset, ldns_rr* rr);
 
 /**
  * Delete RR from RRset.
@@ -194,24 +194,19 @@ void rrset_del_rrsig(rrset_type* rrset, uint16_t rrnum);
 /**
  * Apply differences at RRset.
  * \param[in] rrset RRset
- * \param[in] kl current key list
  *
  */
-void rrset_diff(rrset_type* rrset, keylist_type* kl);
+void rrset_diff(rrset_type* rrset);
 
 /**
  * Sign RRset.
  * \param[in] ctx HSM context
  * \param[in] rrset RRset
- * \param[in] owner owner of the zone
- * \param[in] sc signer configuration
  * \param[in] signtime time when the zone is being signed
- * \param[out] stats update statistics
  * \return ods_status status
  *
  */
-ods_status rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, ldns_rdf* owner,
-    signconf_type* sc, time_t signtime, stats_type* stats);
+ods_status rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, time_t signtime);
 
 /**
  * Queue RRset.

@@ -668,10 +668,7 @@ namedb_del_denial_fixup(ldns_rbtree_t* tree, denial_type* denial)
         prev_denial->nxt_changed = 1;
 
         /* delete old NSEC RR(s) */
-        if (denial->rrset) {
-            rrset_diff(denial->rrset, NULL);
-        }
-
+        rrset_diff(denial->rrset);
         del_node = ldns_rbtree_delete(tree, (const void*)denial->dname);
         del_denial = (denial_type*) del_node->data;
         denial_cleanup(del_denial);
@@ -716,7 +713,7 @@ namedb_del_denial(namedb_type* db, denial_type* denial)
  *
  */
 void
-namedb_diff(namedb_type* db, keylist_type* kl)
+namedb_diff(namedb_type* db)
 {
     ldns_rbnode_t* node = LDNS_RBTREE_NULL;
     domain_type* domain = NULL;
@@ -729,7 +726,7 @@ namedb_diff(namedb_type* db, keylist_type* kl)
     }
     while (node && node != LDNS_RBTREE_NULL) {
         domain = (domain_type*) node->data;
-        domain_diff(domain, kl);
+        domain_diff(domain);
         node = ldns_rbtree_next(node);
     }
     return;

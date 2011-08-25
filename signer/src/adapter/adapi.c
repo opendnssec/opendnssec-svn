@@ -122,9 +122,9 @@ adapi_get_ttl(zone_type* zone)
 void
 adapi_trans_full(zone_type* zone)
 {
-    if (!zone || !zone->db || !zone->signconf) {
+    if (!zone || !zone->db) {
     }
-    namedb_diff(zone->db, zone->signconf->keys);
+    namedb_diff(zone->db);
     return;
 }
 

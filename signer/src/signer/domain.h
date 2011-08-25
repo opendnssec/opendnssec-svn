@@ -170,10 +170,9 @@ rrset_type* domain_del_rrset(domain_type* domain, ldns_rr_type rrtype);
 /**
  * Apply differences at domain.
  * \param[in] domain domain
- * \param[in] kl current key list
  *
  */
-void domain_diff(domain_type* domain, keylist_type* kl);
+void domain_diff(domain_type* domain);
 
 /**
  * Examine domain and verify if data exists.

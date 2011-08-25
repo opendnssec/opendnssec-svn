@@ -317,7 +317,7 @@ zone_publish_nsec3param(zone_type* zone, int recover)
         ods_log_assert(apex);
 
         rrset = domain_lookup_rrset(apex, LDNS_RR_TYPE_NSEC3PARAMS);
-        rrset_diff(rrset, NULL);
+        rrset_diff(rrset);
     }
     return status;
 }
@@ -957,7 +957,7 @@ zone_recover(zone_type* zone)
             zone->task = NULL;
             goto recover_error;
         }
-        namedb_diff(zone->db, NULL);
+        namedb_diff(zone->db);
         status = namedb_entize(zone->db, zone->apex);
         if (status != ODS_STATUS_OK) {
             zone->task = NULL;

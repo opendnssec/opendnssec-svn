@@ -203,7 +203,7 @@ worker_perform_task(worker_type* worker)
                 status = zone_publish_nsec3param(zone, 0);
             }
             if (status == ODS_STATUS_OK) {
-                namedb_diff(zone->db, NULL);
+                namedb_diff(zone->db);
             }
             if (status == ODS_STATUS_OK) {
                 zone->prepared = 1;
@@ -611,9 +611,7 @@ worker_drudge(worker_type* worker)
             ods_log_assert(zone->apex);
             ods_log_assert(zone->signconf);
             worker->clock_in = time(NULL);
-            status = rrset_sign(ctx, rrset, zone->apex, zone->signconf,
-                superior->clock_in, zone->stats);
-          
+            status = rrset_sign(ctx, rrset, superior->clock_in);
             lock_basic_lock(&superior->worker_lock);
             if (status == ODS_STATUS_OK) {
                 superior->jobs_completed += 1;

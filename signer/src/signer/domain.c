@@ -240,7 +240,7 @@ domain_recover(domain_type* domain, FILE* fd, domain_status dstatus)
                 ldns_rr_free(rr);
                 goto recover_dname_error;
             }
-            rrset_diff(denial->rrset, NULL);
+            rrset_diff(denial->rrset);
             /* denial done */
             rr = NULL;
 
@@ -424,7 +424,7 @@ domain_del_rrset(domain_type* domain, ldns_rr_type rrtype)
  *
  */
 void
-domain_diff(domain_type* domain, keylist_type* kl)
+domain_diff(domain_type* domain)
 {
     denial_type* denial = NULL;
     rrset_type* rrset = NULL;
@@ -441,7 +441,7 @@ domain_diff(domain_type* domain, keylist_type* kl)
             continue;
         }
         /* normal cases */
-        rrset_diff(rrset, kl);
+        rrset_diff(rrset);
         if (rrset->rr_count <= 0) {
             /* delete entire rrset */
             if (!prev_rrset) {

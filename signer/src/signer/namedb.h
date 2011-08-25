@@ -172,10 +172,9 @@ ods_status namedb_examine(namedb_type* zd, ldns_rdf* apex,
 /**
  * Apply differences in db.
  * \param[in] db namedb
- * \param[in] kl current key list
  *
  */
-void namedb_diff(namedb_type* db, keylist_type* kl);
+void namedb_diff(namedb_type* db);
 
 /**
  * Rollback differences in db.

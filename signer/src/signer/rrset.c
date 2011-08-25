@@ -297,7 +297,7 @@ rrset_count_rr(rrset_type* rrset)
  * Add RR to RRset.
  *
  */
-ldns_rr*
+rr_type*
 rrset_add_rr(rrset_type* rrset, ldns_rr* rr)
 {
     rr_type* rrs_old = NULL;
@@ -328,7 +328,7 @@ rrset_add_rr(rrset_type* rrset, ldns_rr* rr)
     rrset->rrs[rrset->rr_count - 1].is_removed = 0;
     rrset->needs_signing = 1;
     log_rr(rr, "+RR", LOG_DEBUG);
-    return rr;
+    return &rrset->rrs[rrset->rr_count -1];
 }
 
 
@@ -377,7 +377,7 @@ rrset_del_rr(rrset_type* rrset, uint16_t rrnum)
  *
  */
 void
-rrset_diff(rrset_type* rrset, keylist_type* kl)
+rrset_diff(rrset_type* rrset)
 {
     uint16_t i = 0;
     if (!rrset) {
@@ -481,7 +481,7 @@ rrset_del_rrsig(rrset_type* rrset, uint16_t rrnum)
  *
  */
 static uint32_t
-rrset_recycle(rrset_type* rrset, signconf_type* sc, time_t signtime)
+rrset_recycle(rrset_type* rrset, time_t signtime)
 {
     uint32_t refresh = 0;
     uint32_t expiration = 0;
@@ -490,14 +490,16 @@ rrset_recycle(rrset_type* rrset, signconf_type* sc, time_t signtime)
     unsigned drop_sig = 0;
     size_t i = 0;
     key_type* key = NULL;
+    zone_type* zone = NULL;
 
     if (!rrset) {
         return 0;
     }
+    zone = (zone_type*) rrset->zone;
     /* Calculate the Refresh Window = Signing time + Refresh */
-    if (sc && sc->sig_refresh_interval) {
+    if (zone->signconf && zone->signconf->sig_refresh_interval) {
         refresh = (uint32_t) (signtime +
-            duration2time(sc->sig_refresh_interval));
+            duration2time(zone->signconf->sig_refresh_interval));
     }
     /* Check every signature if it matches the recycling logic. */
     for (i=0; i < rrset->rrsig_count; i++) {
@@ -523,7 +525,7 @@ rrset_recycle(rrset_type* rrset, signconf_type* sc, time_t signtime)
             goto recycle_drop_sig;
         }
         /* 5. Corresponding key is dead (key is locator+flags) */
-        key = keylist_lookup_by_locator(sc->keys,
+        key = keylist_lookup_by_locator(zone->signconf->keys,
             rrset->rrsigs[i].key_locator);
         if (!key || key->flags != rrset->rrsigs[i].key_flags) {
             drop_sig = 1;
@@ -652,10 +654,9 @@ rrset_sigvalid_period(signconf_type* sc, ldns_rr_type rrtype, time_t signtime,
  *
  */
 ods_status
-rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, ldns_rdf* owner,
-    signconf_type* sc, time_t signtime, stats_type* stats)
+rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, time_t signtime)
 {
-    ods_status status = ODS_STATUS_OK;
+    zone_type* zone = NULL;
     uint32_t newsigs = 0;
     uint32_t reusedsigs = 0;
     ldns_rr* rrsig = NULL;
@@ -669,12 +670,12 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, ldns_rdf* owner,
 
     ods_log_assert(ctx);
     ods_log_assert(rrset);
-    ods_log_assert(sc);
-    ods_log_assert(owner);
-    ods_log_assert(stats);
-
+    zone = (zone_type*) rrset->zone;
+    if (!zone || !zone->signconf || !zone->signconf->keys) {
+        return ODS_STATUS_ASSERT_ERR;
+    }
     /* Recycle signatures */
-    reusedsigs = rrset_recycle(rrset, sc, signtime);
+    reusedsigs = rrset_recycle(rrset, signtime);
     rrset->needs_signing = 0;
 
     /* Transmogrify rrset */
@@ -690,11 +691,11 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, ldns_rdf* owner,
         return ODS_STATUS_OK;
     }
     /* Calculate signature validity */
-    rrset_sigvalid_period(sc, rrset->rrtype, signtime,
+    rrset_sigvalid_period(zone->signconf, rrset->rrtype, signtime,
          &inception, &expiration);
     /* Walk keys */
-    for (i=0; i < sc->keys->count; i++) {
-        key = &sc->keys->keys[i];
+    for (i=0; i < zone->signconf->keys->count; i++) {
+        key = &zone->signconf->keys->keys[i];
         /* ZSKs don't sign DNSKEY RRset */
         if (!key->zsk && rrset->rrtype != LDNS_RR_TYPE_DNSKEY) {
             ods_log_deeebug("[%s] skipping key %s for signing RRset[%i]: no "
@@ -720,27 +721,29 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, ldns_rdf* owner,
         /* Sign the RRset with this key */
         ods_log_deeebug("[%s] signing RRset[%i] with key %s", rrset_str,
             rrset->rrtype, key->locator);
-        rrsig = lhsm_sign(ctx, rr_list, key, owner, inception, expiration);
+        rrsig = lhsm_sign(ctx, rr_list, &zone->signconf->keys->keys[i],
+            zone->apex, inception, expiration);
         if (!rrsig) {
             ods_log_crit("[%s] unable to sign RRset[%i]: lhsm_sign() failed",
                 rrset_str, rrset->rrtype);
             return ODS_STATUS_ERR;
         }
         /* Add signature */
-        locator = strdup(sc->keys->keys[i].locator);
+        locator = allocator_strdup(zone->allocator,
+            zone->signconf->keys->keys[i].locator);
         signature = rrset_add_rrsig(rrset, rrsig, locator,
-            sc->keys->keys[i].flags);
+            zone->signconf->keys->keys[i].flags);
         newsigs++;
     }
     /* RRset signing completed */
     ldns_rr_list_free(rr_list);
-    lock_basic_lock(&stats->stats_lock);
+    lock_basic_lock(&zone->stats->stats_lock);
     if (rrset->rrtype == LDNS_RR_TYPE_SOA) {
-        stats->sig_soa_count += newsigs;
+        zone->stats->sig_soa_count += newsigs;
     }
-    stats->sig_count += newsigs;
-    stats->sig_reuse += reusedsigs;
-    lock_basic_unlock(&stats->stats_lock);
+    zone->stats->sig_count += newsigs;
+    zone->stats->sig_reuse += reusedsigs;
+    lock_basic_unlock(&zone->stats->stats_lock);
     return ODS_STATUS_OK;
 }
 

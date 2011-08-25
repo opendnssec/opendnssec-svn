@@ -425,7 +425,7 @@ cmdhandler_handle_cmd_clear(int sockfd, cmdhandler_type* cmdc, const char* tbd)
             ods_log_warning("[%s] unable to restore DNSKEY RRset for zone %s,"
                 " reloading signconf", cmdh_str, zone->name);
         }
-        namedb_diff(zone->db, NULL);
+        namedb_diff(zone->db);
 
         task = (task_type*) zone->task;
         task->what = TASK_READ;

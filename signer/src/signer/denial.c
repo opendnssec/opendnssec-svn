@@ -174,7 +174,6 @@ denial_nsecify(denial_type* denial, denial_type* nxt, uint32_t ttl,
     ldns_rr_class klass)
 {
     ldns_rr* nsec_rr = NULL;
-    ods_status status = ODS_STATUS_OK;
 
     if (!denial) {
         ods_log_error("[%s] unable to nsecify: no data point", denial_str);
@@ -213,7 +212,7 @@ denial_nsecify(denial_type* denial, denial_type* nxt, uint32_t ttl,
             ldns_rr_free(nsec_rr);
             return ODS_STATUS_ERR;
         }
-        rrset_diff(denial->rrset, NULL);
+        rrset_diff(denial->rrset);
         /* ok */
         denial->bitmap_changed = 0;
         denial->nxt_changed = 0;
@@ -338,7 +337,6 @@ denial_nsecify3(denial_type* denial, denial_type* nxt, uint32_t ttl,
     ldns_rr_class klass, nsec3params_type* nsec3params)
 {
     ldns_rr* nsec_rr = NULL;
-    ods_status status = ODS_STATUS_OK;
 
     if (!denial) {
         ods_log_error("[%s] unable to nsecify3: no data point", denial_str);
@@ -378,7 +376,7 @@ denial_nsecify3(denial_type* denial, denial_type* nxt, uint32_t ttl,
             return ODS_STATUS_ERR;
         }
         /* commit */
-        rrset_diff(denial->rrset, NULL);
+        rrset_diff(denial->rrset);
         /* ok */
         denial->bitmap_changed = 0;
         denial->nxt_changed = 0;
