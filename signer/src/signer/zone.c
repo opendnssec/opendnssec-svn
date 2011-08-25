@@ -122,62 +122,32 @@ zone_create(char* name, ldns_rr_class klass)
 
 
 /**
- * Withdraw DNSKEYs.
- *
- */
-static ods_status
-dnskey_withdraw(zone_type* zone, ldns_rr_list* del)
-{
-    ldns_rr* clone = NULL;
-    ods_status status = ODS_STATUS_OK;
-    size_t i = 0;
-
-    for (i=0; i < ldns_rr_list_rr_count(del); i++) {
-        clone = ldns_rr_clone(ldns_rr_list_rr(del, i));
-        status = zone_del_rr(zone, clone, 0);
-        if (status != ODS_STATUS_OK) {
-            return status;
-        }
-    }
-    return status;
-}
-
-
-/**
  * Load signer configuration for zone.
  *
  */
 ods_status
-zone_load_signconf(zone_type* zone)
+zone_load_signconf(zone_type* zone, signconf_type** new_signconf)
 {
     ods_status status = ODS_STATUS_OK;
     signconf_type* signconf = NULL;
-    ldns_rr_list* del = NULL;
     char* datestamp = NULL;
     uint32_t ustamp = 0;
-    task_id denial_what;
-    task_id keys_what;
 
-    if (!zone) {
-        ods_log_error("[%s] unable to load signconf: no zone", zone_str);
+    if (!zone || !zone->name || !zone->signconf || new_signconf) {
         return ODS_STATUS_ASSERT_ERR;
     }
-    ods_log_assert(zone);
     if (!zone->signconf_filename) {
         ods_log_warning("[%s] zone %s has no signconf filename, treat as "
             "insecure?", zone_str, zone->name);
         return ODS_STATUS_INSECURE;
     }
-    ods_log_assert(zone->signconf_filename);
-
     status = signconf_update(&signconf, zone->signconf_filename,
         zone->signconf->last_modified);
     if (status == ODS_STATUS_OK) {
         if (!signconf) {
             /* this is unexpected */
-            ods_log_error("[%s] unable to load signconf: zone %s signconf "
-                "%s: storage empty", zone_str, zone->name,
-                zone->signconf_filename);
+            ods_log_alert("[%s] unable to load signconf for zone %s: signconf "
+                "status ok but no signconf stored", zone_str, zone->name);
             return ODS_STATUS_ASSERT_ERR;
         }
         ustamp = time_datestamp(signconf->last_modified, "%Y-%m-%d %T",
@@ -186,48 +156,7 @@ zone_load_signconf(zone_type* zone)
             zone_str, zone->name, zone->signconf_filename,
             datestamp?datestamp:"Unknown");
         free((void*)datestamp);
-
-        /* do stuff */
-        del = ldns_rr_list_new();
-        if (!del) {
-            ods_log_error("[%s] unable to load signconf: zone %s "
-                "signconf %s: ldns_rr_list_new() failed",
-                zone_str, zone->name, zone->signconf_filename);
-            return ODS_STATUS_MALLOC_ERR;
-        }
-        denial_what = signconf_compare_denial(zone->signconf, signconf);
-        keys_what = signconf_compare_keys(zone->signconf, signconf, del);
-
-        /* Key Rollover? */
-        if (keys_what == TASK_READ) {
-            status = dnskey_withdraw(zone, del);
-        }
-        ldns_rr_list_free(del);
-        if (status != ODS_STATUS_OK) {
-            ods_log_error("[%s] unable to load signconf: zone %s "
-                "signconf %s: failed to delete DNSKEY from RRset",
-                zone_str, zone->name, zone->signconf_filename);
-            namedb_rollback(zone->db);
-            return status;
-        }
-
-        /* Denial of Existence Rollover? */
-        if (denial_what == TASK_NSECIFY) {
-            /* or NSEC -> NSEC3, or NSEC3 -> NSEC, or NSEC3PARAM changed:
-               all NSEC(3)s become invalid */
-            namedb_wipe_denial(zone->db);
-            namedb_cleanup_chain(zone->db);
-            namedb_init_denials(zone->db);
-        }
-
-        /* all ok, switch to new signconf */
-        signconf_cleanup(zone->signconf);
-        ods_log_debug("[%s] zone %s switch to new signconf", zone_str,
-            zone->name);
-        zone->signconf = signconf;
-        signconf_log(zone->signconf, zone->name);
-        zone->default_ttl =
-            (uint32_t) duration2time(zone->signconf->soa_min);
+        *new_signconf = signconf;
     } else if (status == ODS_STATUS_UNCHANGED) {
         ustamp = time_datestamp(zone->signconf->last_modified,
             "%Y-%m-%d %T", &datestamp);
@@ -236,7 +165,7 @@ zone_load_signconf(zone_type* zone)
             datestamp?datestamp:"Unknown");
         free((void*)datestamp);
     } else {
-        ods_log_error("[%s] unable to load signconf: zone %s signconf %s: "
+        ods_log_error("[%s] unable to load signconf for zone %s: signconf %s "
             "%s", zone_str, zone->name, zone->signconf_filename,
             ods_status2str(status));
     }

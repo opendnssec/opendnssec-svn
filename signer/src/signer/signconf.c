@@ -215,11 +215,12 @@ signconf_recover_from_backup(const char* filename)
     signconf_type* signconf = NULL;
     const char* zonename = NULL;
     FILE* scfd = NULL;
-
+    if (!filename) {
+        return NULL;
+    }
     scfd = ods_fopen(filename, NULL, "r");
     if (scfd) {
         signconf = signconf_create();
-
         if (!backup_read_check_str(scfd, ODS_SE_FILE_MAGIC) ||
             !backup_read_check_str(scfd, ";name:") ||
             !backup_read_str(scfd, &zonename) ||
@@ -258,16 +259,14 @@ signconf_recover_from_backup(const char* filename)
             signconf_cleanup(signconf);
             signconf = NULL;
         }
-
         if (zonename) {
             free((void*) zonename);
         }
         ods_fclose(scfd);
         return signconf;
     }
-
     ods_log_debug("[%s] unable to recover signconf backup file %s", sc_str,
-        filename?filename:"(null)");
+        filename);
     return NULL;
 }
 
@@ -297,9 +296,6 @@ signconf_backup(FILE* fd, signconf_type* sc)
     if (!fd || !sc) {
         return;
     }
-    ods_log_assert(fd);
-    ods_log_assert(sc);
-
     fprintf(fd, ";;Signconf: lastmod %u ", (unsigned) sc->last_modified);
     signconf_backup_duration(fd, "resign", sc->sig_resign_interval);
     signconf_backup_duration(fd, "refresh", sc->sig_refresh_interval);

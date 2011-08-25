@@ -42,6 +42,91 @@ static const char* tools_str = "tools";
 
 
 /**
+ * Withdraw DNSKEYs.
+ *
+ */
+static ods_status
+dnskey_withdraw(zone_type* zone, ldns_rr_list* del)
+{
+    ldns_rr* clone = NULL;
+    ods_status status = ODS_STATUS_OK;
+    size_t i = 0;
+
+    for (i=0; i < ldns_rr_list_rr_count(del); i++) {
+        clone = ldns_rr_clone(ldns_rr_list_rr(del, i));
+        status = zone_del_rr(zone, clone, 0);
+        if (status != ODS_STATUS_OK) {
+            return status;
+        }
+    }
+    return status;
+}
+
+
+/**
+ * Load zone signconf.
+ *
+ */
+ods_status
+tools_signconf(zone_type* zone)
+{
+    ods_status status = ODS_STATUS_OK;
+    signconf_type* new_signconf = NULL;
+    ldns_rr_list* del = NULL;
+    task_id keys_what = TASK_NONE;
+    task_id denial_what = TASK_NONE;
+
+    ods_log_assert(zone);
+    ods_log_assert(zone->name);
+    status = zone_load_signconf(zone, &new_signconf);
+    if (status == ODS_STATUS_OK) {
+        ods_log_assert(new_signconf);
+        /* do stuff */
+        del = ldns_rr_list_new();
+        if (!del) {
+            ods_log_error("[%s] unable to load signconf: zone %s "
+                "signconf %s: ldns_rr_list_new() failed",
+                tools_str, zone->name, zone->signconf_filename);
+            return ODS_STATUS_MALLOC_ERR;
+        }
+        denial_what = signconf_compare_denial(zone->signconf, new_signconf);
+        keys_what = signconf_compare_keys(zone->signconf, new_signconf, del);
+        /* Key Rollover? */
+        if (keys_what == TASK_READ) {
+            status = dnskey_withdraw(zone, del);
+        }
+        ldns_rr_list_free(del);
+        if (status != ODS_STATUS_OK) {
+            ods_log_error("[%s] unable to load signconf: zone %s "
+                "signconf %s: failed to delete DNSKEY from RRset",
+                tools_str, zone->name, zone->signconf_filename);
+            namedb_rollback(zone->db);
+            return status;
+        }
+        /* Denial of Existence Rollover? */
+        if (denial_what == TASK_NSECIFY) {
+            /* or NSEC -> NSEC3, or NSEC3 -> NSEC, or NSEC3PARAM changed:
+               all NSEC(3)s become invalid */
+            namedb_wipe_denial(zone->db);
+            namedb_cleanup_chain(zone->db);
+            namedb_init_denials(zone->db);
+        }
+        /* all ok, switch signer configuration */
+        signconf_cleanup(zone->signconf);
+        ods_log_debug("[%s] zone %s switch to new signconf", tools_str,
+            zone->name);
+        zone->signconf = new_signconf;
+        signconf_log(zone->signconf, zone->name);
+        zone->default_ttl = (uint32_t) duration2time(zone->signconf->soa_min);
+    } else {
+        ods_log_error("[%s] unable to load signconf for zone %s: %s",
+            tools_str, zone->name, ods_status2str(status));
+    }
+    return status;
+}
+
+
+/**
  * Read zone from input adapter.
  *
  */

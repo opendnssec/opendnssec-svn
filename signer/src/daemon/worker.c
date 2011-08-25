@@ -179,14 +179,14 @@ worker_perform_task(worker_type* worker)
             worker_working_with(worker, TASK_SIGNCONF, TASK_READ,
                 "configure", task_who2str(task),
                 &what, &when, &fallthrough);
-            status = zone_load_signconf(zone);
+            status = tools_signconf(zone);
             if (status == ODS_STATUS_UNCHANGED) {
                 if (!zone->signconf->last_modified) {
                     ods_log_debug("[%s[%i]] no signconf.xml for zone %s yet",
                         worker2str(worker->type), worker->thread_num,
                         task_who2str(task));
+                    status = ODS_STATUS_ERR;
                 }
-                status = ODS_STATUS_ERR;
             }
             if (status == ODS_STATUS_UNCHANGED) {
                 if (task->halted != TASK_NONE) {

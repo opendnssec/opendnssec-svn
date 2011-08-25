@@ -101,13 +101,14 @@ zone_type* zone_create(char* name, ldns_rr_class klass);
 /**
  * Load signer configuration for zone.
  * \param[in] zone zone
+ * \param[out] new_signconf new signer configuration
  * \return ods_status status
  *         ODS_STATUS_OK: new signer configuration loaded
  *         ODS_STATUS_UNCHANGED: signer configuration has not changed
  *         other: signer configuration not loaded, error occurred
  *
  */
-ods_status zone_load_signconf(zone_type* zone);
+ods_status zone_load_signconf(zone_type* zone, signconf_type** new_signconf);
 
 /**
  * Publish DNSKEYs.
