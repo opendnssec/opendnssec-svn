@@ -486,35 +486,16 @@ namedb_del_domain(namedb_type* db, domain_type* domain)
 
 
 /**
- * Internal function to lookup denial of existence data point.
- *
- */
-static denial_type*
-namedb_denial_search(ldns_rbtree_t* tree, ldns_rdf* dname)
-{
-    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
-
-    if (!tree || !dname) {
-        return NULL;
-    }
-    node = ldns_rbtree_search(tree, dname);
-    if (node && node != LDNS_RBTREE_NULL) {
-        return (denial_type*) node->data;
-    }
-    return NULL;
-}
-
-
-/**
- * Lookup denial of existence data point.
+ * Lookup denial.
  *
  */
 denial_type*
 namedb_lookup_denial(namedb_type* db, ldns_rdf* dname)
 {
-    if (!db) return NULL;
-
-    return namedb_denial_search(db->denials, dname);
+    if (!db) {
+        return NULL;
+    }
+    return (denial_type*) namedb_domain_search(db->denials, dname);
 }
 
 
