@@ -79,7 +79,6 @@ struct zone_struct {
     adapter_type* adoutbound; /* outbound adapter */
     /* from signconf.xml */
     signconf_type* signconf; /* signer configuration values */
-    int prepared;
     /* zone data */
     namedb_type* db;
     /* worker variables */
@@ -119,12 +118,26 @@ ods_status zone_load_signconf(zone_type* zone, signconf_type** new_signconf);
 ods_status zone_publish_dnskeys(zone_type* zone);
 
 /**
+ * Unlink DNSKEY RRs.
+ * \param[in] zone zone
+ *
+ */
+void zone_rollback_dnskeys(zone_type* zone);
+
+/**
  * Publish the NSEC3 parameters as indicated by the signer configuration.
  * \param[in] zone zone
  * \return ods_status status
  *
  */
 ods_status zone_publish_nsec3param(zone_type* zone);
+
+/**
+ * Unlink NSEC3PARAM RR.
+ * \param[in] zone zone
+ *
+ */
+void zone_rollback_nsec3param(zone_type* zone);
 
 /**
  * Update SOA SERIAL.

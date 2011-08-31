@@ -92,7 +92,6 @@ zone_create(char* name, ldns_rr_class klass)
     zone->adinbound = NULL;
     zone->adoutbound = NULL;
     zone->zl_status = ZONE_ZL_OK;
-    zone->prepared = 0;
     zone->fetch = 0;
     zone->task = NULL;
     zone->db = namedb_create((void*)zone);
@@ -243,6 +242,36 @@ zone_publish_dnskeys(zone_type* zone)
 
 
 /**
+ * Unlink DNSKEY RRs.
+ *
+ */
+void
+zone_rollback_dnskeys(zone_type* zone)
+{
+    uint16_t i = 0;
+    rrset_type* rrset = NULL;
+    rr_type* dnskey = NULL;
+    if (!zone || !zone->signconf || !zone->signconf->keys) {
+        return;
+    }
+    rrset = zone_lookup_rrset(zone, zone->apex, LDNS_RR_TYPE_DNSKEY);
+    /* unlink dnskey rrs */
+    for (i=0; i < zone->signconf->keys->count; i++) {
+        if (rrset && zone->signconf->keys->keys[i].dnskey) {
+            dnskey = rrset_lookup_rr(rrset,
+                zone->signconf->keys->keys[i].dnskey);
+            if (dnskey && !dnskey->exists &&
+                dnskey->rr == zone->signconf->keys->keys[i].dnskey) {
+                zone->signconf->keys->keys[i].dnskey = NULL;
+            }
+        }
+    }
+    /* done */
+    return;
+}
+
+
+/**
  * Publish the NSEC3 parameters as indicated by the signer configuration.
  *
  */
@@ -307,6 +336,31 @@ zone_publish_nsec3param(zone_type* zone)
             zone->name, ods_status2str(status));
     }
     return status;
+}
+
+
+/**
+ * Unlink NSEC3PARAM RR.
+ *
+ */
+void
+zone_rollback_nsec3param(zone_type* zone)
+{
+    rrset_type* rrset = NULL;
+    rr_type* n3prr = NULL;
+
+    if (!zone || !zone->signconf || !zone->signconf->nsec3params) {
+        return;
+    }
+    rrset = zone_lookup_rrset(zone, zone->apex, LDNS_RR_TYPE_NSEC3PARAMS);
+    if (rrset && zone->signconf->nsec3params->rr) {
+        n3prr = rrset_lookup_rr(rrset, zone->signconf->nsec3params->rr);
+        if (n3prr && !n3prr->exists &&
+            n3prr->rr == zone->signconf->nsec3params->rr) {
+            zone->signconf->nsec3params->rr = NULL;
+        }
+    }
+    return;
 }
 
 
