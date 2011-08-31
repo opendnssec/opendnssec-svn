@@ -535,7 +535,6 @@ zone_del_rr(zone_type* zone, ldns_rr* rr, int do_stats)
     }
     record->is_removed = 1;
     record->is_added = 0; /* unset is_added */
-
     /* update stats */
     if (do_stats && zone->stats) {
         zone->stats->sort_count -= 1;

@@ -31,7 +31,6 @@
  *
  */
 
-#include "parser/confparser.h"
 #include "parser/signconfparser.h"
 #include "scheduler/task.h"
 #include "shared/duration.h"
@@ -40,7 +39,6 @@
 #include "shared/log.h"
 #include "signer/backup.h"
 #include "shared/status.h"
-#include "signer/keys.h"
 #include "signer/signconf.h"
 
 static const char* sc_str = "signconf";
@@ -445,124 +443,6 @@ signconf_compare_denial(signconf_type* a, signconf_type* b)
        }
    }
    return new_task;
-}
-
-
-/**
- * Compare signer configurations on key material.
- *
- */
-task_id
-signconf_compare_keys(signconf_type* a, signconf_type* b, ldns_rr_list* del)
-{
-   task_id new_task = TASK_NONE;
-    ods_status status = ODS_STATUS_OK;
-    key_type* walk = NULL;
-    key_type* ka = NULL;
-    key_type* kb = NULL;
-    int remove = 0;
-    int copy = 0;
-    uint16_t i = 0;
-
-    if (!a || !b || !a->keys || !b->keys) {
-       return TASK_NONE;
-    }
-
-    /* keys deleted? */
-    for (i=0; i < a->keys->count; i++) {
-        walk = &a->keys->keys[i];
-        remove = 0;
-        copy = 0;
-
-        kb = keylist_lookup_by_locator(b->keys, walk->locator);
-        if (!kb) {
-            remove = 1; /* [DEL] key removed from signconf */
-        } else {
-            if (duration_compare(a->dnskey_ttl, b->dnskey_ttl) != 0) {
-                remove = 1; /* [DEL] consider to be different key */
-            } else if (walk->flags != kb->flags) {
-                remove = 1; /* [DEL] consider to be different key */
-            } else if (walk->algorithm != kb->algorithm) {
-                remove = 1; /* [DEL] consider to be different key */
-            } else if (walk->publish != kb->publish) {
-                if (walk->publish) {
-                    remove = 1; /* [DEL] withdraw dnskey from zone */
-                } else {
-                    new_task = TASK_READ; /* [ADD] introduce key to zone */
-                }
-            } else if (walk->ksk != kb->ksk) {
-                copy = 1; /* [UNCHANGED] same key, different role */
-            } else if (walk->zsk != kb->zsk) {
-                copy = 1; /* [UNCHANGED] same key, different role */
-            } else {
-                /* [UNCHANGED] identical key credentials */
-                copy = 1;
-            }
-        }
-
-        if (remove) {
-            new_task = TASK_READ;
-            if (del && walk->dnskey) {
-                if (!ldns_rr_list_push_rr(del, walk->dnskey)) {
-                    ods_log_error("[%s] del key failed", sc_str);
-                    new_task = TASK_SIGNCONF;
-                    break;
-                }
-            }
-        } else if (copy) {
-            if (walk->dnskey && !kb->dnskey) {
-                kb->dnskey = walk->dnskey;
-                kb->hsmkey = walk->hsmkey;
-                status = lhsm_get_key(NULL, ldns_rr_owner(walk->dnskey), kb);
-                walk->hsmkey = NULL;
-                walk->dnskey = NULL;
-            }
-            if (status != ODS_STATUS_OK) {
-                ods_log_error("[%s] copy key failed", sc_str);
-                new_task = TASK_SIGNCONF;
-                break;
-            }
-        }
-    }
-
-    if (new_task == TASK_NONE) {
-        /* no error and no keys were deleted, perhaps keys were added */
-        walk = NULL;
-        for (i=0; i < b->keys->count; i++) {
-            walk = &b->keys->keys[i];
-            ka = keylist_lookup_by_locator(a->keys, walk->locator);
-            if (!ka) {
-                new_task = TASK_READ; /* [ADD] key added to signconf */
-                break;
-            }
-            /**
-             * Keys in ka and kb with the same locator, have been
-             * compared when checking for deleted keys.
-             */
-        }
-    }
-   return new_task;
-}
-
-
-/**
- * Compare signer configurations.
- *
- */
-task_id
-signconf_compare(signconf_type* a, signconf_type* b)
-{
-    task_id new_task = TASK_NONE;
-    task_id tmp_task = TASK_NONE;
-
-    new_task = signconf_compare_denial(a, b);
-    tmp_task = signconf_compare_keys(a, b, NULL);
-    if (tmp_task != TASK_NONE) {
-        new_task = tmp_task;
-    }
-    /* not like python: reschedule if resign/refresh differs */
-    /* this needs review, tasks correct on signconf changes? */
-    return new_task;
 }
 
 
