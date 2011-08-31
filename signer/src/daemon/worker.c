@@ -288,10 +288,10 @@ worker_perform_task(worker_type* worker)
             }
 
             if (status == ODS_STATUS_OK) {
-                status = zone_publish_dnskeys(zone, 0);
+                status = zone_publish_dnskeys(zone);
             }
             if (status == ODS_STATUS_OK) {
-                status = zone_publish_nsec3param(zone, 0);
+                status = zone_publish_nsec3param(zone);
             }
             if (status == ODS_STATUS_OK) {
                 namedb_diff(zone->db);

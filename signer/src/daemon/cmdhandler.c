@@ -418,21 +418,19 @@ cmdhandler_handle_cmd_clear(int sockfd, cmdhandler_type* cmdc, const char* tbd)
         zone->db->intserial = intserial;
         zone->db->outserial = outserial;
 
-        status = zone_publish_dnskeys(zone, 1);
+        status = zone_publish_dnskeys(zone);
         if (status == ODS_STATUS_OK) {
-            status = zone_publish_nsec3param(zone, 1);
-        } else {
-            ods_log_warning("[%s] unable to restore DNSKEY RRset for zone %s,"
-                " reloading signconf", cmdh_str, zone->name);
+            status = zone_publish_nsec3param(zone);
         }
-        namedb_diff(zone->db);
-
-        task = (task_type*) zone->task;
-        task->what = TASK_READ;
         if (status != ODS_STATUS_OK) {
             ods_log_warning("[%s] unable to restore DNSKEY/NSEC3PARAM RRset "
-                " for zone %s d1reloading signconf", cmdh_str, zone->name);
+                " for zone %s, reloading signconf", cmdh_str, zone->name);
+            task = (task_type*) zone->task;
             task->what = TASK_SIGNCONF;
+        } else {
+            namedb_diff(zone->db);
+            task = (task_type*) zone->task;
+            task->what = TASK_READ;
         }
         /* [UNLOCK] zone */
         lock_basic_unlock(&zone->zone_lock);

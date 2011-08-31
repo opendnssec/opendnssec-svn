@@ -113,20 +113,18 @@ ods_status zone_load_signconf(zone_type* zone, signconf_type** new_signconf);
 /**
  * Publish the keys as indicated by the signer configuration.
  * \param[in] zone zone
- * \param[in] recover true if in recovery mode
  * \return ods_status status
  *
  */
-ods_status zone_publish_dnskeys(zone_type* zone, int recover);
+ods_status zone_publish_dnskeys(zone_type* zone);
 
 /**
  * Publish the NSEC3 parameters as indicated by the signer configuration.
  * \param[in] zone zone
- * \param[in] recover true if in recovery mode
  * \return ods_status status
  *
  */
-ods_status zone_publish_nsec3param(zone_type* zone, int recover);
+ods_status zone_publish_nsec3param(zone_type* zone);
 
 /**
  * Update SOA SERIAL.

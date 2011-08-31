@@ -172,15 +172,14 @@ zone_load_signconf(zone_type* zone, signconf_type** new_signconf)
  *
  */
 ods_status
-zone_publish_dnskeys(zone_type* zone, int recover)
+zone_publish_dnskeys(zone_type* zone)
 {
     hsm_ctx_t* ctx = NULL;
-    key_type* key = NULL;
     uint32_t ttl = 0;
     uint16_t i = 0;
     ods_status status = ODS_STATUS_OK;
-    ldns_rr* dnskey = NULL;
-    int do_publish = 0;
+    rrset_type* rrset = NULL;
+    rr_type* dnskey = NULL;
 
     if (!zone || !zone->db || !zone->signconf || !zone->signconf->keys) {
         return ODS_STATUS_ASSERT_ERR;
@@ -201,46 +200,41 @@ zone_publish_dnskeys(zone_type* zone, int recover)
     }
     /* publish keys */
     for (i=0; i < zone->signconf->keys->count; i++) {
-        key = &zone->signconf->keys->keys[i];
-        if (!key->publish) {
+        if (!zone->signconf->keys->keys[i].publish) {
             continue;
         }
-        do_publish = 0;
-        if (!key->dnskey) {
-            do_publish = 1;
+        if (!zone->signconf->keys->keys[i].dnskey) {
+            /* get dnskey */
+            status = lhsm_get_key(ctx, zone->apex,
+                &zone->signconf->keys->keys[i]);
+            if (status != ODS_STATUS_OK) {
+                ods_log_error("[%s] unable to publish dnskeys for zone %s: "
+                    "error creating dnskey", zone_str, zone->name);
+                break;
+            }
         }
-        /* get dnskey */
-        status = lhsm_get_key(ctx, zone->apex, key);
-        if (status != ODS_STATUS_OK) {
-            ods_log_error("[%s] unable to publish dnskeys for zone %s: "
-                "error creating dnskey for key %s", zone_str,
-                zone->name, key->locator?key->locator:"(null)");
-            break;
-        }
-        ods_log_assert(key->dnskey);
-
-        if (recover) {
-            dnskey = ldns_rr_clone(key->dnskey);
-            status = zone_add_rr(zone, dnskey, 0);
-        } else if (do_publish) {
-            ldns_rr_set_ttl(key->dnskey, ttl);
-            ldns_rr_set_class(key->dnskey, zone->klass);
-            ldns_rr2canonical(key->dnskey);
-            dnskey = ldns_rr_clone(key->dnskey);
-            status = zone_add_rr(zone, dnskey, 0);
-        } else {
+        ods_log_assert(zone->signconf->keys->keys[i].dnskey);
+        ldns_rr_set_ttl(zone->signconf->keys->keys[i].dnskey, ttl);
+        ldns_rr_set_class(zone->signconf->keys->keys[i].dnskey, zone->klass);
+        ldns_rr2canonical(zone->signconf->keys->keys[i].dnskey);
+        status = zone_add_rr(zone, zone->signconf->keys->keys[i].dnskey, 0);
+        if (status == ODS_STATUS_UNCHANGED) {
+            /* rr already exists, adjust pointer */
+            rrset = zone_lookup_rrset(zone, zone->apex, LDNS_RR_TYPE_DNSKEY);
+            ods_log_assert(rrset);
+            dnskey = rrset_lookup_rr(rrset,
+                zone->signconf->keys->keys[i].dnskey);
+            ods_log_assert(dnskey);
+            if (dnskey->rr != zone->signconf->keys->keys[i].dnskey) {
+                ldns_rr_free(zone->signconf->keys->keys[i].dnskey);
+            }
+            zone->signconf->keys->keys[i].dnskey = dnskey->rr;
             status = ODS_STATUS_OK;
-        }
-        if (status != ODS_STATUS_OK) {
-            ods_log_error("[%s] unable to publish dnskeys zone %s: "
-                "error adding DNSKEY[%u] for key %s", zone_str,
-                 zone->name, ldns_calc_keytag(dnskey),
-                 key->locator?key->locator:"(null)");
+        } else if (status != ODS_STATUS_OK) {
+            ods_log_error("[%s] unable to publish dnskeys for zone %s: "
+                "error adding dnskey", zone_str, zone->name);
             break;
         }
-    }
-    if (status != ODS_STATUS_OK) {
-        namedb_rollback(zone->db);
     }
     /* done */
     hsm_destroy_context(ctx);
@@ -253,11 +247,11 @@ zone_publish_dnskeys(zone_type* zone, int recover)
  *
  */
 ods_status
-zone_publish_nsec3param(zone_type* zone, int recover)
+zone_publish_nsec3param(zone_type* zone)
 {
-    ldns_rr* nsec3params_rr = NULL;
-    domain_type* apex = NULL;
     rrset_type* rrset = NULL;
+    rr_type* n3prr = NULL;
+    ldns_rr* rr = NULL;
     ods_status status = ODS_STATUS_OK;
 
     if (!zone || !zone->name || !zone->db || !zone->signconf) {
@@ -269,23 +263,18 @@ zone_publish_nsec3param(zone_type* zone, int recover)
         return ODS_STATUS_OK;
     }
 
-    if (recover) {
-        nsec3params_rr = ldns_rr_clone(zone->signconf->nsec3params->rr);
-        status = zone_add_rr(zone, nsec3params_rr, 0);
-    } else {
-        nsec3params_rr = ldns_rr_new_frm_type(LDNS_RR_TYPE_NSEC3PARAMS);
-        if (!nsec3params_rr) {
-            ods_log_error("[%s] unable to prepare zone %s for NSEC3: failed "
-                "to create NSEC3PARAM RR", zone_str, zone->name);
-            nsec3params_cleanup(zone->signconf->nsec3params);
+    if (!zone->signconf->nsec3params->rr) {
+        rr = ldns_rr_new_frm_type(LDNS_RR_TYPE_NSEC3PARAMS);
+        if (!rr) {
+            ods_log_error("[%s] unable to publish nsec3params for zone %s: "
+                "error creating rr (%s)", zone_str, zone->name,
+                ods_status2str(status));
             return ODS_STATUS_MALLOC_ERR;
         }
-        ods_log_assert(nsec3params_rr);
-
-        ldns_rr_set_class(nsec3params_rr, zone->klass);
-        ldns_rr_set_ttl(nsec3params_rr, zone->default_ttl);
-        ldns_rr_set_owner(nsec3params_rr, ldns_rdf_clone(zone->apex));
-        ldns_nsec3_add_param_rdfs(nsec3params_rr,
+        ldns_rr_set_class(rr, zone->klass);
+        ldns_rr_set_ttl(rr, zone->default_ttl);
+        ldns_rr_set_owner(rr, ldns_rdf_clone(zone->apex));
+        ldns_nsec3_add_param_rdfs(rr,
             zone->signconf->nsec3params->algorithm, 0,
             zone->signconf->nsec3params->iterations,
             zone->signconf->nsec3params->salt_len,
@@ -294,30 +283,28 @@ zone_publish_nsec3param(zone_type* zone, int recover)
          * Always set bit 7 of the flags to zero,
          * according to rfc5155 section 11
          */
-        ldns_set_bit(ldns_rdf_data(ldns_rr_rdf(nsec3params_rr, 1)), 7, 0);
-
-        ldns_rr2canonical(nsec3params_rr);
-        zone->signconf->nsec3params->rr = ldns_rr_clone(nsec3params_rr);
-        status = zone_add_rr(zone, nsec3params_rr, 0);
+        ldns_set_bit(ldns_rdf_data(ldns_rr_rdf(rr, 1)), 7, 0);
+        ldns_rr2canonical(rr);
+        zone->signconf->nsec3params->rr = rr;
     }
+    ods_log_assert(zone->signconf->nsec3params->rr);
 
-    if (status != ODS_STATUS_OK) {
-        ods_log_error("[%s] unable to add NSEC3PARAM RR to zone %s",
-            zone_str, zone->name);
-        ldns_rr_free(nsec3params_rr);
-    } else if (!recover) {
-        /* add ok, wipe out previous nsec3params */
-        apex = namedb_lookup_domain(zone->db, zone->apex);
-        if (!apex) {
-            ods_log_crit("[%s] unable to delete previous NSEC3PARAM RR "
-            "from zone %s: apex undefined", zone_str, zone->name);
-            namedb_rollback(zone->db);
-            return ODS_STATUS_ASSERT_ERR;
+    status = zone_add_rr(zone, zone->signconf->nsec3params->rr, 0);
+    if (status == ODS_STATUS_UNCHANGED) {
+        /* rr already exists, adjust pointer */
+        rrset = zone_lookup_rrset(zone, zone->apex, LDNS_RR_TYPE_NSEC3PARAMS);
+        ods_log_assert(rrset);
+        n3prr = rrset_lookup_rr(rrset, zone->signconf->nsec3params->rr);
+        ods_log_assert(n3prr);
+        if (n3prr->rr != zone->signconf->nsec3params->rr) {
+            ldns_rr_free(zone->signconf->nsec3params->rr);
         }
-        ods_log_assert(apex);
-
-        rrset = domain_lookup_rrset(apex, LDNS_RR_TYPE_NSEC3PARAMS);
-        rrset_diff(rrset);
+        zone->signconf->nsec3params->rr = n3prr->rr;
+        status = ODS_STATUS_OK;
+    } else if (status != ODS_STATUS_OK) {
+        ods_log_error("[%s] unable to publish nsec3params for zone %s: "
+            "error adding nsec3params (%s)", zone_str,
+            zone->name, ods_status2str(status));
     }
     return status;
 }
@@ -867,12 +854,12 @@ zone_recover(zone_type* zone)
         zone->task = (void*) task;
         zone->signconf->last_modified = lastmod;
 
-        status = zone_publish_dnskeys(zone, 1);
+        status = zone_publish_dnskeys(zone);
         if (status != ODS_STATUS_OK) {
             zone->task = NULL;
             goto recover_error;
         }
-        status = zone_publish_nsec3param(zone, 1);
+        status = zone_publish_nsec3param(zone);
         if (status != ODS_STATUS_OK) {
             zone->task = NULL;
             goto recover_error;
