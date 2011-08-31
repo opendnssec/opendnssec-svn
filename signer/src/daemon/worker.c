@@ -282,22 +282,9 @@ worker_perform_task(worker_type* worker)
             if (status == ODS_STATUS_UNCHANGED) {
                 if (task->halted != TASK_NONE) {
                     goto task_perform_continue;
-                } else {
-                    status = ODS_STATUS_OK;
                 }
-            }
-
-            if (status == ODS_STATUS_OK) {
-                status = zone_publish_dnskeys(zone);
-            }
-            if (status == ODS_STATUS_OK) {
-                status = zone_publish_nsec3param(zone);
-            }
-            if (status == ODS_STATUS_OK) {
-                namedb_diff(zone->db);
-            }
-            if (status == ODS_STATUS_OK) {
-                zone->prepared = 1;
+                status = ODS_STATUS_OK;
+            } else if (status == ODS_STATUS_OK) {
                 task->interrupt = TASK_NONE;
                 task->halted = TASK_NONE;
             } else {
@@ -313,16 +300,14 @@ worker_perform_task(worker_type* worker)
             worker_working_with(worker, TASK_READ, TASK_SIGN,
                 "read", task_who2str(task),
                 &what, &when, &fallthrough);
-            if (!zone->prepared) {
-                ods_log_debug("[%s[%i]] no valid signconf.xml for zone %s yet",
+            if (!zone->signconf->last_modified) {
+                ods_log_debug("[%s[%i]] no signconf.xml for zone %s yet",
                     worker2str(worker->type), worker->thread_num,
                     task_who2str(task));
                 status = ODS_STATUS_ERR;
             } else {
                 status = tools_input(zone);
             }
-
-            /* what to do next */
             what = TASK_NSECIFY;
             when = time_now();
             if (status != ODS_STATUS_OK) {

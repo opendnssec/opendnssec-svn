@@ -42,28 +42,6 @@ static const char* tools_str = "tools";
 
 
 /**
- * Withdraw DNSKEYs.
- *
- */
-static ods_status
-dnskey_withdraw(zone_type* zone, ldns_rr_list* del)
-{
-    ldns_rr* clone = NULL;
-    ods_status status = ODS_STATUS_OK;
-    size_t i = 0;
-
-    for (i=0; i < ldns_rr_list_rr_count(del); i++) {
-        clone = ldns_rr_clone(ldns_rr_list_rr(del, i));
-        status = zone_del_rr(zone, clone, 0);
-        if (status != ODS_STATUS_OK) {
-            return status;
-        }
-    }
-    return status;
-}
-
-
-/**
  * Load zone signconf.
  *
  */
@@ -72,8 +50,6 @@ tools_signconf(zone_type* zone)
 {
     ods_status status = ODS_STATUS_OK;
     signconf_type* new_signconf = NULL;
-    ldns_rr_list* del = NULL;
-    task_id keys_what = TASK_NONE;
     task_id denial_what = TASK_NONE;
 
     ods_log_assert(zone);
@@ -81,28 +57,7 @@ tools_signconf(zone_type* zone)
     status = zone_load_signconf(zone, &new_signconf);
     if (status == ODS_STATUS_OK) {
         ods_log_assert(new_signconf);
-        /* do stuff */
-        del = ldns_rr_list_new();
-        if (!del) {
-            ods_log_error("[%s] unable to load signconf: zone %s "
-                "signconf %s: ldns_rr_list_new() failed",
-                tools_str, zone->name, zone->signconf_filename);
-            return ODS_STATUS_MALLOC_ERR;
-        }
         denial_what = signconf_compare_denial(zone->signconf, new_signconf);
-        keys_what = signconf_compare_keys(zone->signconf, new_signconf, del);
-        /* Key Rollover? */
-        if (keys_what == TASK_READ) {
-            status = dnskey_withdraw(zone, del);
-        }
-        ldns_rr_list_free(del);
-        if (status != ODS_STATUS_OK) {
-            ods_log_error("[%s] unable to load signconf: zone %s "
-                "signconf %s: failed to delete DNSKEY from RRset",
-                tools_str, zone->name, zone->signconf_filename);
-            namedb_rollback(zone->db);
-            return status;
-        }
         /* Denial of Existence Rollover? */
         if (denial_what == TASK_NSECIFY) {
             /* or NSEC -> NSEC3, or NSEC3 -> NSEC, or NSEC3PARAM changed:
@@ -140,20 +95,32 @@ tools_input(zone_type* zone)
     time_t end = 0;
     FILE* fd = NULL;
 
-    if (!zone) {
-        ods_log_error("[%s] unable to read zone: no zone", tools_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
     ods_log_assert(zone);
-
-    if (!zone->db) {
-        ods_log_error("[%s] unable to read zone: no zone data", tools_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
-    ods_log_assert(zone->db);
-
+    ods_log_assert(zone->name);
     ods_log_assert(zone->adinbound);
     ods_log_assert(zone->signconf);
+    /* Key Rollover? */
+    status = zone_publish_dnskeys(zone);
+    if (status != ODS_STATUS_OK) {
+        ods_log_error("[%s] unable to read zone %s: failed to "
+            "publish dnskeys (%s)", tools_str, zone->name,
+            ods_status2str(status));
+        zone_rollback_dnskeys(zone);
+        zone_rollback_nsec3param(zone);
+        namedb_rollback(zone->db);
+        return status;
+    }
+    /* Denial of Existence Rollover? */
+    status = zone_publish_nsec3param(zone);
+    if (status != ODS_STATUS_OK) {
+        ods_log_error("[%s] unable to read zone %s: failed to "
+            "publish nsec3param (%s)", tools_str, zone->name,
+            ods_status2str(status));
+        zone_rollback_dnskeys(zone);
+        zone_rollback_nsec3param(zone);
+        namedb_rollback(zone->db);
+        return status;
+    }
 
     if (zone->stats) {
         lock_basic_lock(&zone->stats->stats_lock);
@@ -162,7 +129,6 @@ tools_input(zone_type* zone)
         zone->stats->sort_time = 0;
         lock_basic_unlock(&zone->stats->stats_lock);
     }
-
     if (zone->adinbound->type == ADAPTER_FILE) {
         if (zone->fetch) {
             ods_log_verbose("[%s] fetch zone %s", tools_str,
@@ -207,13 +173,15 @@ lock_fetch:
             free((void*)lockname);
         }
     }
-
+    /* Input Adapter */
     start = time(NULL);
-    status = adapter_read(zone);
+    status = adapter_read((void*)zone);
     if (status != ODS_STATUS_OK) {
-        ods_log_error("[%s] unable to read from input adapter for zone %s: "
-            "%s", tools_str, zone->name?zone->name:"(null)",
-            ods_status2str(status));
+        ods_log_error("[%s] unable to read zone %s: adapter failed (%s)",
+            tools_str, zone->name, ods_status2str(status));
+        zone_rollback_dnskeys(zone);
+        zone_rollback_nsec3param(zone);
+        namedb_rollback(zone->db);
     } else {
         tmpname = ods_build_path(zone->name, ".inbound", 0);
         status = ods_file_copy(zone->adinbound->configstr, tmpname);
@@ -226,17 +194,7 @@ lock_fetch:
         }
     }
 
-    if (status == ODS_STATUS_OK) {
-        ods_log_verbose("[%s] commit updates for zone %s", tools_str,
-            zone->name?zone->name:"(null)");
-        namedb_diff(zone->db);
-    } else {
-        ods_log_warning("[%s] rollback updates for zone %s", tools_str,
-            zone->name?zone->name:"(null)");
-        namedb_rollback(zone->db);
-    }
     end = time(NULL);
-
     if (status == ODS_STATUS_OK && zone->stats) {
         lock_basic_lock(&zone->stats->stats_lock);
         zone->stats->start_time = start;
@@ -261,24 +219,9 @@ tools_nsecify(zone_type* zone)
     uint32_t ttl = 0;
     uint32_t num_added = 0;
 
-    if (!zone) {
-        ods_log_error("[%s] unable to nsecify zone: no zone", tools_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
     ods_log_assert(zone);
-
-    if (!zone->db) {
-        ods_log_error("[%s] unable to nsecify zone %s: no namedb",
-            tools_str, zone->name);
-        return ODS_STATUS_ASSERT_ERR;
-    }
+    ods_log_assert(zone->name);
     ods_log_assert(zone->db);
-
-    if (!zone->signconf) {
-        ods_log_error("[%s] unable to nsecify zone %s: no signconf",
-            tools_str, zone->name);
-        return ODS_STATUS_ASSERT_ERR;
-    }
     ods_log_assert(zone->signconf);
 
     if (zone->stats) {
@@ -287,7 +230,6 @@ tools_nsecify(zone_type* zone)
         zone->stats->nsec_count = 0;
         lock_basic_unlock(&zone->stats->stats_lock);
     }
-
     start = time(NULL);
     /* determine denial ttl */
     ttl = zone->default_ttl;

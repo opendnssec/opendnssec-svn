@@ -122,10 +122,47 @@ adapi_get_ttl(zone_type* zone)
 void
 adapi_trans_full(zone_type* zone)
 {
+    time_t start = 0;
+    time_t end = 0;
+    uint32_t ttl = 0;
+    uint32_t num_added = 0;
+    ods_status status = ODS_STATUS_OK;
+
     if (!zone || !zone->db) {
         return;
     }
     namedb_diff(zone->db);
+
+    if (zone->stats) {
+        lock_basic_lock(&zone->stats->stats_lock);
+        zone->stats->nsec_time = 0;
+        zone->stats->nsec_count = 0;
+        lock_basic_unlock(&zone->stats->stats_lock);
+    }
+    start = time(NULL);
+    /* nsecify(3) */
+    if (zone->signconf->nsec_type == LDNS_RR_TYPE_NSEC) {
+        status = namedb_nsecify(zone->db, zone->klass, ttl,
+            &num_added);
+    } else if (zone->signconf->nsec_type == LDNS_RR_TYPE_NSEC3) {
+        if (zone->signconf->nsec3_optout) {
+            ods_log_debug("[%s] OptOut is being used for zone %s",
+                adapi_str, zone->name);
+        }
+        ods_log_assert(zone->signconf->nsec3params);
+        status = namedb_nsecify3(zone->db, zone->klass, ttl,
+            zone->signconf->nsec3params, &num_added);
+    }
+    end = time(NULL);
+    if (status == ODS_STATUS_OK && zone->stats) {
+        lock_basic_lock(&zone->stats->stats_lock);
+        if (!zone->stats->start_time) {
+            zone->stats->start_time = start;
+        }
+        zone->stats->nsec_time = (end-start);
+        zone->stats->nsec_count = num_added;
+        lock_basic_unlock(&zone->stats->stats_lock);
+    }
     return;
 }
 
