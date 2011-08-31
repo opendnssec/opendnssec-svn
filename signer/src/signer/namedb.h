@@ -141,14 +141,13 @@ denial_type* namedb_lookup_denial(namedb_type* db, ldns_rdf* dname);
 /**
  * Add denial to namedb.
  * \param[in] db namedb
- * \param[in] domain corresponding domain
- * \param[in] apex apex
+ * \param[in] dname domain name
  * \param[in] n3p NSEC3 parameters, NULL if we do NSEC
  * \return ods_status status
  *
  */
-ods_status namedb_add_denial(namedb_type* db, domain_type* domain,
-    ldns_rdf* apex, nsec3params_type* n3p);
+denial_type* namedb_add_denial(namedb_type* db, ldns_rdf* dname,
+    nsec3params_type* n3p);
 
 /**
  * Delete denial from namedb
@@ -187,27 +186,10 @@ void namedb_rollback(namedb_type* db);
 /**
  * Nsecify db.
  * \param[in] db namedb
- * \param[in] klass zone class
- * \param[in] ttl NSEC ttl
  * \param[out] num_added number of NSEC RRs added
- * \return ods_status status
  *
  */
-ods_status namedb_nsecify(namedb_type* db, ldns_rr_class klass,
-    uint32_t ttl, uint32_t* num_added);
-
-/**
- * Nsecify3 db.
- * \param[in] db namedb
- * \param[in] klass zone class
- * \param[in] ttl NSEC3 ttl
- * \param[in] nsec3params NSEC3 parameters
- * \param[out] num_added number of NSEC3 RRs added
- * \return ods_status status
- *
- */
-ods_status namedb_nsecify3(namedb_type* db, ldns_rr_class klass,
-    uint32_t ttl, nsec3params_type* nsec3params, uint32_t* num_added);
+void namedb_nsecify(namedb_type* db, uint32_t* num_added);
 
 /**
  * Export db to file.

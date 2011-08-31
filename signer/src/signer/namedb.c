@@ -500,7 +500,246 @@ namedb_lookup_denial(namedb_type* db, ldns_rdf* dname)
 
 
 /**
- * Provide domain with NSEC3 hashed domain.
+ * See if a domain is an empty terminal
+ *
+ */
+static int
+domain_is_empty_terminal(domain_type* domain)
+{
+    ldns_rbnode_t* n = LDNS_RBTREE_NULL;
+    domain_type* d = NULL;
+    ods_log_assert(domain);
+    if (domain->is_apex) {
+        return 0;
+    }
+    if (domain->rrsets) {
+        return 0;
+    }
+    n = ldns_rbtree_next(domain->node);
+    if (n) {
+        d = (domain_type*) n->data;
+    }
+    /* if it has children domains, do not delete it */
+    if(d && ldns_dname_is_subdomain(d->dname, domain->dname)) {
+        return 0;
+    }
+    return 1;
+}
+
+
+/**
+ * See if a domain can be deleted
+ *
+ */
+static int
+domain_can_be_deleted(domain_type* domain)
+{
+    ods_log_assert(domain);
+    return (domain_is_empty_terminal(domain) && !domain->denial);
+}
+
+
+/**
+ * Add NSEC data point.
+ *
+ */
+static void
+namedb_add_nsec_trigger(namedb_type* db, domain_type* domain)
+{
+    ldns_rr_type dstatus = LDNS_RR_TYPE_FIRST;
+    denial_type* denial = NULL;
+    ods_log_assert(db);
+    ods_log_assert(domain);
+    ods_log_assert(!domain->denial);
+    dstatus = domain_is_occluded(domain);
+    if (dstatus == LDNS_RR_TYPE_DNAME || dstatus == LDNS_RR_TYPE_A) {
+       return; /* don't do occluded/glue domain */
+    }
+    if (!domain->rrsets) {
+       return; /* don't do empty domain */
+    }
+    /* ok, nsecify this domain */
+    denial = namedb_add_denial(db, domain->dname, NULL);
+    ods_log_assert(denial);
+    denial->domain = (void*) domain;
+    domain->denial = (void*) denial;
+    domain->is_new = 0;
+    return;
+}
+
+
+/**
+ * Add NSEC3 data point.
+ *
+ */
+static void
+namedb_add_nsec3_trigger(namedb_type* db, domain_type* domain,
+    nsec3params_type* n3p)
+{
+    ldns_rr_type dstatus = LDNS_RR_TYPE_FIRST;
+    denial_type* denial = NULL;
+    ods_log_assert(db);
+    ods_log_assert(n3p);
+    ods_log_assert(domain);
+    ods_log_assert(!domain->denial);
+    dstatus = domain_is_occluded(domain);
+    if (dstatus == LDNS_RR_TYPE_DNAME || dstatus == LDNS_RR_TYPE_A) {
+       return; /* don't do occluded/glue domain */
+    }
+    /* Opt-Out? */
+    if (n3p->flags) {
+        dstatus = domain_is_delegpt(domain);
+        /* If Opt-Out is being used, owner names of unsigned delegations
+           MAY be excluded. */
+        if (dstatus == LDNS_RR_TYPE_NS || domain_ent2unsignedns(domain)) {
+            return;
+        }
+    }
+    /* ok, nsecify3 this domain */
+    denial = namedb_add_denial(db, domain->dname, n3p);
+    ods_log_assert(denial);
+    denial->domain = (void*) domain;
+    domain->denial = (void*) denial;
+    domain->is_new = 0;
+    return;
+}
+
+
+/**
+ * See if denials need to be added.
+ *
+ */
+static void
+namedb_add_denial_trigger(namedb_type* db, domain_type* domain)
+{
+    zone_type* zone = NULL;
+    ods_log_assert(db);
+    ods_log_assert(domain);
+    if (!domain->denial) {
+        zone = (void*) domain->zone;
+        ods_log_assert(zone);
+        ods_log_assert(zone->signconf);
+        if (zone->signconf->nsec_type == LDNS_RR_TYPE_NSEC) {
+            namedb_add_nsec_trigger(db, domain);
+        } else {
+            ods_log_assert(zone->signconf->nsec_type == LDNS_RR_TYPE_NSEC3);
+            namedb_add_nsec3_trigger(db, domain, zone->signconf->nsec3params);
+        }
+    }
+    return;
+}
+
+
+/**
+ * Delete NSEC data point.
+ *
+ */
+static void
+namedb_del_nsec_trigger(namedb_type* db, domain_type* domain)
+{
+    ldns_rr_type dstatus = LDNS_RR_TYPE_FIRST;
+    denial_type* denial = NULL;
+    ods_log_assert(db);
+    ods_log_assert(domain);
+    ods_log_assert(domain->denial);
+    dstatus = domain_is_occluded(domain);
+    if (dstatus == LDNS_RR_TYPE_DNAME || dstatus == LDNS_RR_TYPE_A ||
+        domain_is_empty_terminal(domain) || !domain->rrsets) {
+       /* domain has become occluded/glue or empty non-terminal*/
+       denial_diff((denial_type*) domain->denial);
+       denial = namedb_del_denial(db, domain->denial);
+       denial_cleanup(denial);
+       domain->denial = NULL;
+    }
+    return;
+}
+
+
+/**
+ * Delete NSEC3 data point.
+ *
+ */
+static void
+namedb_del_nsec3_trigger(namedb_type* db, domain_type* domain,
+    nsec3params_type* n3p)
+{
+    ldns_rr_type dstatus = LDNS_RR_TYPE_FIRST;
+    denial_type* denial = NULL;
+    ods_log_assert(db);
+    ods_log_assert(n3p);
+    ods_log_assert(domain);
+    ods_log_assert(domain->denial);
+    dstatus = domain_is_occluded(domain);
+    if (dstatus == LDNS_RR_TYPE_DNAME || dstatus == LDNS_RR_TYPE_A ||
+        domain_is_empty_terminal(domain)) {
+       /* domain has become occluded/glue */
+       denial_diff((denial_type*) domain->denial);
+       denial = namedb_del_denial(db, domain->denial);
+       denial_cleanup(denial);
+       domain->denial = NULL;
+    } else if (n3p->flags) {
+        dstatus = domain_is_delegpt(domain);
+        /* If Opt-Out is being used, owner names of unsigned delegations
+           MAY be excluded. */
+        if (dstatus == LDNS_RR_TYPE_NS || domain_ent2unsignedns(domain)) {
+            denial_diff((denial_type*) domain->denial);
+            denial = namedb_del_denial(db, domain->denial);
+            denial_cleanup(denial);
+            domain->denial = NULL;
+        }
+    }
+    return;
+}
+
+
+/**
+ * See if domains/denials can be deleted.
+ *
+ */
+static domain_type*
+namedb_del_denial_trigger(namedb_type* db, domain_type* domain, int rollback)
+{
+    domain_type* parent = NULL;
+    zone_type* zone = NULL;
+    unsigned is_deleted = 0;
+    ods_log_assert(db);
+    ods_log_assert(domain);
+    zone = (void*) domain->zone;
+    ods_log_assert(zone);
+    ods_log_assert(zone->signconf);
+    while(domain) {
+        if (!rollback) {
+            if (domain->denial) {
+                if (zone->signconf->nsec_type == LDNS_RR_TYPE_NSEC) {
+                    namedb_del_nsec_trigger(db, domain);
+                } else {
+                    ods_log_assert(zone->signconf->nsec_type ==
+                        LDNS_RR_TYPE_NSEC3);
+                    namedb_del_nsec3_trigger(db, domain,
+                        zone->signconf->nsec3params);
+                }
+            }
+        }
+        if (domain_can_be_deleted(domain)) {
+            /* -DOMAIN */
+            parent = domain->parent;
+            domain = namedb_del_domain(db, domain);
+            domain_cleanup(domain);
+            is_deleted = 1;
+            /* continue with parent */
+            domain = parent;
+        } else if (is_deleted) {
+            break;
+        } else {
+            return domain; /* domain was not deleted */
+        }
+    }
+    return NULL;
+}
+
+
+/**
+ * Hash domain name.
  *
  */
 static ldns_rdf*
@@ -508,11 +747,9 @@ dname_hash(ldns_rdf* dname, ldns_rdf* apex, nsec3params_type* nsec3params)
 {
     ldns_rdf* hashed_ownername = NULL;
     ldns_rdf* hashed_label = NULL;
-
     ods_log_assert(dname);
     ods_log_assert(apex);
     ods_log_assert(nsec3params);
-
     /**
      * The owner name of the NSEC3 RR is the hash of the original owner
      * name, prepended as a single label to the zone name.
@@ -521,13 +758,11 @@ dname_hash(ldns_rdf* dname, ldns_rdf* apex, nsec3params_type* nsec3params)
         nsec3params->iterations, nsec3params->salt_len,
         nsec3params->salt_data);
     if (!hashed_label) {
-        log_dname(dname, "unable to hash dname, hash failed", LOG_ERR);
         return NULL;
     }
     hashed_ownername = ldns_dname_cat_clone((const ldns_rdf*) hashed_label,
         (const ldns_rdf*) apex);
     if (!hashed_ownername) {
-        log_dname(dname, "unable to hash dname, concat apex failed", LOG_ERR);
         return NULL;
     }
     ldns_rdf_deep_free(hashed_label);
@@ -536,161 +771,106 @@ dname_hash(ldns_rdf* dname, ldns_rdf* apex, nsec3params_type* nsec3params)
 
 
 /**
- * Add denial of existence data point to the zone data.
+ * Add denial to namedb.
  *
  */
-ods_status
-namedb_add_denial(namedb_type* db, domain_type* domain, ldns_rdf* apex,
-    nsec3params_type* nsec3params)
+denial_type*
+namedb_add_denial(namedb_type* db, ldns_rdf* dname, nsec3params_type* n3p)
 {
+    zone_type* z = NULL;
     ldns_rbnode_t* new_node = LDNS_RBTREE_NULL;
-    ldns_rbnode_t* prev_node = LDNS_RBTREE_NULL;
+    ldns_rbnode_t* pnode = LDNS_RBTREE_NULL;
     ldns_rdf* owner = NULL;
     denial_type* denial = NULL;
-    denial_type* prev_denial = NULL;
+    denial_type* pdenial = NULL;
 
-    if (!domain) {
-        ods_log_error("[%s] unable to add denial of existence data point: "
-            "no domain", db_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
-    ods_log_assert(domain);
-
-    if (!db || !db->denials) {
-        log_dname(domain->dname, "unable to add denial of existence data "
-            "point for domain, no denial chain", LOG_ERR);
-        return ODS_STATUS_ASSERT_ERR;
-    }
     ods_log_assert(db);
     ods_log_assert(db->denials);
-
-    if (!apex) {
-        log_dname(domain->dname, "unable to add denial of existence data "
-            "point for domain, apex unknown", LOG_ERR);
-        return ODS_STATUS_ASSERT_ERR;
-    }
-    ods_log_assert(apex);
-
+    ods_log_assert(dname);
     /* nsec or nsec3 */
-    if (nsec3params) {
-        owner = dname_hash(domain->dname, apex, nsec3params);
-        if (!owner) {
-            log_dname(domain->dname, "unable to add denial of existence data "
-                "point for domain, dname hash failed", LOG_ERR);
-            return ODS_STATUS_ERR;
-        }
+    if (n3p) {
+        z = (zone_type*) db->zone;
+        owner = dname_hash(dname, z->apex, n3p);
     } else {
-        owner = ldns_rdf_clone(domain->dname);
+        owner = ldns_rdf_clone(dname);
     }
-    /* lookup */
-    if (namedb_lookup_denial(db, owner) != NULL) {
-        log_dname(domain->dname, "unable to add denial of existence for "
-            "domain, data point exists", LOG_ERR);
-        return ODS_STATUS_CONFLICT_ERR;
-    }
-    /* create */
+    ods_log_assert(owner);
     denial = denial_create(db->zone, owner);
+    if (!denial) {
+        ods_log_error("[%s] unable to add denial: denial_create() failed",
+            db_str);
+        return NULL;
+    }
     new_node = denial2node(denial);
-    ldns_rdf_deep_free(owner);
-    /* insert */
     if (!ldns_rbtree_insert(db->denials, new_node)) {
-        log_dname(domain->dname, "unable to add denial of existence for "
-            "domain, insert failed", LOG_ERR);
-        free((void*)new_node);
+        ods_log_error("[%s] unable to add denial: already present", db_str);
+        log_dname(denial->dname, "ERR +DENIAL", LOG_ERR);
         denial_cleanup(denial);
-        return ODS_STATUS_ERR;
+        free((void*)new_node);
+        return NULL;
     }
     /* denial of existence data point added */
-    denial->bitmap_changed = 1;
+    denial = (denial_type*) new_node->data;
+    denial->node = new_node;
     denial->nxt_changed = 1;
-    prev_node = ldns_rbtree_previous(new_node);
-    if (!prev_node || prev_node == LDNS_RBTREE_NULL) {
-        prev_node = ldns_rbtree_last(db->denials);
+    pnode = ldns_rbtree_previous(new_node);
+    if (!pnode || pnode == LDNS_RBTREE_NULL) {
+        pnode = ldns_rbtree_last(db->denials);
     }
-    ods_log_assert(prev_node);
-    prev_denial = (denial_type*) prev_node->data;
-    ods_log_assert(prev_denial);
-    prev_denial->nxt_changed = 1;
-    domain->denial = (void*) denial;
-    denial->domain = (void*) domain; /* back reference */
-    return ODS_STATUS_OK;
-}
-
-
-/**
- * Internal delete denial function.
- *
- */
-static denial_type*
-namedb_del_denial_fixup(ldns_rbtree_t* tree, denial_type* denial)
-{
-    denial_type* del_denial = NULL;
-    denial_type* prev_denial = NULL;
-    ldns_rbnode_t* prev_node = LDNS_RBTREE_NULL;
-    ldns_rbnode_t* del_node = LDNS_RBTREE_NULL;
-
-    ods_log_assert(tree);
-    ods_log_assert(denial);
-    ods_log_assert(denial->dname);
-
-    del_node = ldns_rbtree_search(tree, (const void*)denial->dname);
-    if (del_node) {
-        /**
-         * [CALC] if domain removed, mark prev domain NSEC(3) nxt changed.
-         *
-         */
-        prev_node = ldns_rbtree_previous(del_node);
-        if (!prev_node || prev_node == LDNS_RBTREE_NULL) {
-            prev_node = ldns_rbtree_last(tree);
-        }
-        ods_log_assert(prev_node);
-        ods_log_assert(prev_node->data);
-        prev_denial = (denial_type*) prev_node->data;
-        prev_denial->nxt_changed = 1;
-
-        /* delete old NSEC RR(s) */
-        rrset_diff(denial->rrset);
-        del_node = ldns_rbtree_delete(tree, (const void*)denial->dname);
-        del_denial = (denial_type*) del_node->data;
-        denial_cleanup(del_denial);
-        free((void*)del_node);
-        return NULL;
-    } else {
-        log_dname(denial->dname, "unable to del denial of existence data "
-            "point, not found", LOG_ERR);
-    }
+    ods_log_assert(pnode);
+    pdenial = (denial_type*) pnode->data;
+    ods_log_assert(pdenial);
+    pdenial->nxt_changed = 1;
+    log_dname(denial->dname, "+DENIAL", LOG_DEBUG);
     return denial;
 }
 
 
 /**
- * Delete denial of existence data point from the zone data.
+ * Delete denial from namedb
  *
  */
 denial_type*
 namedb_del_denial(namedb_type* db, denial_type* denial)
 {
-    if (!denial) {
-        ods_log_error("[%s] unable to delete denial of existence data "
-            "point: no data point", db_str);
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+    ldns_rbnode_t* pnode = LDNS_RBTREE_NULL;
+    denial_type* pdenial = NULL;
+
+    if (!denial || !db || !db->denials) {
         return NULL;
     }
-    ods_log_assert(denial);
-
-    if (!db || !db->denials) {
-        log_dname(denial->dname, "unable to delete denial of existence data "
-            "point, no db", LOG_ERR);
-        return denial;
+    if (denial->rrset->rr_count) {
+        ods_log_error("[%s] unable to delete denial: denial in use [#%u]",
+            db_str, denial->rrset->rr_count);
+        log_dname(denial->dname, "ERR -DENIAL", LOG_ERR);
+        return NULL;
     }
-    ods_log_assert(db);
-    ods_log_assert(db->denials);
-
-    return namedb_del_denial_fixup(db->denials, denial);
+    pnode = ldns_rbtree_previous(denial->node);
+    if (!pnode || pnode == LDNS_RBTREE_NULL) {
+        pnode = ldns_rbtree_last(db->denials);
+    }
+    ods_log_assert(pnode);
+    pdenial = (denial_type*) pnode->data;
+    ods_log_assert(pdenial);
+    node = ldns_rbtree_delete(db->denials, (const void*)denial->dname);
+    if (!node) {
+        ods_log_error("[%s] unable to delete denial: not found", db_str);
+        log_dname(denial->dname, "ERR -DENIAL", LOG_ERR);
+        return NULL;
+    }
+    ods_log_assert(denial->node == node);
+    pdenial->nxt_changed = 1;
+    free((void*)node);
+    denial->domain = NULL;
+    denial->node = NULL;
+    log_dname(denial->dname, "-DENIAL", LOG_DEBUG);
+    return denial;
 }
 
 
 /**
- * Calculate differences at the namedb between current and new RRsets.
+ * Apply differences in db.
  *
  */
 void
@@ -698,24 +878,28 @@ namedb_diff(namedb_type* db)
 {
     ldns_rbnode_t* node = LDNS_RBTREE_NULL;
     domain_type* domain = NULL;
-
     if (!db || !db->domains) {
         return;
     }
-    if (db->domains->root != LDNS_RBTREE_NULL) {
-        node = ldns_rbtree_first(db->domains);
+    node = ldns_rbtree_first(db->domains);
+    if (!node || node == LDNS_RBTREE_NULL) {
+        return;
     }
     while (node && node != LDNS_RBTREE_NULL) {
         domain = (domain_type*) node->data;
-        domain_diff(domain);
         node = ldns_rbtree_next(node);
+        domain_diff(domain);
+        domain = namedb_del_denial_trigger(db, domain, 0);
+        if (domain) {
+            namedb_add_denial_trigger(db, domain);
+        }
     }
     return;
 }
 
 
 /**
- * Rollback updates from zone data.
+ * Rollback differences in db.
  *
  */
 void
@@ -723,95 +907,36 @@ namedb_rollback(namedb_type* db)
 {
     ldns_rbnode_t* node = LDNS_RBTREE_NULL;
     domain_type* domain = NULL;
-
     if (!db || !db->domains) {
         return;
     }
-    if (db->domains->root != LDNS_RBTREE_NULL) {
-        node = ldns_rbtree_first(db->domains);
+    node = ldns_rbtree_first(db->domains);
+    if (!node || node == LDNS_RBTREE_NULL) {
+        return;
     }
     while (node && node != LDNS_RBTREE_NULL) {
         domain = (domain_type*) node->data;
-        domain_rollback(domain);
         node = ldns_rbtree_next(node);
+        domain_rollback(domain);
+        domain = namedb_del_denial_trigger(db, domain, 1);
     }
     return;
 }
 
 
 /**
- * Add NSEC records to namedb.
+ * Nsecify db.
  *
  */
-ods_status
-namedb_nsecify(namedb_type* db, ldns_rr_class klass, uint32_t ttl,
-    uint32_t* num_added)
+void
+namedb_nsecify(namedb_type* db, uint32_t* num_added)
 {
     ldns_rbnode_t* node = LDNS_RBTREE_NULL;
     ldns_rbnode_t* nxt_node = LDNS_RBTREE_NULL;
-    ods_status status = ODS_STATUS_OK;
-    domain_type* domain = NULL;
-    domain_type* apex = NULL;
     denial_type* denial = NULL;
     denial_type* nxt = NULL;
-    size_t nsec_added = 0;
-    ldns_rr_type occluded = LDNS_RR_TYPE_SOA;
-    ldns_rr_type delegpt = LDNS_RR_TYPE_SOA;
-
-    if (!db || !db->domains) {
-        return ODS_STATUS_OK;
-    }
+    uint32_t nsec_added = 0;
     ods_log_assert(db);
-    ods_log_assert(db->domains);
-
-    node = ldns_rbtree_first(db->domains);
-    while (node && node != LDNS_RBTREE_NULL) {
-        domain = (domain_type*) node->data;
-        if (domain->is_apex) {
-            apex = domain;
-        }
-        occluded = domain_is_occluded(domain);
-        delegpt = domain_is_delegpt(domain);
-
-        /* don't do glue-only or empty domains */
-        if (occluded != LDNS_RR_TYPE_SOA ||
-            domain_count_rrset(domain) <= 0) {
-            if (domain_count_rrset(domain)) {
-                log_dname(domain->dname, "nsecify: don't do glue domain",
-                    LOG_DEEEBUG);
-            } else {
-                log_dname(domain->dname, "nsecify: don't do empty domain",
-                    LOG_DEEEBUG);
-            }
-            if (domain->denial) {
-                if (namedb_del_denial(db, domain->denial) != NULL) {
-                    ods_log_warning("[%s] unable to nsecify: failed to "
-                        "delete denial of existence data point", db_str);
-                    return ODS_STATUS_ERR;
-                }
-            }
-            node = ldns_rbtree_next(node);
-            continue;
-        }
-        if (!apex) {
-            ods_log_alert("[%s] unable to nsecify: apex unknown", db_str);
-            return ODS_STATUS_ASSERT_ERR;
-        }
-
-        /* add the denial of existence */
-        if (!domain->denial) {
-            status = namedb_add_denial(db, domain, apex->dname, NULL);
-            if (status != ODS_STATUS_OK) {
-                log_dname(domain->dname, "unable to nsecify: failed to add "
-                    "denial of existence for domain", LOG_ERR);
-                return status;
-            }
-            nsec_added++;
-        }
-        node = ldns_rbtree_next(node);
-    }
-
-    /** Now we have the complete denial of existence chain */
     node = ldns_rbtree_first(db->denials);
     while (node && node != LDNS_RBTREE_NULL) {
         denial = (denial_type*) node->data;
@@ -820,161 +945,13 @@ namedb_nsecify(namedb_type* db, ldns_rr_class klass, uint32_t ttl,
              nxt_node = ldns_rbtree_first(db->denials);
         }
         nxt = (denial_type*) nxt_node->data;
-
-        status = denial_nsecify(denial, nxt, ttl, klass);
-        if (status != ODS_STATUS_OK) {
-            ods_log_error("[%s] unable to nsecify: failed to add NSEC record",
-                db_str);
-            return status;
-        }
+        denial_nsecify(denial, nxt, &nsec_added);
         node = ldns_rbtree_next(node);
     }
     if (num_added) {
         *num_added = nsec_added;
     }
-    return ODS_STATUS_OK;
-}
-
-
-/**
- * Add NSEC3 records to namedb.
- *
- */
-ods_status
-namedb_nsecify3(namedb_type* db, ldns_rr_class klass,
-    uint32_t ttl, nsec3params_type* nsec3params, uint32_t* num_added)
-{
-    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
-    ldns_rbnode_t* nxt_node = LDNS_RBTREE_NULL;
-    ods_status status = ODS_STATUS_OK;
-    domain_type* domain = NULL;
-    domain_type* apex = NULL;
-    denial_type* denial = NULL;
-    denial_type* nxt = NULL;
-    size_t nsec3_added = 0;
-    ldns_rr_type occluded = LDNS_RR_TYPE_SOA;
-    ldns_rr_type delegpt = LDNS_RR_TYPE_SOA;
-
-    if (!db || !db->domains) {
-        return ODS_STATUS_OK;
-    }
-    ods_log_assert(db);
-    ods_log_assert(db->domains);
-
-    if (!nsec3params) {
-        ods_log_error("[%s] unable to nsecify3: no nsec3 paramaters", db_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
-    ods_log_assert(nsec3params);
-
-    node = ldns_rbtree_first(db->domains);
-    while (node && node != LDNS_RBTREE_NULL) {
-        domain = (domain_type*) node->data;
-        if (domain->is_apex) {
-            apex = domain;
-        }
-        occluded = domain_is_occluded(domain);
-        delegpt = domain_is_delegpt(domain);
-
-        /* don't do glue-only domains */
-        if (occluded != LDNS_RR_TYPE_SOA) {
-            log_dname(domain->dname, "nsecify3: don't do glue domain",
-                LOG_DEEEBUG);
-            if (domain->denial) {
-                if (namedb_del_denial(db, domain->denial) != NULL) {
-                    ods_log_error("[%s] unable to nsecify3: failed to "
-                        "delete denial of existence data point", db_str);
-                    return ODS_STATUS_ERR;
-                }
-            }
-            node = ldns_rbtree_next(node);
-            continue;
-        }
-        /* Opt-Out? */
-        if (nsec3params->flags) {
-            /* If Opt-Out is being used, owner names of unsigned delegations
-               MAY be excluded. */
-            if (delegpt != LDNS_RR_TYPE_SOA ||
-                domain_ent2unsignedns(domain)) {
-                if (delegpt != LDNS_RR_TYPE_SOA) {
-                    log_dname(domain->dname, "nsecify3: opt-out (unsigned "
-                        "delegation)", LOG_DEBUG);
-                } else {
-                    log_dname(domain->dname, "nsecify3: opt-out (empty "
-                        "non-terminal (to unsigned delegation))", LOG_DEBUG);
-                }
-                if (domain->denial) {
-                    if (namedb_del_denial(db, domain->denial) != NULL) {
-                        ods_log_error("[%s] unable to nsecify3: failed to "
-                            "delete denial of existence data point", db_str);
-                        return ODS_STATUS_ERR;
-                    }
-                }
-                node = ldns_rbtree_next(node);
-                continue;
-            }
-        }
-        if (!apex) {
-            ods_log_alert("[%s] unable to nsecify3: apex unknown", db_str);
-            return ODS_STATUS_ASSERT_ERR;
-        }
-
-        /* add the denial of existence */
-        if (!domain->denial) {
-            status = namedb_add_denial(db, domain, apex->dname,
-                nsec3params);
-            if (status != ODS_STATUS_OK) {
-                log_dname(domain->dname, "unable to nsecify3: failed to add "
-                    "denial of existence for domain", LOG_ERR);
-                return status;
-            }
-            nsec3_added++;
-        }
-
-        /* The Next Hashed Owner Name field is left blank for the moment. */
-
-        /**
-         * Additionally, for collision detection purposes, optionally
-         * create an additional NSEC3 RR corresponding to the original
-         * owner name with the asterisk label prepended (i.e., as if a
-         * wildcard existed as a child of this owner name) and keep track
-         * of this original owner name. Mark this NSEC3 RR as temporary.
-        **/
-        /* [TODO] */
-        /**
-         * pseudo:
-         * wildcard_name = *.domain->dname;
-         * hashed_ownername = ldns_nsec3_hash_name(domain->dname,
-               nsec3params->algorithm, nsec3params->iterations,
-               nsec3params->salt_len, nsec3params->salt);
-         * domain->nsec3_wildcard = denial_create(hashed_ownername);
-        **/
-
-        node = ldns_rbtree_next(node);
-    }
-
-    /** Now we have the complete denial of existence chain */
-    node = ldns_rbtree_first(db->denials);
-    while (node && node != LDNS_RBTREE_NULL) {
-        denial = (denial_type*) node->data;
-        nxt_node = ldns_rbtree_next(node);
-        if (!nxt_node || nxt_node == LDNS_RBTREE_NULL) {
-             nxt_node = ldns_rbtree_first(db->denials);
-        }
-        nxt = (denial_type*) nxt_node->data;
-
-        status = denial_nsecify3(denial, nxt, ttl, klass, nsec3params);
-        if (status != ODS_STATUS_OK) {
-            ods_log_error("[%s] unable to nsecify3: failed to add NSEC3 "
-                "record", db_str);
-            return status;
-        }
-        node = ldns_rbtree_next(node);
-    }
-    if (num_added) {
-        *num_added = nsec3_added;
-    }
-    return ODS_STATUS_OK;
+    return;
 }
 
 

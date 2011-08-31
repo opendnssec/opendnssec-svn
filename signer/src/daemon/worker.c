@@ -308,25 +308,6 @@ worker_perform_task(worker_type* worker)
             } else {
                 status = tools_input(zone);
             }
-            what = TASK_NSECIFY;
-            when = time_now();
-            if (status != ODS_STATUS_OK) {
-                if (task->halted == TASK_NONE) {
-                    goto task_perform_fail;
-                }
-                goto task_perform_continue;
-            }
-            fallthrough = 1;
-        case TASK_NSECIFY:
-            worker->working_with = TASK_NSECIFY;
-            ods_log_verbose("[%s[%i]] nsecify zone %s",
-                worker2str(worker->type), worker->thread_num,
-                task_who2str(task));
-            status = tools_nsecify(zone);
-
-            /* what to do next */
-            what = TASK_SIGN;
-            when = time_now();
             if (status == ODS_STATUS_OK) {
                 if (task->interrupt > TASK_SIGNCONF) {
                     task->interrupt = TASK_NONE;
