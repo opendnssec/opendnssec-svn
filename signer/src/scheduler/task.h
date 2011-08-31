@@ -45,7 +45,6 @@ enum task_id_enum {
     TASK_READ,
     TASK_NSECIFY,
     TASK_SIGN,
-    TASK_AUDIT,
     TASK_WRITE
 };
 typedef enum task_id_enum task_id;

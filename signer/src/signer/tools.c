@@ -210,8 +210,8 @@ lock_fetch:
  * Audit zone.
  *
  */
-ods_status
-tools_audit(zone_type* zone, char* working_dir, char* cfg_filename)
+static ods_status
+tools_audit(zone_type* zone, const char* working_dir, const char* cfg_filename)
 {
     char* inbound = NULL;
     char* finalized = NULL;
@@ -220,19 +220,11 @@ tools_audit(zone_type* zone, char* working_dir, char* cfg_filename)
     int error = 0;
     time_t start = 0;
     time_t end = 0;
-    if (!zone) {
-        ods_log_error("[%s] unable to audit zone: no zone", tools_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
     ods_log_assert(zone);
-
-    if (!zone->signconf) {
-        ods_log_error("[%s] unable to audit zone %s: no signconf",
-            tools_str, zone->name?zone->name:"(null)");
-        return ODS_STATUS_ASSERT_ERR;
-    }
+    ods_log_assert(zone->name);
     ods_log_assert(zone->signconf);
-
+    ods_log_assert(working_dir);
+    ods_log_assert(cfg_filename);
     if (zone->stats) {
         lock_basic_lock(&zone->stats->stats_lock);
         if (zone->stats->sort_done == 0 &&
@@ -242,48 +234,38 @@ tools_audit(zone_type* zone, char* working_dir, char* cfg_filename)
         }
         lock_basic_unlock(&zone->stats->stats_lock);
     }
-
-    if (zone->signconf->audit) {
-        inbound = ods_build_path(zone->name, ".inbound", 0);
-        finalized = ods_build_path(zone->name, ".finalized", 0);
-        status = adfile_write(zone, finalized);
-        if (status != ODS_STATUS_OK) {
-            ods_log_error("[%s] audit zone %s failed: unable to write zone",
-                tools_str, zone->name?zone->name:"(null)");
-            free((void*)inbound);
-            free((void*)finalized);
-            return status;
-        }
-
-        snprintf(str, SYSTEM_MAXLEN, "%s -c %s -u %s/%s -s %s/%s -z %s > /dev/null",
-            ODS_SE_AUDITOR,
-            cfg_filename?cfg_filename:ODS_SE_CFGFILE,
-            working_dir?working_dir:"",
-            inbound?inbound:"(null)",
-            working_dir?working_dir:"",
-            finalized?finalized:"(null)",
-            zone->name?zone->name:"(null)");
-
-        start = time(NULL);
-        ods_log_debug("system call: %s", str);
-        error = system(str);
-        if (finalized) {
-            if (!error) {
-                unlink(finalized);
-            }
-            free((void*)finalized);
-        }
+    ods_log_verbose("[%s] audit zone %s", tools_str, zone->name);
+    inbound = ods_build_path(zone->name, ".inbound", 0);
+    finalized = ods_build_path(zone->name, ".finalized", 0);
+    status = adfile_write(zone, finalized);
+    if (status != ODS_STATUS_OK) {
+        ods_log_error("[%s] unable to audit zone %s: failed to write zone",
+            tools_str, zone->name);
         free((void*)inbound);
-
-        if (error) {
-            status = ODS_STATUS_ERR;
+        free((void*)finalized);
+        return status;
+    }
+    snprintf(str, SYSTEM_MAXLEN, "%s -c %s -u %s/%s -s %s/%s -z %s "
+        "> /dev/null", ODS_SE_AUDITOR, cfg_filename, working_dir,
+        inbound, working_dir, finalized, zone->name);
+    start = time(NULL);
+    ods_log_debug("system call: %s", str);
+    error = system(str);
+    if (finalized) {
+        if (!error) {
+            unlink(finalized);
         }
-        end = time(NULL);
-        if (status == ODS_STATUS_OK && zone->stats) {
-            lock_basic_lock(&zone->stats->stats_lock);
-            zone->stats->audit_time = (end-start);
-            lock_basic_unlock(&zone->stats->stats_lock);
-        }
+        free((void*)finalized);
+    }
+    free((void*)inbound);
+    if (error) {
+        status = ODS_STATUS_ERR;
+    }
+    end = time(NULL);
+    if (status == ODS_STATUS_OK && zone->stats) {
+        lock_basic_lock(&zone->stats->stats_lock);
+        zone->stats->audit_time = (end-start);
+        lock_basic_unlock(&zone->stats->stats_lock);
     }
     return status;
 }
@@ -294,25 +276,25 @@ tools_audit(zone_type* zone, char* working_dir, char* cfg_filename)
  *
  */
 ods_status
-tools_output(zone_type* zone)
+tools_output(zone_type* zone, const char* dir, const char* cfgfile)
 {
     ods_status status = ODS_STATUS_OK;
     char str[SYSTEM_MAXLEN];
     int error = 0;
-    uint32_t outserial = 0;
-
-    if (!zone) {
-        ods_log_error("[%s] unable to write zone: no zone", tools_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
     ods_log_assert(zone);
-
-    if (!zone->adoutbound) {
-        ods_log_error("[%s] unable to write zone %s: no outbound adapter",
-            tools_str, zone->name?zone->name:"(null)");
-        return ODS_STATUS_ASSERT_ERR;
-    }
+    ods_log_assert(zone->db);
+    ods_log_assert(zone->name);
+    ods_log_assert(zone->signconf);
     ods_log_assert(zone->adoutbound);
+    /* Auditor? */
+    if (zone->signconf->audit) {
+        status = tools_audit(zone, dir, cfgfile);
+    }
+    if (status != ODS_STATUS_OK) {
+        ods_log_error("[%s] unable to write zone %s: audit failed",
+            tools_str, zone->name);
+        return ODS_STATUS_CONFLICT_ERR;
+    }
 
     if (zone->stats) {
         lock_basic_lock(&zone->stats->stats_lock);
@@ -329,20 +311,12 @@ tools_output(zone_type* zone)
         }
         lock_basic_unlock(&zone->stats->stats_lock);
     }
-
-    outserial = zone->db->outserial;
-    zone->db->outserial = zone->db->intserial;
-    status = adapter_write(zone);
-    if (status != ODS_STATUS_OK) {
-        ods_log_error("[%s] unable to write zone %s: adapter failed",
-            tools_str, zone->name);
-        zone->db->outserial = outserial;
-        return status;
+    /* Output Adapter */
+    status = adapter_write((void*)zone);
+    if (status == ODS_STATUS_OK) {
+        zone->db->outserial = zone->db->intserial;
+        zone->db->is_initialized = 1;
     }
-
-    /* initialize namedb */
-    zone->db->is_initialized = 1;
-
     /* kick the nameserver */
     if (zone->notify_ns) {
         ods_log_verbose("[%s] notify nameserver: %s", tools_str,

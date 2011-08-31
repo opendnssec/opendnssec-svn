@@ -249,8 +249,6 @@ worker_perform_task(worker_type* worker)
     ods_status status = ODS_STATUS_OK;
     int fallthrough = 0;
     int backup = 0;
-    char* working_dir = NULL;
-    char* cfg_filename = NULL;
     time_t start = 0;
     time_t end = 0;
 
@@ -393,63 +391,42 @@ worker_perform_task(worker_type* worker)
                     task->halted = TASK_NONE;
                 }
             }
-            what = TASK_AUDIT;
-            when = time_now();
-            fallthrough = 1;
-        case TASK_AUDIT:
-            worker->working_with = TASK_AUDIT;
-            if (zone->signconf->audit) {
-                ods_log_verbose("[%s[%i]] audit zone %s",
-                    worker2str(worker->type), worker->thread_num,
-                    task_who2str(task));
-                working_dir = strdup(engine->config->working_dir);
-                cfg_filename = strdup(engine->config->cfg_filename);
-                status = tools_audit(zone, working_dir, cfg_filename);
-                if (working_dir)  { free((void*)working_dir); }
-                if (cfg_filename) { free((void*)cfg_filename); }
-                working_dir = NULL;
-                cfg_filename = NULL;
-            } else {
-                status = ODS_STATUS_OK;
-            }
-
-            /* what to do next */
-            if (status != ODS_STATUS_OK) {
-                if (task->halted == TASK_NONE) {
-                    goto task_perform_fail;
-                }
-                goto task_perform_continue;
-            }
-            what = TASK_WRITE;
-            when = time_now();
             fallthrough = 1;
         case TASK_WRITE:
             /* perform 'write to output adapter' task */
             worker_working_with(worker, TASK_WRITE, TASK_SIGN,
                 "write", task_who2str(task),
                 &what, &when, &fallthrough);
-            status = tools_output(zone);
-            zone->db->is_processed = 1;
-
-            /* what to do next */
-            if (status != ODS_STATUS_OK) {
-                if (task->halted == TASK_NONE) {
-                    goto task_perform_fail;
-                }
-                goto task_perform_continue;
-            } else {
+            status = tools_output(zone, engine->config->working_dir,
+                engine->config->cfg_filename);
+            if (status == ODS_STATUS_OK) {
                 if (task->interrupt > TASK_SIGNCONF) {
                     task->interrupt = TASK_NONE;
                     task->halted = TASK_NONE;
                 }
+            } else {
+                /* clear signatures? */
+                if (task->halted == TASK_NONE) {
+                    goto task_perform_fail;
+                }
+                goto task_perform_continue;
             }
-            if (duration2time(zone->signconf->sig_resign_interval)) {
+            zone->db->is_processed = 1;
+            if (zone->signconf &&
+                duration2time(zone->signconf->sig_resign_interval)) {
                 what = TASK_SIGN;
-                when = time_now() +
+                when = worker->clock_in +
                     duration2time(zone->signconf->sig_resign_interval);
             } else {
-                what = TASK_NONE;
-                when = time_now() + never;
+                ods_log_error("[%s[%i]] unable to retrieve resign interval "
+                    "for zone %s: duration2time() failed",
+                    worker2str(worker->type), worker->thread_num,
+                    task_who2str(task));
+                ods_log_info("[%s[%i]] defaulting to 1H resign interval for "
+                    "zone %s", worker2str(worker->type), worker->thread_num,
+                    task_who2str(task));
+                what = TASK_SIGN;
+                when = worker->clock_in + 3600;
             }
             backup = 1;
             fallthrough = 0;

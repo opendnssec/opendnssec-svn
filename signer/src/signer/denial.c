@@ -287,7 +287,7 @@ denial_nsecify(denial_type* denial, denial_type* nxt, uint32_t* num_added)
         denial_diff(denial);
         /* ok */
         if (num_added) {
-            *num_added++;
+            (*num_added)++;
         }
         denial->bitmap_changed = 0;
         denial->nxt_changed = 0;
