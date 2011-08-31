@@ -202,7 +202,6 @@ void rrset_diff(rrset_type* rrset);
  * \param[in] rrset RRset
  * \param[in] signtime time when the zone is being signed
  * \return ods_status status
- *
  */
 ods_status rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, time_t signtime);
 

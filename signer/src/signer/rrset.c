@@ -32,8 +32,6 @@
  */
 
 #include "config.h"
-#include "shared/duration.h"
-#include "shared/file.h"
 #include "shared/hsm.h"
 #include "shared/log.h"
 #include "shared/util.h"
@@ -403,11 +401,9 @@ rrset_add_rrsig(rrset_type* rrset, ldns_rr* rr,
 {
     rrsig_type* rrsigs_old = NULL;
     zone_type* zone = NULL;
-
     ods_log_assert(rrset);
     ods_log_assert(rr);
     ods_log_assert(ldns_rr_get_type(rr) == LDNS_RR_TYPE_RRSIG);
-
     zone = (zone_type*) rrset->zone;
     rrsigs_old = rrset->rrsigs;
     rrset->rrsigs = (rrsig_type*) allocator_alloc(zone->allocator,
@@ -441,10 +437,8 @@ rrset_del_rrsig(rrset_type* rrset, uint16_t rrnum)
 {
     rrsig_type* rrsigs_orig = NULL;
     zone_type* zone = NULL;
-
     ods_log_assert(rrset);
     ods_log_assert(rrnum < rrset->rrsig_count);
-
     zone = (zone_type*) rrset->zone;
     log_rr(rrset->rrsigs[rrnum].rr, "-RRSIG", LOG_DEBUG);
     rrset->rrsigs[rrnum].owner = NULL;
@@ -477,7 +471,8 @@ rrset_del_rrsig(rrset_type* rrset, uint16_t rrnum)
  *
  */
 static uint32_t
-rrset_recycle(rrset_type* rrset, time_t signtime)
+rrset_recycle(rrset_type* rrset, time_t signtime, ldns_rr_type dstatus,
+    ldns_rr_type delegpt)
 {
     uint32_t refresh = 0;
     uint32_t expiration = 0;
@@ -500,6 +495,14 @@ rrset_recycle(rrset_type* rrset, time_t signtime)
     /* Check every signature if it matches the recycling logic. */
     for (i=0; i < rrset->rrsig_count; i++) {
         drop_sig = 0;
+        /* 0. Skip delegation, glue and occluded RRsets */
+        if (dstatus != LDNS_RR_TYPE_SOA && (delegpt != LDNS_RR_TYPE_SOA &&
+            rrset->rrtype != LDNS_RR_TYPE_DS)) {
+            drop_sig = 1;
+            goto recycle_drop_sig;
+        }
+        ods_log_assert(dstatus == LDNS_RR_TYPE_SOA ||
+            (delegpt == LDNS_RR_TYPE_SOA || rrset->rrtype == LDNS_RR_TYPE_DS));
         /* 1. If the RRset has changed, drop all signatures */
         /* 2. If Refresh is disabled, drop all signatures */
         if (rrset->needs_signing || !refresh) {
@@ -658,28 +661,50 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, time_t signtime)
     ldns_rr* rrsig = NULL;
     ldns_rr_list* rr_list = NULL;
     rrsig_type* signature = NULL;
-    key_type* key = NULL;
     const char* locator = NULL;
     time_t inception = 0;
     time_t expiration = 0;
     uint16_t i = 0;
+    domain_type* domain = NULL;
+    ldns_rr_type dstatus = LDNS_RR_TYPE_FIRST;
+    ldns_rr_type delegpt = LDNS_RR_TYPE_FIRST;
 
     ods_log_assert(ctx);
     ods_log_assert(rrset);
     zone = (zone_type*) rrset->zone;
-    if (!zone || !zone->signconf || !zone->signconf->keys) {
-        return ODS_STATUS_ASSERT_ERR;
-    }
+    ods_log_assert(zone);
+    ods_log_assert(zone->signconf);
     /* Recycle signatures */
-    reusedsigs = rrset_recycle(rrset, signtime);
+    if (rrset->rrtype == LDNS_RR_TYPE_NSEC ||
+        rrset->rrtype == LDNS_RR_TYPE_NSEC3) {
+        dstatus = LDNS_RR_TYPE_SOA;
+        delegpt = LDNS_RR_TYPE_SOA;
+    } else {
+        domain = (domain_type*) rrset->domain;
+        dstatus = domain_is_occluded(domain);
+        delegpt = domain_is_delegpt(domain);
+    }
+    reusedsigs = rrset_recycle(rrset, signtime, dstatus, delegpt);
     rrset->needs_signing = 0;
-
+    /* Skip delegation, glue and occluded RRsets */
+    if (dstatus != LDNS_RR_TYPE_SOA) {
+        ods_log_deeebug("[%s] skip signing RRset[%i]: occluded RRset",
+            rrset_str, rrset->rrtype);
+        return ODS_STATUS_OK;
+    }
+    if (delegpt != LDNS_RR_TYPE_SOA && rrset->rrtype != LDNS_RR_TYPE_DS) {
+        ods_log_deeebug("[%s] skip signing RRset[%i]: delegation RRset",
+            rrset_str, rrset->rrtype);
+        return ODS_STATUS_OK;
+    }
+    ods_log_assert(dstatus == LDNS_RR_TYPE_SOA ||
+        (delegpt == LDNS_RR_TYPE_SOA || rrset->rrtype == LDNS_RR_TYPE_DS));
     /* Transmogrify rrset */
     rr_list = rrset2rrlist(rrset);
     if (!rr_list) {
         ods_log_error("[%s] unable to sign RRset[%i]: rrset2rrlist() failed",
             rrset_str, rrset->rrtype);
-        return ODS_STATUS_ERR;
+        return ODS_STATUS_MALLOC_ERR;
     }
     if (ldns_rr_list_rr_count(rr_list) <= 0) {
         /* Empty RRset, no signatures needed */
@@ -691,23 +716,18 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, time_t signtime)
          &inception, &expiration);
     /* Walk keys */
     for (i=0; i < zone->signconf->keys->count; i++) {
-        key = &zone->signconf->keys->keys[i];
         /* ZSKs don't sign DNSKEY RRset */
-        if (!key->zsk && rrset->rrtype != LDNS_RR_TYPE_DNSKEY) {
-            ods_log_deeebug("[%s] skipping key %s for signing RRset[%i]: no "
-                "active ZSK", rrset_str, key->locator, rrset->rrtype);
+        if (!zone->signconf->keys->keys[i].zsk &&
+            rrset->rrtype != LDNS_RR_TYPE_DNSKEY) {
             continue;
         }
         /* KSKs only sign DNSKEY RRset */
-        if (!key->ksk && rrset->rrtype == LDNS_RR_TYPE_DNSKEY) {
-            ods_log_deeebug("[%s] skipping key %s for signing RRset[%i]: no "
-                "active KSK", rrset_str, key->locator, rrset->rrtype);
+        if (!zone->signconf->keys->keys[i].ksk &&
+            rrset->rrtype == LDNS_RR_TYPE_DNSKEY) {
             continue;
         }
         /* Additional rules for signatures */
-        if (rrset_sigalgo(rrset, key->algorithm)) {
-            ods_log_deeebug("skipping key %s for signing: RRset[%i] "
-                "already has signature with same algorithm", key->locator);
+        if (rrset_sigalgo(rrset, zone->signconf->keys->keys[i].algorithm)) {
             continue;
         }
         /**
@@ -716,13 +736,14 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, time_t signtime)
          */
         /* Sign the RRset with this key */
         ods_log_deeebug("[%s] signing RRset[%i] with key %s", rrset_str,
-            rrset->rrtype, key->locator);
+            rrset->rrtype, zone->signconf->keys->keys[i].locator);
         rrsig = lhsm_sign(ctx, rr_list, &zone->signconf->keys->keys[i],
             zone->apex, inception, expiration);
         if (!rrsig) {
             ods_log_crit("[%s] unable to sign RRset[%i]: lhsm_sign() failed",
                 rrset_str, rrset->rrtype);
-            return ODS_STATUS_ERR;
+            ldns_rr_list_free(rr_list);
+            return ODS_STATUS_HSM_ERR;
         }
         /* Add signature */
         locator = allocator_strdup(zone->allocator,

@@ -31,17 +31,13 @@
  *
  */
 
-#include "adapter/adapi.h"
 #include "daemon/engine.h"
 #include "daemon/worker.h"
 #include "shared/allocator.h"
-#include "scheduler/schedule.h"
-#include "scheduler/task.h"
 #include "shared/locks.h"
 #include "shared/log.h"
 #include "shared/status.h"
 #include "shared/util.h"
-#include "signer/namedb.h"
 #include "signer/tools.h"
 #include "signer/zone.h"
 
@@ -98,6 +94,7 @@ worker_create(allocator_type* allocator, int num, worker_id type)
     worker->clock_in = 0;
     worker->jobs_appointed = 0;
     worker->jobs_completed = 0;
+    worker->jobs_failed = 0;
     worker->sleeping = 0;
     worker->waiting = 0;
     lock_basic_unlock(&worker->worker_lock);
@@ -135,7 +132,8 @@ worker_working_with(worker_type* worker, task_id with, task_id next,
 static int
 worker_fulfilled(worker_type* worker)
 {
-    return (worker->jobs_completed == worker->jobs_appointed);
+    return (worker->jobs_completed + worker->jobs_failed) ==
+        worker->jobs_appointed;
 }
 
 
@@ -149,6 +147,7 @@ worker_clear_jobs(worker_type* worker)
     ods_log_assert(worker);
     worker->jobs_appointed = 0;
     worker->jobs_completed = 0;
+    worker->jobs_failed = 0;
     return;
 }
 
@@ -230,6 +229,36 @@ worker_queue_zone(worker_type* worker, fifoq_type* q, zone_type* zone)
         node = ldns_rbtree_next(node);
     }
     return;
+}
+
+
+/**
+ * Make sure that no appointed jobs have failed.
+ *
+ */
+static ods_status
+worker_check_jobs(worker_type* worker, task_type* task) {
+    ods_log_assert(worker);
+    ods_log_assert(task);
+    if (worker->jobs_failed) {
+        ods_log_error("[%s[%i]] sign zone %s failed: %u of %u signatures "
+            "failed", worker2str(worker->type), worker->thread_num,
+            task_who2str(task), worker->jobs_failed, worker->jobs_appointed);
+        return ODS_STATUS_ERR;
+    } else if (worker->jobs_completed != worker->jobs_appointed) {
+        ods_log_error("[%s[%i]] sign zone %s failed: %u of %u signatures "
+            "completed", worker2str(worker->type), worker->thread_num,
+            task_who2str(task), worker->jobs_completed,
+            worker->jobs_appointed);
+        return ODS_STATUS_ERR;
+    } else {
+        ods_log_debug("[%s[%i]] sign zone %s ok: %u of %u signatures "
+            "succeeded", worker2str(worker->type), worker->thread_num,
+            task_who2str(task), worker->jobs_completed,
+            worker->jobs_appointed);
+        ods_log_assert(worker->jobs_appointed == worker->jobs_completed);
+    }
+    return ODS_STATUS_OK;
 }
 
 
@@ -324,62 +353,52 @@ worker_perform_task(worker_type* worker)
                 "sign", task_who2str(task),
                 &what, &when, &fallthrough);
             status = zone_update_serial(zone);
-            if (status != ODS_STATUS_OK) {
+            if (status == ODS_STATUS_OK) {
+                if (task->interrupt > TASK_SIGNCONF) {
+                    task->interrupt = TASK_NONE;
+                    task->halted = TASK_NONE;
+                }
+            } else {
                 ods_log_error("[%s[%i]] unable to sign zone %s: "
                     "failed to increment serial",
                     worker2str(worker->type), worker->thread_num,
                     task_who2str(task));
-            } else {
-                /* start timer */
-                start = time(NULL);
-                if (zone->stats) {
-                    lock_basic_lock(&zone->stats->stats_lock);
-                    if (!zone->stats->start_time) {
-                        zone->stats->start_time = start;
-                    }
-                    zone->stats->sig_count = 0;
-                    zone->stats->sig_soa_count = 0;
-                    zone->stats->sig_reuse = 0;
-                    zone->stats->sig_time = 0;
-                    lock_basic_unlock(&zone->stats->stats_lock);
+                if (task->halted == TASK_NONE) {
+                    goto task_perform_fail;
                 }
-
-                /* queue menial, hard signing work */
-                worker_queue_zone(worker, engine->signq, zone);
-                ods_log_debug("[%s[%i]] wait until drudgers are finished "
-                    " signing zone %s, %u signatures queued",
-                    worker2str(worker->type), worker->thread_num,
-                    task_who2str(task), worker->jobs_appointed);
-                /* sleep until work is done */
-                if (!worker->need_to_exit) {
-                    worker_sleep_unless(worker, 0);
-                }
-                if (!worker_fulfilled(worker)) {
-                    ods_log_error("[%s[%i]] sign zone %s failed: %u of %u "
-                        "signatures completed", worker2str(worker->type),
-                        worker->thread_num, task_who2str(task),
-                        worker->jobs_completed, worker->jobs_appointed);
-                    status = ODS_STATUS_ERR;
-                } else {
-                    ods_log_debug("[%s[%i]] sign zone %s ok: %u of %u "
-                        "signatures succeeded", worker2str(worker->type),
-                        worker->thread_num, task_who2str(task),
-                        worker->jobs_completed, worker->jobs_appointed);
-                    ods_log_assert(worker->jobs_appointed ==
-                        worker->jobs_completed);
-                }
-                worker_clear_jobs(worker);
-
-                /* stop timer */
-                end = time(NULL);
-                if (status == ODS_STATUS_OK && zone->stats) {
-                    lock_basic_lock(&zone->stats->stats_lock);
-                    zone->stats->sig_time = (end-start);
-                    lock_basic_unlock(&zone->stats->stats_lock);
-                }
+                goto task_perform_continue;
             }
 
-            /* what to do next */
+            /* start timer */
+            start = time(NULL);
+            if (zone->stats) {
+                lock_basic_lock(&zone->stats->stats_lock);
+                if (!zone->stats->start_time) {
+                    zone->stats->start_time = start;
+                }
+                zone->stats->sig_count = 0;
+                zone->stats->sig_soa_count = 0;
+                zone->stats->sig_reuse = 0;
+                zone->stats->sig_time = 0;
+                lock_basic_unlock(&zone->stats->stats_lock);
+            }
+            /* queue menial, hard signing work */
+            worker_queue_zone(worker, engine->signq, zone);
+            ods_log_deeebug("[%s[%i]] wait until drudgers are finished "
+                " signing zone %s, %u signatures queued",
+                worker2str(worker->type), worker->thread_num,
+                task_who2str(task), worker->jobs_appointed);
+            /* sleep until work is done */
+            worker_sleep_unless(worker, 0);
+            status = worker_check_jobs(worker, task);
+            worker_clear_jobs(worker);
+            /* stop timer */
+            end = time(NULL);
+            if (status == ODS_STATUS_OK && zone->stats) {
+                lock_basic_lock(&zone->stats->stats_lock);
+                zone->stats->sig_time = (end-start);
+                lock_basic_unlock(&zone->stats->stats_lock);
+            }
             if (status != ODS_STATUS_OK) {
                 if (task->halted == TASK_NONE) {
                     goto task_perform_fail;
@@ -604,11 +623,14 @@ worker_drudge(worker_type* worker)
     ods_log_assert(worker->type == WORKER_DRUDGER);
 
     engine = worker->engine;
+drudger_create_ctx:
     ctx = hsm_create_context();
     if (ctx == NULL) {
         ods_log_error("[%s[%i]] unable to drudge: error "
             "creating libhsm context", worker2str(worker->type),
             worker->thread_num);
+        worker_wait(&engine->signq->q_lock, &engine->signq->q_threshold);
+        goto drudger_create_ctx;
     }
     ods_log_assert(ctx);
     while (worker->need_to_exit == 0) {
@@ -637,14 +659,18 @@ worker_drudge(worker_type* worker)
             lock_basic_lock(&superior->worker_lock);
             if (status == ODS_STATUS_OK) {
                 superior->jobs_completed++;
+            } else {
+                superior->jobs_failed++;
             }
             lock_basic_unlock(&superior->worker_lock);
             if (worker_fulfilled(superior) && superior->sleeping) {
-                ods_log_debug("[%s[%i]] wake up superior[%u], work is done",
+                ods_log_deeebug("[%s[%i]] wake up superior[%u], work is done",
                     worker2str(worker->type), worker->thread_num,
                     superior->thread_num);
                 worker_wakeup(superior);
+                superior = NULL;
             }
+            rrset = NULL;
         } else {
             ods_log_deeebug("[%s[%i]] nothing to do", worker2str(worker->type),
                 worker->thread_num);
@@ -653,11 +679,10 @@ worker_drudge(worker_type* worker)
     }
     /* wake up superior */
     if (superior && superior->sleeping) {
-        ods_log_debug("[%s[%i]] wake up superior[%u], i am exiting",
+        ods_log_deeebug("[%s[%i]] wake up superior[%u], i am exiting",
             worker2str(worker->type), worker->thread_num, superior->thread_num);
          worker_wakeup(superior);
     }
-
     /* cleanup open HSM sessions */
     hsm_destroy_context(ctx);
     ctx = NULL;
