@@ -341,11 +341,16 @@ zone_update_serial(zone_type* zone)
     ods_log_assert(zone->db);
     ods_log_assert(zone->signconf);
 
+    if (zone->db->serial_updated) {
+        /* already done, unmark and return ok */
+        zone->db->serial_updated = 0;
+        return ODS_STATUS_OK;
+    }
     status = namedb_update_serial(zone->db, zone->signconf->soa_serial,
         zone->db->inbserial);
     if (status != ODS_STATUS_OK) {
-        ods_log_error("[%s] unable to update serial: failed to increment",
-            zone_str);
+        ods_log_error("[%s] unable to update zone %s soa serial: %s",
+            zone_str, zone->name, ods_status2str(status));
         return status;
     }
 
@@ -376,11 +381,12 @@ zone_update_serial(zone_type* zone)
             }
             ldns_rdf_deep_free(serial);
          } else {
-            ods_log_error("[%s] unable to update serial: failed to replace "
-                "SOA SERIAL rdata", zone_str);
+            ods_log_error("[%s] unable to update zone %s soa serial: failed to "
+                "replace soa serial rdata", zone_str, zone->name);
             return ODS_STATUS_ERR;
         }
     }
+    zone->db->serial_updated = 0;
     return ODS_STATUS_OK;
 }
 

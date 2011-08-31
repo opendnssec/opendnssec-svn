@@ -64,6 +64,7 @@ struct namedb_struct {
     uint32_t outserial;
     unsigned is_initialized : 1;
     unsigned is_processed : 1;
+    unsigned serial_updated : 1;
 };
 
 /**
@@ -146,7 +147,7 @@ denial_type* namedb_lookup_denial(namedb_type* db, ldns_rdf* dname);
  * \return ods_status status
  *
  */
-ods_status namedb_add_denial(namedb_type* zd, domain_type* domain,
+ods_status namedb_add_denial(namedb_type* db, domain_type* domain,
     ldns_rdf* apex, nsec3params_type* n3p);
 
 /**
@@ -265,14 +266,5 @@ void namedb_backup(FILE* fd, namedb_type* zd);
  *
  */
 ods_status namedb_recover(namedb_type* zd, FILE* fd);
-
-/**
- * Log RDF.
- * \param[in] rdf RDF
- * \param[in] pre string to log before RDF
- * \param[in] level log level
- *
- */
-void log_rdf(ldns_rdf* rdf, const char* pre, int level);
 
 #endif /* SIGNER_NAMEDB_H */

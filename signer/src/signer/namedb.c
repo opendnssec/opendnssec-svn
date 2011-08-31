@@ -50,41 +50,6 @@ static ldns_rbnode_t* domain2node(domain_type* domain);
 
 
 /**
- * Log RDF.
- *
- */
-void
-log_rdf(ldns_rdf *rdf, const char* pre, int level)
-{
-    char* str = NULL;
-
-    if (ods_log_get_level() < level + 2) return;
-
-    str = ldns_rdf2str(rdf);
-
-    if (level == 1) {
-        ods_log_error("[%s] %s : %s", db_str, pre?pre:"", str?str:"(null)");
-    } else if (level == 2) {
-        ods_log_warning("[%s] %s : %s", db_str, pre?pre:"", str?str:"(null)");
-    } else if (level == 3) {
-        ods_log_info("[%s] %s : %s", db_str, pre?pre:"", str?str:"(null)");
-    } else if (level == 4) {
-        ods_log_verbose("[%s] %s : %s", db_str, pre?pre:"", str?str:"(null)");
-    } else if (level == 5) {
-        ods_log_debug("[%s] %s : %s", db_str, pre?pre:"", str?str:"(null)");
-    } else if (level == 6) {
-        ods_log_deeebug("[%s] %s : %s", db_str, pre?pre:"", str?str:"(null)");
-    } else {
-        ods_log_deeebug("[%s] %s : %s", db_str, pre?pre:"", str?str:"(null)");
-    }
-
-    free((void*)str);
-
-    return;
-}
-
-
-/**
  * Convert a domain to a tree node.
  *
  */
@@ -199,6 +164,7 @@ namedb_create(void* zone)
     db->outserial = 0;
     db->is_initialized = 0;
     db->is_processed = 0;
+    db->serial_updated = 0;
     return db;
 }
 
@@ -518,13 +484,13 @@ dname_hash(ldns_rdf* dname, ldns_rdf* apex, nsec3params_type* nsec3params)
         nsec3params->iterations, nsec3params->salt_len,
         nsec3params->salt_data);
     if (!hashed_label) {
-        log_rdf(dname, "unable to hash dname, hash failed", 1);
+        log_dname(dname, "unable to hash dname, hash failed", LOG_ERR);
         return NULL;
     }
     hashed_ownername = ldns_dname_cat_clone((const ldns_rdf*) hashed_label,
         (const ldns_rdf*) apex);
     if (!hashed_ownername) {
-        log_rdf(dname, "unable to hash dname, concat apex failed", 1);
+        log_dname(dname, "unable to hash dname, concat apex failed", LOG_ERR);
         return NULL;
     }
     ldns_rdf_deep_free(hashed_label);
@@ -554,16 +520,16 @@ namedb_add_denial(namedb_type* db, domain_type* domain, ldns_rdf* apex,
     ods_log_assert(domain);
 
     if (!db || !db->denials) {
-        log_rdf(domain->dname, "unable to add denial of existence data "
-            "point for domain, no denial chain", 1);
+        log_dname(domain->dname, "unable to add denial of existence data "
+            "point for domain, no denial chain", LOG_ERR);
         return ODS_STATUS_ASSERT_ERR;
     }
     ods_log_assert(db);
     ods_log_assert(db->denials);
 
     if (!apex) {
-        log_rdf(domain->dname, "unable to add denial of existence data "
-            "point for domain, apex unknown", 1);
+        log_dname(domain->dname, "unable to add denial of existence data "
+            "point for domain, apex unknown", LOG_ERR);
         return ODS_STATUS_ASSERT_ERR;
     }
     ods_log_assert(apex);
@@ -572,8 +538,8 @@ namedb_add_denial(namedb_type* db, domain_type* domain, ldns_rdf* apex,
     if (nsec3params) {
         owner = dname_hash(domain->dname, apex, nsec3params);
         if (!owner) {
-            log_rdf(domain->dname, "unable to add denial of existence data "
-                "point for domain, dname hash failed", 1);
+            log_dname(domain->dname, "unable to add denial of existence data "
+                "point for domain, dname hash failed", LOG_ERR);
             return ODS_STATUS_ERR;
         }
     } else {
@@ -581,8 +547,8 @@ namedb_add_denial(namedb_type* db, domain_type* domain, ldns_rdf* apex,
     }
     /* lookup */
     if (namedb_lookup_denial(db, owner) != NULL) {
-        log_rdf(domain->dname, "unable to add denial of existence for "
-            "domain, data point exists", 1);
+        log_dname(domain->dname, "unable to add denial of existence for "
+            "domain, data point exists", LOG_ERR);
         return ODS_STATUS_CONFLICT_ERR;
     }
     /* create */
@@ -591,8 +557,8 @@ namedb_add_denial(namedb_type* db, domain_type* domain, ldns_rdf* apex,
     ldns_rdf_deep_free(owner);
     /* insert */
     if (!ldns_rbtree_insert(db->denials, new_node)) {
-        log_rdf(domain->dname, "unable to add denial of existence for "
-            "domain, insert failed", 1);
+        log_dname(domain->dname, "unable to add denial of existence for "
+            "domain, insert failed", LOG_ERR);
         free((void*)new_node);
         denial_cleanup(denial);
         return ODS_STATUS_ERR;
@@ -653,8 +619,8 @@ namedb_del_denial_fixup(ldns_rbtree_t* tree, denial_type* denial)
         free((void*)del_node);
         return NULL;
     } else {
-        log_rdf(denial->dname, "unable to del denial of existence data "
-            "point, not found", 1);
+        log_dname(denial->dname, "unable to del denial of existence data "
+            "point, not found", LOG_ERR);
     }
     return denial;
 }
@@ -675,8 +641,8 @@ namedb_del_denial(namedb_type* db, denial_type* denial)
     ods_log_assert(denial);
 
     if (!db || !db->denials) {
-        log_rdf(denial->dname, "unable to delete denial of existence data "
-            "point, no db", 1);
+        log_dname(denial->dname, "unable to delete denial of existence data "
+            "point, no db", LOG_ERR);
         return denial;
     }
     ods_log_assert(db);
@@ -769,8 +735,8 @@ domain_entize(namedb_type* db, domain_type* domain, ldns_rdf* apex)
          */
         parent_rdf = ldns_dname_left_chop(domain->dname);
         if (!parent_rdf) {
-            log_rdf(domain->dname, "unable to entize domain, left chop "
-                "failed", 1);
+            log_dname(domain->dname, "unable to entize domain, left chop "
+                "failed", LOG_ERR);
             return ODS_STATUS_ERR;
         }
         ods_log_assert(parent_rdf);
@@ -778,8 +744,8 @@ domain_entize(namedb_type* db, domain_type* domain, ldns_rdf* apex)
         parent_domain = namedb_lookup_domain(db, parent_rdf);
         if (!parent_domain) {
             if (namedb_add_domain(db, parent_rdf) == NULL) {
-                log_rdf(domain->dname, "unable to entize domain, add parent "
-                    "failed", 1);
+                log_dname(domain->dname, "unable to entize domain, add parent "
+                    "failed", LOG_ERR);
                 domain_cleanup(parent_domain);
                 return ODS_STATUS_ERR;
             }
@@ -876,9 +842,11 @@ namedb_nsecify(namedb_type* db, ldns_rr_class klass, uint32_t ttl,
         if (occluded != LDNS_RR_TYPE_SOA ||
             domain_count_rrset(domain) <= 0) {
             if (domain_count_rrset(domain)) {
-                log_rdf(domain->dname, "nsecify: don't do glue domain", 6);
+                log_dname(domain->dname, "nsecify: don't do glue domain",
+                    LOG_DEEEBUG);
             } else {
-                log_rdf(domain->dname, "nsecify: don't do empty domain", 6);
+                log_dname(domain->dname, "nsecify: don't do empty domain",
+                    LOG_DEEEBUG);
             }
             if (domain->denial) {
                 if (namedb_del_denial(db, domain->denial) != NULL) {
@@ -899,8 +867,8 @@ namedb_nsecify(namedb_type* db, ldns_rr_class klass, uint32_t ttl,
         if (!domain->denial) {
             status = namedb_add_denial(db, domain, apex->dname, NULL);
             if (status != ODS_STATUS_OK) {
-                log_rdf(domain->dname, "unable to nsecify: failed to add "
-                    "denial of existence for domain", 1);
+                log_dname(domain->dname, "unable to nsecify: failed to add "
+                    "denial of existence for domain", LOG_ERR);
                 return status;
             }
             nsec_added++;
@@ -975,7 +943,8 @@ namedb_nsecify3(namedb_type* db, ldns_rr_class klass,
 
         /* don't do glue-only domains */
         if (occluded != LDNS_RR_TYPE_SOA) {
-            log_rdf(domain->dname, "nsecify3: don't do glue domain" , 6);
+            log_dname(domain->dname, "nsecify3: don't do glue domain",
+                LOG_DEEEBUG);
             if (domain->denial) {
                 if (namedb_del_denial(db, domain->denial) != NULL) {
                     ods_log_error("[%s] unable to nsecify3: failed to "
@@ -993,11 +962,11 @@ namedb_nsecify3(namedb_type* db, ldns_rr_class klass,
             if (delegpt != LDNS_RR_TYPE_SOA ||
                 domain_ent2unsignedns(domain)) {
                 if (delegpt != LDNS_RR_TYPE_SOA) {
-                    log_rdf(domain->dname, "nsecify3: opt-out (unsigned "
-                        "delegation)", 5);
+                    log_dname(domain->dname, "nsecify3: opt-out (unsigned "
+                        "delegation)", LOG_DEBUG);
                 } else {
-                    log_rdf(domain->dname, "nsecify3: opt-out (empty "
-                        "non-terminal (to unsigned delegation))", 5);
+                    log_dname(domain->dname, "nsecify3: opt-out (empty "
+                        "non-terminal (to unsigned delegation))", LOG_DEBUG);
                 }
                 if (domain->denial) {
                     if (namedb_del_denial(db, domain->denial) != NULL) {
@@ -1020,8 +989,8 @@ namedb_nsecify3(namedb_type* db, ldns_rr_class klass,
             status = namedb_add_denial(db, domain, apex->dname,
                 nsec3params);
             if (status != ODS_STATUS_OK) {
-                log_rdf(domain->dname, "unable to nsecify3: failed to add "
-                    "denial of existence for domain", 1);
+                log_dname(domain->dname, "unable to nsecify3: failed to add "
+                    "denial of existence for domain", LOG_ERR);
                 return status;
             }
             nsec3_added++;
@@ -1128,7 +1097,8 @@ namedb_examine_domain_is_occluded(namedb_type* db, domain_type* domain,
     }
 
     if (domain_examine_valid_zonecut(domain) != 0) {
-        log_rdf(domain->dname, "occluded (non-glue non-DS) data at NS", 2);
+        log_dname(domain->dname, "occluded (non-glue non-DS) data at NS",
+            LOG_WARNING);
         return 1;
     }
 
