@@ -35,8 +35,6 @@
 #define SIGNER_DOMAIN_H
 
 #include "config.h"
-#include "daemon/worker.h"
-#include "scheduler/fifoq.h"
 #include "shared/allocator.h"
 #include "shared/status.h"
 #include "signer/denial.h"
@@ -258,17 +256,6 @@ ldns_rr_type domain_is_delegpt(domain_type* domain);
  *
  */
 ldns_rr_type domain_is_occluded(domain_type* domain);
-
-/**
- * Queue all RRsets at this domain.
- * \param[in] domain the domain
- * \param[in] q queue
- * \param[in] worker owner of data
- * \return ods_status status
- *
- */
-ods_status domain_queue(domain_type* domain, fifoq_type* q,
-    worker_type* worker);
 
 /**
  * Print domain.

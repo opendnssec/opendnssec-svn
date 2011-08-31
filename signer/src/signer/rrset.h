@@ -35,8 +35,6 @@
 #define SIGNER_RRSET_H
 
 #include "config.h"
-#include "daemon/worker.h"
-#include "scheduler/fifoq.h"
 #include "shared/allocator.h"
 #include "shared/hsm.h"
 #include "shared/locks.h"
@@ -207,16 +205,6 @@ void rrset_diff(rrset_type* rrset);
  *
  */
 ods_status rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, time_t signtime);
-
-/**
- * Queue RRset.
- * \param[in] rrset RRset
- * \param[in] q queue
- * \param[in] worker owner of RRset
- * \return ods_status status
- *
- */
-ods_status rrset_queue(rrset_type* rrset, fifoq_type* q, worker_type* worker);
 
 /**
  * Examine NS RRset and verify its RDATA.

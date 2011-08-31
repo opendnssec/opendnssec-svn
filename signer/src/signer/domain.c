@@ -694,59 +694,6 @@ domain_examine_rrset_is_singleton(domain_type* domain, ldns_rr_type rrtype)
 
 
 /**
- * Queue all RRsets at this domain.
- *
- */
-ods_status
-domain_queue(domain_type* domain, fifoq_type* q, worker_type* worker)
-{
-    rrset_type* rrset = NULL;
-    denial_type* denial = NULL;
-    ods_status status = ODS_STATUS_OK;
-    ldns_rr_type occluded = LDNS_RR_TYPE_SOA;
-    ldns_rr_type delegpt = LDNS_RR_TYPE_SOA;
-
-    if (!domain || !domain->rrsets) {
-        return ODS_STATUS_OK;
-    }
-    occluded = domain_is_occluded(domain);
-    delegpt = domain_is_delegpt(domain);
-    if (occluded != LDNS_RR_TYPE_SOA) {
-        return ODS_STATUS_OK;
-    }
-
-    denial = (denial_type*) domain->denial;
-    rrset = domain->rrsets;
-    while (rrset) {
-        /* skip delegation RRsets */
-        if (!domain->is_apex &&
-            rrset->rrtype == LDNS_RR_TYPE_NS) {
-            rrset = rrset->next;
-            continue;
-        }
-        /* skip glue at the delegation */
-        if (delegpt != LDNS_RR_TYPE_SOA &&
-            (rrset->rrtype == LDNS_RR_TYPE_A ||
-             rrset->rrtype == LDNS_RR_TYPE_AAAA)) {
-            rrset = rrset->next;
-            continue;
-        }
-        /* queue RRset for signing */
-        status = rrset_queue(rrset, q, worker);
-        if (status != ODS_STATUS_OK) {
-            return status;
-        }
-        rrset = rrset->next;
-    }
-    /* queue NSEC(3) RRset for signing */
-    if (denial && denial->rrset) {
-        status = rrset_queue(denial->rrset, q, worker);
-    }
-    return status;
-}
-
-
-/**
  * Examine domain NS RRset and verify its RDATA.
  *
  */

@@ -1044,35 +1044,6 @@ namedb_nsecify3(namedb_type* db, ldns_rr_class klass,
 
 
 /**
- * Queue all RRsets.
- *
- */
-ods_status
-namedb_queue(namedb_type* db, fifoq_type* q, worker_type* worker)
-{
-    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
-    domain_type* domain = NULL;
-    ods_status status = ODS_STATUS_OK;
-
-    if (!db || !db->domains) {
-        return ODS_STATUS_OK;
-    }
-    if (db->domains->root != LDNS_RBTREE_NULL) {
-        node = ldns_rbtree_first(db->domains);
-    }
-    while (node && node != LDNS_RBTREE_NULL) {
-        domain = (domain_type*) node->data;
-        status = domain_queue(domain, q, worker);
-        if (status != ODS_STATUS_OK) {
-            return status;
-        }
-        node = ldns_rbtree_next(node);
-    }
-    return status;
-}
-
-
-/**
  * Examine domain for occluded data.
  *
  */

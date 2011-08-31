@@ -32,8 +32,6 @@
  */
 
 #include "config.h"
-#include "daemon/worker.h"
-#include "scheduler/fifoq.h"
 #include "shared/allocator.h"
 #include "shared/duration.h"
 #include "shared/file.h"
@@ -745,31 +743,6 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, time_t signtime)
     zone->stats->sig_reuse += reusedsigs;
     lock_basic_unlock(&zone->stats->stats_lock);
     return ODS_STATUS_OK;
-}
-
-
-/**
- * Queue RRset.
- *
- */
-ods_status
-rrset_queue(rrset_type* rrset, fifoq_type* q, worker_type* worker)
-{
-    ods_status status = ODS_STATUS_UNCHANGED;
-    ods_log_assert(rrset);
-    ods_log_assert(worker);
-    ods_log_assert(q);
-    while (status == ODS_STATUS_UNCHANGED && !worker->need_to_exit) {
-        lock_basic_lock(&q->q_lock);
-        status = fifoq_push(q, (void*) rrset, worker);
-        lock_basic_unlock(&q->q_lock);
-    }
-    if (status == ODS_STATUS_OK) {
-        lock_basic_lock(&worker->worker_lock);
-        worker->jobs_appointed += 1;
-        lock_basic_unlock(&worker->worker_lock);
-    }
-    return status;
 }
 
 

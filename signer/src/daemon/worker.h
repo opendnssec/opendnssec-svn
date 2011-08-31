@@ -61,7 +61,6 @@ struct worker_struct {
     time_t clock_in;
     size_t jobs_appointed;
     size_t jobs_completed;
-    size_t jobs_failed;
     int sleeping;
     int waiting;
     int need_to_exit;

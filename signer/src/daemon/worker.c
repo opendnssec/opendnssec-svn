@@ -98,7 +98,6 @@ worker_create(allocator_type* allocator, int num, worker_id type)
     worker->clock_in = 0;
     worker->jobs_appointed = 0;
     worker->jobs_completed = 0;
-    worker->jobs_failed = 0;
     worker->sleeping = 0;
     worker->waiting = 0;
     lock_basic_unlock(&worker->worker_lock);
@@ -136,8 +135,7 @@ worker_working_with(worker_type* worker, task_id with, task_id next,
 static int
 worker_fulfilled(worker_type* worker)
 {
-    return (worker->jobs_completed + worker->jobs_failed) ==
-        worker->jobs_appointed;
+    return (worker->jobs_completed == worker->jobs_appointed);
 }
 
 
@@ -151,7 +149,6 @@ worker_clear_jobs(worker_type* worker)
     ods_log_assert(worker);
     worker->jobs_appointed = 0;
     worker->jobs_completed = 0;
-    worker->jobs_failed = 0;
     return;
 }
 
@@ -171,6 +168,9 @@ worker_queue_rrset(worker_type* worker, fifoq_type* q, rrset_type* rrset)
         lock_basic_lock(&q->q_lock);
         status = fifoq_push(q, (void*) rrset, worker);
         lock_basic_unlock(&q->q_lock);
+        if (worker->need_to_exit) {
+            return;
+        }
     }
     ods_log_assert(status == ODS_STATUS_OK);
     lock_basic_lock(&worker->worker_lock);
@@ -390,13 +390,7 @@ worker_perform_task(worker_type* worker)
                 if (!worker->need_to_exit) {
                     worker_sleep_unless(worker, 0);
                 }
-                if (worker->jobs_failed) {
-                    ods_log_error("[%s[%i]] sign zone %s failed: %u of %u "
-                        "signatures failed", worker2str(worker->type),
-                        worker->thread_num, task_who2str(task),
-                        worker->jobs_failed, worker->jobs_appointed);
-                    status = ODS_STATUS_ERR;
-                } else if (!worker_fulfilled(worker)) {
+                if (!worker_fulfilled(worker)) {
                     ods_log_error("[%s[%i]] sign zone %s failed: %u of %u "
                         "signatures completed", worker2str(worker->type),
                         worker->thread_num, task_who2str(task),
@@ -699,10 +693,7 @@ worker_drudge(worker_type* worker)
             status = rrset_sign(ctx, rrset, superior->clock_in);
             lock_basic_lock(&superior->worker_lock);
             if (status == ODS_STATUS_OK) {
-                superior->jobs_completed += 1;
-            } else {
-                superior->jobs_failed += 1;
-                /* destroy context? */
+                superior->jobs_completed++;
             }
             lock_basic_unlock(&superior->worker_lock);
             if (worker_fulfilled(superior) && superior->sleeping) {
@@ -785,9 +776,8 @@ worker_sleep_unless(worker_type* worker, time_t timeout)
         lock_basic_sleep(&worker->worker_alarm, &worker->worker_lock,
             timeout);
         ods_log_debug("[%s[%i]] somebody poked me, check completed jobs %u "
-           "appointed, %u completed, %u failed", worker2str(worker->type),
-           worker->thread_num, worker->jobs_appointed, worker->jobs_completed,
-           worker->jobs_failed);
+           "appointed, %u completed", worker2str(worker->type),
+           worker->thread_num, worker->jobs_appointed, worker->jobs_completed);
     }
     lock_basic_unlock(&worker->worker_lock);
     return;

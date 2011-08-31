@@ -36,8 +36,6 @@
 
 #include "config.h"
 #include "adapter/adapter.h"
-#include "daemon/worker.h"
-#include "scheduler/fifoq.h"
 #include "shared/allocator.h"
 #include "shared/status.h"
 #include "signer/denial.h"
@@ -208,17 +206,6 @@ ods_status namedb_nsecify(namedb_type* db, ldns_rr_class klass,
  */
 ods_status namedb_nsecify3(namedb_type* db, ldns_rr_class klass,
     uint32_t ttl, nsec3params_type* nsec3params, uint32_t* num_added);
-
-/**
- * Queue all RRsets.
- * \param[in] db namedb
- * \param[in] q queue
- * \param[in] worker owner of data
- * \return ods_status status
- *
- */
-ods_status namedb_queue(namedb_type* db, fifoq_type* q,
-    worker_type* worker);
 
 /**
  * Export db to file.
