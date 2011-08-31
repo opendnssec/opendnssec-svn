@@ -153,10 +153,9 @@ rrset_type* domain_lookup_rrset(domain_type* domain, ldns_rr_type rrtype);
  * Add RRset to domain.
  * \param[in] domain domain
  * \param[in] rrset RRset
- * \return rrset_type* added RRset
  *
  */
-rrset_type* domain_add_rrset(domain_type* domain, rrset_type* rrset);
+void domain_add_rrset(domain_type* domain, rrset_type* rrset);
 
 /**
  * Delete RRset from domain.

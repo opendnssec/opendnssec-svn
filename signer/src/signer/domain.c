@@ -338,7 +338,7 @@ domain_lookup_rrset(domain_type* domain, ldns_rr_type rrtype)
  * Add RRset to domain.
  *
  */
-rrset_type*
+void
 domain_add_rrset(domain_type* domain, rrset_type* rrset)
 {
     rrset_type** p = NULL;
@@ -361,7 +361,7 @@ domain_add_rrset(domain_type* domain, rrset_type* rrset)
         denial = (denial_type*) domain->denial;
         denial->bitmap_changed = 1;
     }
-    return rrset;
+    return;
 }
 
 

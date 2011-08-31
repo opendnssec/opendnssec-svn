@@ -419,6 +419,7 @@ zone_add_rr(zone_type* zone, ldns_rr* rr, int do_stats)
 {
     domain_type* domain = NULL;
     rrset_type* rrset = NULL;
+    rr_type* record = NULL;
 
     ods_log_assert(rr);
     ods_log_assert(zone);
@@ -438,34 +439,28 @@ zone_add_rr(zone_type* zone, ldns_rr* rr, int do_stats)
             domain->is_apex = 1;
         }
     }
-    ods_log_assert(domain);
-
-    /* lookup RRset */
     rrset = domain_lookup_rrset(domain, ldns_rr_get_type(rr));
     if (!rrset) {
-        /* add RRset */
-        rrset = rrset_create((void*) zone, ldns_rr_get_type(rr));
+        rrset = rrset_create(domain->zone, ldns_rr_get_type(rr));
         if (!rrset) {
-            ods_log_error("[%s] unable to add RR: create RRset failed",
-                zone_str);
+            ods_log_error("[%s] unable to add RR to zone %s: "
+                "failed to add RRset", zone_str, zone->name);
             return ODS_STATUS_ERR;
         }
-        if (domain_add_rrset(domain, rrset) == NULL) {
-            ods_log_error("[%s] unable to add RR: add RRset failed",
-                zone_str);
-            return ODS_STATUS_ERR;
-        }
+        domain_add_rrset(domain, rrset);
     }
-    ods_log_assert(rrset);
-
-    /* add RR */
-    if (rrset_add_rr(rrset, rr) == NULL) {
-        ods_log_error("[%s] unable to add RR: pend RR failed", zone_str);
-        return ODS_STATUS_ERR;
+    record = rrset_lookup_rr(rrset, rr);
+    if (record) {
+        record->is_added = 1; /* already exists, just mark added */
+        record->is_removed = 0; /* unset is_removed */
+        return ODS_STATUS_UNCHANGED;
+    } else {
+       record = rrset_add_rr(rrset, rr);
+       ods_log_assert(record);
+       ods_log_assert(record->rr);
     }
-
     /* update stats */
-    if (zone->stats && do_stats) {
+    if (do_stats && zone->stats) {
         zone->stats->sort_count += 1;
     }
     return ODS_STATUS_OK;
@@ -482,32 +477,23 @@ zone_del_rr(zone_type* zone, ldns_rr* rr, int do_stats)
     domain_type* domain = NULL;
     rrset_type* rrset = NULL;
     rr_type* record = NULL;
-
     ods_log_assert(rr);
     ods_log_assert(zone);
     ods_log_assert(zone->name);
     ods_log_assert(zone->db);
     ods_log_assert(zone->signconf);
-
-    /* lookup domain */
     domain = namedb_lookup_domain(zone->db, ldns_rr_owner(rr));
     if (!domain) {
-        /* no domain, no del */
-        ods_log_warning("[%s] unable to del RR: no such domain", zone_str);
+        ods_log_warning("[%s] unable to delete RR from zone %s: "
+            "domain not found", zone_str, zone->name);
         return ODS_STATUS_UNCHANGED;
     }
-    ods_log_assert(domain);
-
-    /* lookup RRset */
     rrset = domain_lookup_rrset(domain, ldns_rr_get_type(rr));
     if (!rrset) {
-        /* no RRset, no del */
-        ods_log_warning("[%s] unable to del RR: no such RRset", zone_str);
+        ods_log_warning("[%s] unable to delete RR from zone %s: "
+            "RRset not found", zone_str, zone->name);
         return ODS_STATUS_UNCHANGED;
     }
-    ods_log_assert(rrset);
-
-    /* del RR */
     record = rrset_lookup_rr(rrset, rr);
     if (!record) {
         ods_log_error("[%s] unable to delete RR from zone %s: "
