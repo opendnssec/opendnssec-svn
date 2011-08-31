@@ -294,13 +294,6 @@ tools_nsecify(zone_type* zone)
     if (zone->signconf->soa_min) {
         ttl = (uint32_t) duration2time(zone->signconf->soa_min);
     }
-    /* add missing empty non-terminals */
-    status = namedb_entize(zone->db, zone->apex);
-    if (status != ODS_STATUS_OK) {
-        ods_log_error("[%s] unable to nsecify zone %s: failed to add empty ",
-            "non-terminals", tools_str, zone->name);
-        return status;
-    }
     /* nsecify(3) */
     if (zone->signconf->nsec_type == LDNS_RR_TYPE_NSEC) {
         status = namedb_nsecify(zone->db, zone->klass, ttl,

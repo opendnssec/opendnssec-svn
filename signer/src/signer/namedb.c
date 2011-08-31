@@ -348,6 +348,62 @@ namedb_update_serial(namedb_type* db, const char* format, uint32_t serial)
 
 
 /**
+ * Add empty non-terminals for domain.
+ *
+ */
+ods_status
+namedb_domain_entize(namedb_type* db, domain_type* domain, ldns_rdf* apex)
+{
+    ldns_rdf* parent_rdf = NULL;
+    domain_type* parent_domain = NULL;
+    ods_log_assert(apex);
+    ods_log_assert(domain);
+    ods_log_assert(domain->dname);
+    ods_log_assert(db);
+    ods_log_assert(db->domains);
+    if (domain->parent) {
+        /* domain already has parent */
+        return ODS_STATUS_OK;
+    }
+    while (domain && ldns_dname_is_subdomain(domain->dname, apex) &&
+           ldns_dname_compare(domain->dname, apex) != 0) {
+        /**
+         * RFC5155:
+         * 4. If the difference in number of labels between the apex and
+         *    the original owner name is greater than 1, additional NSEC3
+         *    RRs need to be added for every empty non-terminal between
+         *     the apex and the original owner name.
+         */
+        parent_rdf = ldns_dname_left_chop(domain->dname);
+        if (!parent_rdf) {
+            ods_log_error("[%s] unable to entize domain: left chop failed",
+                db_str);
+            return ODS_STATUS_ERR;
+        }
+        parent_domain = namedb_lookup_domain(db, parent_rdf);
+        if (!parent_domain) {
+            parent_domain = namedb_add_domain(db, parent_rdf);
+            ldns_rdf_deep_free(parent_rdf);
+            if (!parent_domain) {
+                ods_log_error("[%s] unable to entize domain: failed to add "
+                    "parent domain", db_str);
+                return ODS_STATUS_ERR;
+            }
+            domain->parent = parent_domain;
+            /* continue with the parent domain */
+            domain = parent_domain;
+        } else {
+            ldns_rdf_deep_free(parent_rdf);
+            domain->parent = parent_domain;
+            /* domain has parent, entize done */
+            domain = NULL;
+        }
+    }
+    return ODS_STATUS_OK;
+}
+
+
+/**
  * Lookup domain.
  *
  */
@@ -699,108 +755,6 @@ namedb_rollback(namedb_type* db)
         node = ldns_rbtree_next(node);
     }
     return;
-}
-
-
-/**
- * Add empty non-terminals to zone data from this domain up.
- *
- */
-static ods_status
-domain_entize(namedb_type* db, domain_type* domain, ldns_rdf* apex)
-{
-    ldns_rdf* parent_rdf = NULL;
-    domain_type* parent_domain = NULL;
-
-    ods_log_assert(apex);
-    ods_log_assert(domain);
-    ods_log_assert(domain->dname);
-    ods_log_assert(db);
-    ods_log_assert(db->domains);
-
-    if (domain->parent) {
-        /* domain already has parent */
-        return ODS_STATUS_OK;
-    }
-
-    while (domain && ldns_dname_is_subdomain(domain->dname, apex) &&
-           ldns_dname_compare(domain->dname, apex) != 0) {
-
-        /**
-         * RFC5155:
-         * 4. If the difference in number of labels between the apex and
-         *    the original owner name is greater than 1, additional NSEC3
-         *    RRs need to be added for every empty non-terminal between
-         *     the apex and the original owner name.
-         */
-        parent_rdf = ldns_dname_left_chop(domain->dname);
-        if (!parent_rdf) {
-            log_dname(domain->dname, "unable to entize domain, left chop "
-                "failed", LOG_ERR);
-            return ODS_STATUS_ERR;
-        }
-        ods_log_assert(parent_rdf);
-
-        parent_domain = namedb_lookup_domain(db, parent_rdf);
-        if (!parent_domain) {
-            if (namedb_add_domain(db, parent_rdf) == NULL) {
-                log_dname(domain->dname, "unable to entize domain, add parent "
-                    "failed", LOG_ERR);
-                domain_cleanup(parent_domain);
-                return ODS_STATUS_ERR;
-            }
-            domain->parent = parent_domain;
-            /* continue with the parent domain */
-            domain = parent_domain;
-        } else {
-            ldns_rdf_deep_free(parent_rdf);
-            domain->parent = parent_domain;
-            /* we are done with this domain */
-            domain = NULL;
-        }
-    }
-    return ODS_STATUS_OK;
-}
-
-
-/**
- * Add empty non-terminals to zone data.
- *
- */
-ods_status
-namedb_entize(namedb_type* db, ldns_rdf* apex)
-{
-    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
-    ods_status status = ODS_STATUS_OK;
-    domain_type* domain = NULL;
-
-    if (!db || !db->domains) {
-        ods_log_error("[%s] unable to entize zone data: no zone data",
-            db_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
-    ods_log_assert(db);
-    ods_log_assert(db->domains);
-
-    if (!apex) {
-        ods_log_error("[%s] unable to entize zone data: no zone apex",
-            db_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
-    ods_log_assert(apex);
-
-    node = ldns_rbtree_first(db->domains);
-    while (node && node != LDNS_RBTREE_NULL) {
-        domain = (domain_type*) node->data;
-        status = domain_entize(db, domain, apex);
-        if (status != ODS_STATUS_OK) {
-            ods_log_error("[%s] unable to entize zone data: entize domain "
-                "failed", db_str);
-            return status;
-        }
-        node = ldns_rbtree_next(node);
-    }
-    return ODS_STATUS_OK;
 }
 
 

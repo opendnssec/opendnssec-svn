@@ -318,9 +318,8 @@ ods_status
 zone_update_serial(zone_type* zone)
 {
     ods_status status = ODS_STATUS_OK;
-    domain_type* domain = NULL;
     rrset_type* rrset = NULL;
-    ldns_rdf* serial = NULL;
+    ldns_rdf* soa_rdata = NULL;
 
     ods_log_assert(zone);
     ods_log_assert(zone->apex);
@@ -333,6 +332,10 @@ zone_update_serial(zone_type* zone)
         zone->db->serial_updated = 0;
         return ODS_STATUS_OK;
     }
+    rrset = zone_lookup_rrset(zone, zone->apex, LDNS_RR_TYPE_SOA);
+    ods_log_assert(rrset);
+    ods_log_assert(rrset->rrs);
+    ods_log_assert(rrset->rrs[0].rr);
     status = namedb_update_serial(zone->db, zone->signconf->soa_serial,
         zone->db->inbserial);
     if (status != ODS_STATUS_OK) {
@@ -340,40 +343,21 @@ zone_update_serial(zone_type* zone)
             zone_str, zone->name, ods_status2str(status));
         return status;
     }
-
-    /* lookup domain */
-    domain = namedb_lookup_domain(zone->db, zone->apex);
-    if (!domain) {
-        ods_log_error("[%s] unable to update serial: apex not found",
-            zone_str);
+    ods_log_verbose("[%s] zone %s set soa serial to %u", zone_str,
+        zone->name, zone->db->intserial);
+    soa_rdata = ldns_rr_set_rdf(rrset->rrs[0].rr,
+        ldns_native2rdf_int32(LDNS_RDF_TYPE_INT32,
+        zone->db->intserial), SE_SOA_RDATA_SERIAL);
+    if (soa_rdata) {
+        ldns_rdf_deep_free(soa_rdata);
+        soa_rdata = NULL;
+    } else {
+        ods_log_error("[%s] unable to update zone %s soa serial: failed to "
+            "replace soa serial rdata", zone_str, zone->name);
         return ODS_STATUS_ERR;
-    }
-    /* lookup RRset */
-    rrset = domain_lookup_rrset(domain, LDNS_RR_TYPE_SOA);
-    if (!rrset) {
-        ods_log_error("[%s] unable to update serial: SOA RRset not found",
-            zone_str);
-        return ODS_STATUS_ERR;
-    }
-    ods_log_assert(rrset->rrtype == LDNS_RR_TYPE_SOA);
-
-    if (rrset->rrs && rrset->rrs->rr) {
-        serial = ldns_rr_set_rdf(rrset->rrs->rr,
-            ldns_native2rdf_int32(LDNS_RDF_TYPE_INT32,
-            zone->db->intserial), SE_SOA_RDATA_SERIAL);
-        if (serial) {
-            if (ldns_rdf2native_int32(serial) !=
-                zone->db->intserial) {
-                rrset->needs_signing = 1;
-            }
-            ldns_rdf_deep_free(serial);
-         } else {
-            ods_log_error("[%s] unable to update zone %s soa serial: failed to "
-                "replace soa serial rdata", zone_str, zone->name);
-            return ODS_STATUS_ERR;
-        }
     }
     zone->db->serial_updated = 0;
+    rrset->needs_signing = 1;
     return ODS_STATUS_OK;
 }
 
@@ -407,6 +391,7 @@ zone_add_rr(zone_type* zone, ldns_rr* rr, int do_stats)
     domain_type* domain = NULL;
     rrset_type* rrset = NULL;
     rr_type* record = NULL;
+    ods_status status = ODS_STATUS_OK;
 
     ods_log_assert(rr);
     ods_log_assert(zone);
@@ -424,6 +409,13 @@ zone_add_rr(zone_type* zone, ldns_rr* rr, int do_stats)
         }
         if (ldns_dname_compare(domain->dname, zone->apex) == 0) {
             domain->is_apex = 1;
+        } else {
+            status = namedb_domain_entize(zone->db, domain, zone->apex);
+            if (status != ODS_STATUS_OK) {
+                ods_log_error("[%s] unable to add RR to zone %s: "
+                    "failed to entize domain", zone_str, zone->name);
+                return ODS_STATUS_ERR;
+            }
         }
     }
     rrset = domain_lookup_rrset(domain, ldns_rr_get_type(rr));
@@ -864,17 +856,12 @@ zone_recover(zone_type* zone)
             zone->task = NULL;
             goto recover_error;
         }
-        namedb_diff(zone->db);
-        status = namedb_entize(zone->db, zone->apex);
-        if (status != ODS_STATUS_OK) {
-            zone->task = NULL;
-            goto recover_error;
-        }
         status = namedb_recover(zone->db, fd);
         if (status != ODS_STATUS_OK) {
             zone->task = NULL;
             goto recover_error;
         }
+        namedb_diff(zone->db);
         ods_fclose(fd);
 
         /* all ok */

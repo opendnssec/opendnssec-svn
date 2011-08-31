@@ -92,13 +92,15 @@ ods_status namedb_update_serial(namedb_type* db, const char* format,
     uint32_t serial);
 
 /**
- * Add empty non-terminals to zone data.
+ * Add empty non-terminals for domain.
  * \param[in] db namedb
- * \param[in] apex zone apex
+ * \param[in] domain domain
+ * \param[in] apex apex domain name
  * \return ods_status status
  *
  */
-ods_status namedb_entize(namedb_type* db, ldns_rdf* apex);
+ods_status namedb_domain_entize(namedb_type* db, domain_type* domain,
+ ldns_rdf* apex);
 
 /**
  * Look up domain.
