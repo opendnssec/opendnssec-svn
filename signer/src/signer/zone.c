@@ -419,84 +419,19 @@ zone_add_rr(zone_type* zone, ldns_rr* rr, int do_stats)
 {
     domain_type* domain = NULL;
     rrset_type* rrset = NULL;
-    ldns_rdf* soa_min = NULL;
-    ldns_rr_type type = LDNS_RR_TYPE_FIRST;
-    uint32_t tmp = 0;
 
-    if (!rr) {
-        ods_log_error("[%s] unable to add RR: no RR", zone_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
     ods_log_assert(rr);
-
-    if (!zone || !zone->db) {
-        ods_log_error("[%s] unable to add RR: no storage", zone_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
     ods_log_assert(zone);
+    ods_log_assert(zone->name);
     ods_log_assert(zone->db);
-
-    if (!zone->signconf) {
-        ods_log_error("[%s] unable to add RR: no signconf", zone_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
     ods_log_assert(zone->signconf);
-
-    /* in-zone? */
-    if (ldns_dname_compare(zone->apex, ldns_rr_owner(rr)) != 0 &&
-        !ldns_dname_is_subdomain(ldns_rr_owner(rr), zone->apex)) {
-        ods_log_warning("[%s] zone %s contains out-of-zone data, skipping",
-            zone_str, zone->name?zone->name:"(null)");
-        /* ok, just filter */
-        ldns_rr_free(rr);
-        return ODS_STATUS_OK;
-    }
-
-    /* type specific configuration */
-    type = ldns_rr_get_type(rr);
-    if (type == LDNS_RR_TYPE_DNSKEY && zone->signconf->dnskey_ttl) {
-        tmp = (uint32_t) duration2time(zone->signconf->dnskey_ttl);
-        ods_log_verbose("[%s] zone %s set DNSKEY TTL to %u",
-            zone_str, zone->name?zone->name:"(null)", tmp);
-        ldns_rr_set_ttl(rr, tmp);
-    }
-    if (type == LDNS_RR_TYPE_SOA) {
-        if (zone->signconf->soa_ttl) {
-            tmp = (uint32_t) duration2time(zone->signconf->soa_ttl);
-            ods_log_verbose("[%s] zone %s set SOA TTL to %u",
-                zone_str, zone->name?zone->name:"(null)", tmp);
-            ldns_rr_set_ttl(rr, tmp);
-        }
-        if (zone->signconf->soa_min) {
-            tmp = (uint32_t) duration2time(zone->signconf->soa_min);
-            ods_log_verbose("[%s] zone %s set SOA MINIMUM to %u",
-                zone_str, zone->name?zone->name:"(null)", tmp);
-            soa_min = ldns_rr_set_rdf(rr,
-                ldns_native2rdf_int32(LDNS_RDF_TYPE_INT32, tmp),
-                SE_SOA_RDATA_MINIMUM);
-            if (soa_min) {
-                ldns_rdf_deep_free(soa_min);
-            } else {
-                ods_log_error("[%s] zone %s failed to replace SOA MINIMUM "
-                    "rdata", zone_str, zone->name?zone->name:"(null)");
-                return ODS_STATUS_ASSERT_ERR;
-            }
-        }
-    }
-
-    /* lookup domain */
+    /* If we already have this RR, return ODS_STATUS_UNCHANGED */
     domain = namedb_lookup_domain(zone->db, ldns_rr_owner(rr));
     if (!domain) {
-        /* add domain */
-        domain = domain_create((void*) zone, ldns_rr_owner(rr));
+        domain = namedb_add_domain(zone->db, ldns_rr_owner(rr));
         if (!domain) {
-            ods_log_error("[%s] unable to add RR: create domain failed",
-                zone_str);
-            return ODS_STATUS_ERR;
-        }
-        if (namedb_add_domain(zone->db, domain) == NULL) {
-            ods_log_error("[%s] unable to add RR: add domain failed",
-                zone_str);
+            ods_log_error("[%s] unable to add RR to zone %s: "
+                "failed to add domain", zone_str, zone->name);
             return ODS_STATUS_ERR;
         }
         if (ldns_dname_compare(domain->dname, zone->apex) == 0) {
@@ -548,18 +483,11 @@ zone_del_rr(zone_type* zone, ldns_rr* rr, int do_stats)
     rrset_type* rrset = NULL;
     rr_type* record = NULL;
 
-    if (!rr) {
-        ods_log_error("[%s] unable to del RR: no RR", zone_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
     ods_log_assert(rr);
-
-    if (!zone || !zone->db) {
-        ods_log_error("[%s] unable to del RR: no storage", zone_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
     ods_log_assert(zone);
+    ods_log_assert(zone->name);
     ods_log_assert(zone->db);
+    ods_log_assert(zone->signconf);
 
     /* lookup domain */
     domain = namedb_lookup_domain(zone->db, ldns_rr_owner(rr));

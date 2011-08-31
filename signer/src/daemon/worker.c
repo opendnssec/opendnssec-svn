@@ -142,6 +142,98 @@ worker_fulfilled(worker_type* worker)
 
 
 /**
+ * Clear jobs.
+ *
+ */
+static void
+worker_clear_jobs(worker_type* worker)
+{
+    ods_log_assert(worker);
+    worker->jobs_appointed = 0;
+    worker->jobs_completed = 0;
+    worker->jobs_failed = 0;
+    return;
+}
+
+
+/**
+ * Queue RRset for signing.
+ *
+ */
+static void
+worker_queue_rrset(worker_type* worker, fifoq_type* q, rrset_type* rrset)
+{
+    ods_status status = ODS_STATUS_UNCHANGED;
+    ods_log_assert(worker);
+    ods_log_assert(q);
+    ods_log_assert(rrset);
+    while (status == ODS_STATUS_UNCHANGED) {
+        lock_basic_lock(&q->q_lock);
+        status = fifoq_push(q, (void*) rrset, worker);
+        lock_basic_unlock(&q->q_lock);
+    }
+    ods_log_assert(status == ODS_STATUS_OK);
+    lock_basic_lock(&worker->worker_lock);
+    worker->jobs_appointed += 1;
+    lock_basic_unlock(&worker->worker_lock);
+    return;
+}
+
+
+/**
+ * Queue domain for signing.
+ *
+ */
+static void
+worker_queue_domain(worker_type* worker, fifoq_type* q, domain_type* domain)
+{
+    rrset_type* rrset = NULL;
+    denial_type* denial = NULL;
+    ods_log_assert(worker);
+    ods_log_assert(q);
+    ods_log_assert(domain);
+    rrset = domain->rrsets;
+    while (rrset) {
+        worker_queue_rrset(worker, q, rrset);
+        rrset = rrset->next;
+    }
+    denial = (denial_type*) domain->denial;
+    if (denial && denial->rrset) {
+        worker_queue_rrset(worker, q, denial->rrset);
+    }
+    return;
+}
+
+
+/**
+ * Queue zone for signing.
+ *
+ */
+static void
+worker_queue_zone(worker_type* worker, fifoq_type* q, zone_type* zone)
+{
+    ldns_rbnode_t* node = LDNS_RBTREE_NULL;
+    domain_type* domain = NULL;
+    ods_log_assert(worker);
+    ods_log_assert(q);
+    ods_log_assert(zone);
+    worker_clear_jobs(worker);
+    if (!zone->db || !zone->db->domains) {
+        return;
+    }
+    if (zone->db->domains->root != LDNS_RBTREE_NULL) {
+        node = ldns_rbtree_first(zone->db->domains);
+    }
+    while (node && node != LDNS_RBTREE_NULL) {
+        domain = (domain_type*) node->data;
+        worker_queue_domain(worker, q, domain);
+        node = ldns_rbtree_next(node);
+    }
+    return;
+}
+
+
+/**
  * Perform task.
  *
  */
@@ -159,7 +251,6 @@ worker_perform_task(worker_type* worker)
     int backup = 0;
     char* working_dir = NULL;
     char* cfg_filename = NULL;
-    uint32_t tmpserial = 0;
     time_t start = 0;
     time_t end = 0;
 
@@ -268,7 +359,6 @@ worker_perform_task(worker_type* worker)
             worker_working_with(worker, TASK_SIGN, TASK_WRITE,
                 "sign", task_who2str(task),
                 &what, &when, &fallthrough);
-            tmpserial = zone->db->intserial;
             status = zone_update_serial(zone);
             if (status != ODS_STATUS_OK) {
                 ods_log_error("[%s[%i]] unable to sign zone %s: "
@@ -291,12 +381,11 @@ worker_perform_task(worker_type* worker)
                 }
 
                 /* queue menial, hard signing work */
-                status = namedb_queue(zone->db, engine->signq, worker);
+                worker_queue_zone(worker, engine->signq, zone);
                 ods_log_debug("[%s[%i]] wait until drudgers are finished "
                     " signing zone %s, %u signatures queued",
                     worker2str(worker->type), worker->thread_num,
                     task_who2str(task), worker->jobs_appointed);
-
                 /* sleep until work is done */
                 if (!worker->need_to_exit) {
                     worker_sleep_unless(worker, 0);
@@ -321,9 +410,7 @@ worker_perform_task(worker_type* worker)
                     ods_log_assert(worker->jobs_appointed ==
                         worker->jobs_completed);
                 }
-                worker->jobs_appointed = 0;
-                worker->jobs_completed = 0;
-                worker->jobs_failed = 0;
+                worker_clear_jobs(worker);
 
                 /* stop timer */
                 end = time(NULL);
@@ -336,8 +423,6 @@ worker_perform_task(worker_type* worker)
 
             /* what to do next */
             if (status != ODS_STATUS_OK) {
-                /* rollback serial */
-                zone->db->intserial = tmpserial;
                 if (task->halted == TASK_NONE) {
                     goto task_perform_fail;
                 }
