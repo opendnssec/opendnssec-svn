@@ -63,7 +63,7 @@ tools_signconf(zone_type* zone)
             /* or NSEC -> NSEC3, or NSEC3 -> NSEC, or NSEC3PARAM changed:
                all NSEC(3)s become invalid */
             namedb_wipe_denial(zone->db);
-            namedb_cleanup_chain(zone->db);
+            namedb_cleanup_denials(zone->db);
             namedb_init_denials(zone->db);
         }
         /* all ok, switch signer configuration */

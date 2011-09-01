@@ -344,7 +344,7 @@ addns_read_ixfr(FILE* fd, zone_type* zone)
     /* [end] transaction */
 
     /* [start] validate updates */
-    result = zone_examine(zone);
+    result = namedb_examine(zone->db);
     if (result != ODS_STATUS_OK) {
         ods_log_error("[%s] unable to read ixfr: zone contains errors",
             adapter_str);

@@ -254,36 +254,23 @@ rrset_lookup_rr(rrset_type* rrset, ldns_rr* rr)
 
 
 /**
- * Examine NS RRset and verify its RDATA.
- *
- */
-int
-rrset_examine_ns_rdata(rrset_type* rrset, ldns_rdf* nsdname)
-{
-    uint16_t i = 0;
-    if (!rrset || !nsdname || rrset->rrtype != LDNS_RR_TYPE_NS) {
-        return 0;
-    }
-    for (i=0; i < rrset->rr_count; i++) {
-        if (ldns_dname_compare(ldns_rr_rdf(rrset->rrs[i].rr, 0), nsdname) == 0) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
-
-/**
- * Count the number of RRs in this RRset.
+ * Count the number of RRs in this RRset that have is_added.
  *
  */
 size_t
-rrset_count_rr(rrset_type* rrset)
+rrset_count_rr_is_added(rrset_type* rrset)
 {
+    size_t i = 0;
+    size_t count = 0;
     if (!rrset) {
         return 0;
     }
-    return rrset->rr_count;
+    for (i=0; i < rrset->rr_count; i++) {
+        if (rrset->rrs[i].is_added) {
+            count++;
+        }
+    }
+    return count;
 }
 
 
@@ -619,28 +606,6 @@ rrset_sigvalid_period(signconf_type* sc, ldns_rr_type rrtype, time_t signtime,
         validity = duration2time(sc->sig_validity_denial);
     } else {
         validity = duration2time(sc->sig_validity_default);
-    }
-
-    /**
-     * Additional check for signature lifetimes.
-     */
-    if (((validity + offset + random_jitter) - jitter) <
-        ((validity + offset) - jitter) ) {
-        ods_log_error("[%s] signature validity %u too low, should be at "
-            "least %u", rrset_str,
-            ((validity + offset + random_jitter) - jitter),
-            ((validity + offset) - jitter));
-    } else if (((validity + offset + random_jitter) - jitter) >
-               ((validity + offset) + jitter) ) {
-        ods_log_error("[%s] signature validity %u too high, should be at "
-            "most %u", rrset_str,
-            ((validity + offset + random_jitter) - jitter),
-            ((validity + offset) + jitter));
-    } else {
-        ods_log_debug("[%s] signature validity %u in range [%u - %u]",
-            rrset_str, ((validity + offset + random_jitter) - jitter),
-            ((validity + offset) - jitter),
-            ((validity + offset) + jitter));
     }
     *inception = signtime - offset;
     *expiration = (signtime + validity + random_jitter) - jitter;

@@ -35,15 +35,10 @@
 #define SIGNER_RRSET_H
 
 #include "config.h"
-#include "shared/allocator.h"
-#include "shared/hsm.h"
-#include "shared/locks.h"
-#include "shared/status.h"
-#include "signer/keys.h"
-#include "signer/signconf.h"
 #include "signer/stats.h"
 
 #include <ldns/ldns.h>
+#include <libhsm.h>
 
 /**
  * RRSIG.
@@ -145,12 +140,12 @@ ods_status rrset_recover(rrset_type* rrset, ldns_rr* rrsig,
 rr_type* rrset_lookup_rr(rrset_type* rrset, ldns_rr* rr);
 
 /**
- * Count the number of RRs in this RRset.
+ * Count the number of RRs in this RRset that have is_added.
  * \param[in] rrset RRset
  * \return size_t number of RRs
  *
  */
-size_t rrset_count_rr(rrset_type* rrset);
+size_t rrset_count_rr_is_added(rrset_type* rrset);
 
 /**
  * Add RR to RRset.
@@ -204,15 +199,6 @@ void rrset_diff(rrset_type* rrset);
  * \return ods_status status
  */
 ods_status rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, time_t signtime);
-
-/**
- * Examine NS RRset and verify its RDATA.
- * \param[in] rrset NS RRset
- * \param[in] nsdname domain name that should match NS RDATA
- * \return int 1 if match, 0 otherwise
- *
- */
-int rrset_examine_ns_rdata(rrset_type* rrset, ldns_rdf* nsdname);
 
 /**
  * Print RRset.

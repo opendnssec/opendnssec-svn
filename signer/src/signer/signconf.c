@@ -32,10 +32,8 @@
  */
 
 #include "parser/signconfparser.h"
-#include "scheduler/task.h"
 #include "shared/duration.h"
 #include "shared/file.h"
-#include "shared/hsm.h"
 #include "shared/log.h"
 #include "signer/backup.h"
 #include "shared/status.h"

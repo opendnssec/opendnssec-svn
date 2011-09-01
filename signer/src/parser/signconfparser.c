@@ -134,7 +134,7 @@ parse_sc_keys(void* sc, const char* cfgfile)
                 ods_log_error("[%s] Key missing required elements, skipping",
                     parser_str);
             }
-            free((void*)locator);
+            /* free((void*)locator); */
             free((void*)algorithm);
             free((void*)flags);
         }

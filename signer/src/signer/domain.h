@@ -37,8 +37,6 @@
 #include "config.h"
 #include "shared/allocator.h"
 #include "shared/status.h"
-#include "signer/denial.h"
-#include "signer/keys.h"
 #include "signer/rrset.h"
 
 #include <ldns/ldns.h>
@@ -49,17 +47,6 @@
 #define SE_NSEC3_RDATA_NSEC3PARAMS 4
 #define SE_NSEC3_RDATA_NXT         4
 #define SE_NSEC3_RDATA_BITMAP      5
-
-enum domain_status_enum {
-    DOMAIN_STATUS_NONE = 0, /* initial domain status [UNSIGNED] */
-    DOMAIN_STATUS_APEX,     /* apex domain, authoritative [SIGNED] */
-    DOMAIN_STATUS_AUTH,     /* authoritative domain, non-apex [SIGNED] */
-    DOMAIN_STATUS_NS,       /* unsigned delegation [UNSIGNED] */
-    DOMAIN_STATUS_DS,       /* signed delegation [SIGNED] */
-    DOMAIN_STATUS_ENT,      /* empty non-terminal [UNSIGNED] */
-    DOMAIN_STATUS_OCCLUDED  /* occluded domain [UNSIGNED] */
-};
-typedef enum domain_status_enum domain_status;
 
 /**
  * Domain.
@@ -104,33 +91,7 @@ domain_type* domain_create(void* zoneptr, ldns_rdf* dname);
  *
  */
 ods_status domain_recover(domain_type* domain, FILE* fd,
-    domain_status dstatus);
-
-/**
- * Recover RR from backup.
- * \param[in] domain domain
- * \param[in] rr RR
- * \return int 0 on success, 1 on error
- *
- */
-/*
-int domain_recover_rr_from_backup(domain_type* domain, ldns_rr* rr);
-*/
-
-/**
- * Recover RRSIG from backup.
- * \param[in] domain domain
- * \param[in] rrsig RRSIG
- * \param[in] type_covered RRtype that is covered by rrsig
- * \param[in] locator key locator
- * \param[in] flags key flags
- * \return int 0 on success, 1 on error
- *
- */
-/*
-int domain_recover_rrsig_from_backup(domain_type* domain, ldns_rr* rrsig,
-    ldns_rr_type type_covered, const char* locator, uint32_t flags);
-*/
+    int dstatus);
 
 /**
  * Count the number of RRsets at this domain.
@@ -139,6 +100,14 @@ int domain_recover_rrsig_from_backup(domain_type* domain, ldns_rr* rrsig,
  *
  */
 size_t domain_count_rrset(domain_type* domain);
+
+/**
+ * Count the number of RRsets at this domain with RRs that have is_added.
+ * \param[in] domain domain
+ * \return size_t number of RRsets
+ *
+ */
+size_t domain_count_rrset_is_added(domain_type* domain);
 
 /**
  * Look up RRset at this domain.
@@ -174,54 +143,8 @@ rrset_type* domain_del_rrset(domain_type* domain, ldns_rr_type rrtype);
 void domain_diff(domain_type* domain);
 
 /**
- * Examine domain and verify if data exists.
+ * Rollback differences at domain.
  * \param[in] domain domain
- * \param[in] rrtype RRtype look for a specific RRset
- * \param[in] skip_glue skip glue records
- * \retun int 0 if data is alone, 1 otherwise
- *
- */
-int domain_examine_data_exists(domain_type* domain, ldns_rr_type rrtype,
-    int skip_glue);
-
-/**
- * Examine domain NS RRset and verify its RDATA.
- * \param[in] domain domain
- * \param[in] nsdname domain name that should match one of the NS RDATA
- * \return int 1 if match, 0 otherwise
- *
- */
-int domain_examine_ns_rdata(domain_type* domain, ldns_rdf* nsdname);
-
-/**
- * Examine domain and verify if it is a valid zonecut (or no NS RRs).
- * \param[in] domain domain
- * \retun int 1 if the RRset is a valid zonecut (or no zonecut), 0 otherwise
- *
- */
-int domain_examine_valid_zonecut(domain_type* domain);
-
-/**
- * Examine domain and verify if there is no other data next to a RRset.
- * \param[in] domain domain
- * \param[in] rrtype RRtype
- * \return int 1 if the RRset is alone, 0 otherwise
- *
- */
-int domain_examine_rrset_is_alone(domain_type* domain, ldns_rr_type rrtype);
-
-/**
- * Examine domain and verify if the RRset is a singleton.
- * \param[in] domain domain
- * \param[in] rrtype RRtype
- * \return int 1 if the RRset is a singleton, 0 otherwise
- *
- */
-int domain_examine_rrset_is_singleton(domain_type* domain, ldns_rr_type rrtype);
-
-/**
- * Rollback updates from domain.
- * \param[in] domain the domain
  *
  */
 void domain_rollback(domain_type* domain);

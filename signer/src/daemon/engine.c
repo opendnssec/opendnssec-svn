@@ -36,6 +36,7 @@
 #include "daemon/engine.h"
 #include "daemon/signal.h"
 #include "shared/allocator.h"
+#include "shared/duration.h"
 #include "shared/file.h"
 #include "shared/locks.h"
 #include "shared/log.h"
@@ -715,7 +716,6 @@ engine_run(engine_type* engine, int single_run)
         if (single_run) {
            engine->need_to_exit = engine_all_zones_processed(engine);
         }
-
         lock_basic_lock(&engine->signal_lock);
         if (engine->signal == SIGNAL_RUN && !single_run) {
            ods_log_debug("[%s] taking a break", engine_str);
@@ -739,18 +739,15 @@ set_notify_ns(zone_type* zone, const char* cmd)
 {
     const char* str = NULL;
     const char* str2 = NULL;
-
     ods_log_assert(cmd);
     ods_log_assert(zone);
     ods_log_assert(zone->name);
     ods_log_assert(zone->adoutbound);
-
     if (zone->adoutbound->type == ADAPTER_FILE) {
         str = ods_replace(cmd, "%zonefile", zone->adoutbound->configstr);
     } else {
         str = cmd;
     }
-
     str2 = ods_replace(str, "%zone", zone->name);
     free((void*)str);
     zone->notify_ns = (const char*) str2;

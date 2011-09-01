@@ -1,5 +1,5 @@
 /*
- * $Id$
+ * $Id: denial.c 5237 2011-06-20 13:05:39Z matthijs $
  *
  * Copyright (c) 2011 NLNet Labs. All rights reserved.
  *
@@ -244,7 +244,7 @@ denial_diff(denial_type* denial)
 
 
 /**
- * Add NSEC3 to the Denial of Existence data point.
+ * Add NSEC(3) to the Denial of Existence data point.
  *
  */
 void
@@ -291,6 +291,23 @@ denial_nsecify(denial_type* denial, denial_type* nxt, uint32_t* num_added)
         }
         denial->bitmap_changed = 0;
         denial->nxt_changed = 0;
+    }
+    return;
+}
+
+
+/**
+ * Print Denial of Existence data point.
+ *
+ */
+void
+denial_print(FILE* fd, denial_type* denial)
+{
+    if (!denial || !fd) {
+        return;
+    }
+    if (denial->rrset) {
+        rrset_print(fd, denial->rrset, 0);
     }
     return;
 }

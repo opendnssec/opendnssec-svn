@@ -148,6 +148,8 @@ parse_conf_adapters(allocator_type* allocator, const char* cfgfile,
     char* tag_name = NULL;
     adapter_type** adapters = NULL;
     int ret = 0;
+    int error = 0;
+    size_t i = 0;
     size_t adcount = 0;
     xmlTextReaderPtr reader = NULL;
     xmlDocPtr doc = NULL;
@@ -159,7 +161,8 @@ parse_conf_adapters(allocator_type* allocator, const char* cfgfile,
 
     reader = xmlNewTextReaderFilename(cfgfile);
     if (!reader) {
-        ods_log_error("[%s] unable to open file %s", parser_str, cfgfile);
+        ods_log_error("[%s] unable to parse file %s: xmlParseFile() failed",
+            parser_str, cfgfile);
         return NULL;
     }
     ret = xmlTextReaderRead(reader);
@@ -179,7 +182,6 @@ parse_conf_adapters(allocator_type* allocator, const char* cfgfile,
             ods_strcmp(tag_name, "Adapters") != 0 &&
             xmlTextReaderNodeType(reader) == XML_READER_TYPE_ELEMENT) {
             /* Found an adapter */
-
             /* Expand this node to get the rest of the info */
             xmlTextReaderExpand(reader);
             doc = xmlTextReaderCurrentDoc(reader);
@@ -187,11 +189,12 @@ parse_conf_adapters(allocator_type* allocator, const char* cfgfile,
                 xpathCtx = xmlXPathNewContext(doc);
             }
             if (doc == NULL || xpathCtx == NULL) {
-                ods_log_error("[%s] unable to read adapter; skipping",
+                ods_log_error("[%s] unable to read adapter: aborting",
                     parser_str);
-                ret = xmlTextReaderRead(reader);
                 free((void*) tag_name);
-                continue;
+                ret = xmlTextReaderRead(reader);
+                error = 1;
+                break;
             }
             /* That worked, reuse the parse_zonelist_adapter() function */
             adapters[adcount] = parse_zonelist_adapter(xpathCtx, expr, 1);
@@ -209,8 +212,12 @@ parse_conf_adapters(allocator_type* allocator, const char* cfgfile,
     if (doc) {
         xmlFreeDoc(doc);
     }
-    if (ret != 0) {
+    if (ret != 0 || error == 1) {
         ods_log_error("[%s] error parsing file %s", parser_str, cfgfile);
+        for (i = 0; i < adcount; i++) {
+            adapter_cleanup(adapters[i]);
+        }
+        allocator_deallocate(allocator, (void*) adapters);
         return NULL;
     }
     *count = (int) adcount;

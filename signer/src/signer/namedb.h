@@ -36,17 +36,11 @@
 
 #include "config.h"
 #include "adapter/adapter.h"
-#include "shared/allocator.h"
-#include "shared/status.h"
 #include "signer/denial.h"
 #include "signer/domain.h"
-#include "signer/keys.h"
-#include "signer/signconf.h"
-#include "signer/stats.h"
 #include "signer/nsec3params.h"
 
 #include <ldns/ldns.h>
-#include <stdio.h>
 
 /**
  * Domain name database.
@@ -143,7 +137,7 @@ denial_type* namedb_lookup_denial(namedb_type* db, ldns_rdf* dname);
  * \param[in] db namedb
  * \param[in] dname domain name
  * \param[in] n3p NSEC3 parameters, NULL if we do NSEC
- * \return ods_status status
+ * \return denial_type* added denial
  *
  */
 denial_type* namedb_add_denial(namedb_type* db, ldns_rdf* dname,
@@ -159,15 +153,12 @@ denial_type* namedb_add_denial(namedb_type* db, ldns_rdf* dname,
 denial_type* namedb_del_denial(namedb_type* db, denial_type* denial);
 
 /**
- * Examine updates to zone data.
- * \param[in] zd zone data
- * \param[in] apex apex domain name
- * \param[in] mode adapter mode
+ * Examine updates to namedb.
+ * \param[in] db namedb
  * \return ods_status status
  *
  */
-ods_status namedb_examine(namedb_type* zd, ldns_rdf* apex,
-    adapter_mode mode);
+ods_status namedb_examine(namedb_type* db);
 
 /**
  * Apply differences in db.

@@ -34,6 +34,7 @@
 #include "daemon/engine.h"
 #include "daemon/worker.h"
 #include "shared/allocator.h"
+#include "shared/duration.h"
 #include "shared/locks.h"
 #include "shared/log.h"
 #include "shared/status.h"
@@ -108,19 +109,13 @@ worker_create(allocator_type* allocator, int num, worker_id type)
  */
 static void
 worker_working_with(worker_type* worker, task_id with, task_id next,
-    const char* str, const char* name, task_id* what, time_t* when,
-    int* fallthrough)
+    const char* str, const char* name, task_id* what, time_t* when)
 {
     worker->working_with = with;
     ods_log_verbose("[%s[%i]] %s zone %s", worker2str(worker->type),
        worker->thread_num, str, name);
     *what = next;
     *when = time_now();
-    if (with == TASK_SIGNCONF || with == TASK_WRITE) {
-        *fallthrough = 0;
-    } else {
-        *fallthrough = 1;
-    }
     return;
 }
 
@@ -276,7 +271,6 @@ worker_perform_task(worker_type* worker)
     time_t when = 0;
     time_t never = (3600*24*365);
     ods_status status = ODS_STATUS_OK;
-    int fallthrough = 0;
     int backup = 0;
     time_t start = 0;
     time_t end = 0;
@@ -296,7 +290,7 @@ worker_perform_task(worker_type* worker)
             /* perform 'load signconf' task */
             worker_working_with(worker, TASK_SIGNCONF, TASK_READ,
                 "configure", task_who2str(task),
-                &what, &when, &fallthrough);
+                &what, &when);
             status = tools_signconf(zone);
             if (status == ODS_STATUS_UNCHANGED) {
                 if (!zone->signconf->last_modified) {
@@ -320,13 +314,12 @@ worker_perform_task(worker_type* worker)
                 }
                 goto task_perform_continue;
             }
-            fallthrough = 0;
-            break;
+            /* break; */
         case TASK_READ:
             /* perform 'read input adapter' task */
             worker_working_with(worker, TASK_READ, TASK_SIGN,
                 "read", task_who2str(task),
-                &what, &when, &fallthrough);
+                &what, &when);
             if (!zone->signconf->last_modified) {
                 ods_log_debug("[%s[%i]] no signconf.xml for zone %s yet",
                     worker2str(worker->type), worker->thread_num,
@@ -346,12 +339,12 @@ worker_perform_task(worker_type* worker)
                 }
                 goto task_perform_continue;
             }
-            fallthrough = 1;
+            /* break; */
         case TASK_SIGN:
             /* perform 'sign' task */
             worker_working_with(worker, TASK_SIGN, TASK_WRITE,
                 "sign", task_who2str(task),
-                &what, &when, &fallthrough);
+                &what, &when);
             status = zone_update_serial(zone);
             if (status == ODS_STATUS_OK) {
                 if (task->interrupt > TASK_SIGNCONF) {
@@ -410,12 +403,12 @@ worker_perform_task(worker_type* worker)
                     task->halted = TASK_NONE;
                 }
             }
-            fallthrough = 1;
+            /* break; */
         case TASK_WRITE:
             /* perform 'write to output adapter' task */
             worker_working_with(worker, TASK_WRITE, TASK_SIGN,
                 "write", task_who2str(task),
-                &what, &when, &fallthrough);
+                &what, &when);
             status = tools_output(zone, engine->config->working_dir,
                 engine->config->cfg_filename);
             if (status == ODS_STATUS_OK) {
@@ -448,7 +441,6 @@ worker_perform_task(worker_type* worker)
                 when = worker->clock_in + 3600;
             }
             backup = 1;
-            fallthrough = 0;
             break;
         case TASK_NONE:
             worker->working_with = TASK_NONE;
@@ -457,7 +449,6 @@ worker_perform_task(worker_type* worker)
                 worker2str(worker->type), worker->thread_num,
                 task_who2str(task));
             when = time_now() + never;
-            fallthrough = 0;
             break;
         default:
             worker->working_with = TASK_NONE;
@@ -467,13 +458,11 @@ worker_perform_task(worker_type* worker)
                 task_who2str(task));
             what = TASK_SIGNCONF;
             when = time_now();
-            fallthrough = 0;
             break;
     }
     /* no error */
     task->backoff = 0;
-    if (fallthrough == 0 && task->interrupt != TASK_NONE &&
-        task->interrupt != what) {
+    if (task->interrupt != TASK_NONE && task->interrupt != what) {
         ods_log_debug("[%s[%i]] interrupt task %s for zone %s",
             worker2str(worker->type), worker->thread_num,
             task_what2str(what), task_who2str(task));
@@ -487,11 +476,9 @@ worker_perform_task(worker_type* worker)
             task_what2str(what), task_who2str(task));
         task->what = what;
         task->when = when;
-        if (!fallthrough) {
-            task->interrupt = TASK_NONE;
-            task->halted = TASK_NONE;
-            task->halted_when = 0;
-        }
+        task->interrupt = TASK_NONE;
+        task->halted = TASK_NONE;
+        task->halted_when = 0;
     }
     /* backup the last successful run */
     if (backup) {

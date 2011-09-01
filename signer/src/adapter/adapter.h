@@ -64,8 +64,8 @@ struct adapter_struct {
     allocator_type* allocator;
     const char* configstr;
     adapter_mode type;
-    int inbound;
     adapter_data* data;
+    unsigned inbound : 1;
 };
 
 /**
@@ -83,7 +83,8 @@ void adapter_init(adapter_type* adapter);
  * \return adapter_type* created adapter
  *
  */
-adapter_type* adapter_create(const char* str, adapter_mode type, int inbound);
+adapter_type* adapter_create(const char* str, adapter_mode type,
+    unsigned inbound);
 
 /**
  * Compare adapters.

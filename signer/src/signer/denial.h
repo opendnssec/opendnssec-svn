@@ -1,5 +1,5 @@
 /*
- * $Id$
+ * $Id: denial.h 5237 2011-06-20 13:05:39Z matthijs $
  *
  * Copyright (c) 2011 NLNet Labs. All rights reserved.
  *
@@ -82,6 +82,14 @@ void denial_diff(denial_type* denial);
  *
  */
 void denial_nsecify(denial_type* denial, denial_type* nxt, uint32_t* num_added);
+
+/**
+ * Print Denial of Existence data point.
+ * \param[in] fd file descriptor
+ * \param[in] denial denial of existence data point
+ *
+ */
+void denial_print(FILE* fd, denial_type* denial);
 
 /**
  * Cleanup Denial of Existence data point.

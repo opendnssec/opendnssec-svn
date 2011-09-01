@@ -197,14 +197,6 @@ ods_status zone_del_rr(zone_type* zone, ldns_rr* rr, int do_stats);
 void zone_merge(zone_type* z1, zone_type* z2);
 
 /**
- * Examine zone.
- * \param[in] zone zone
- * \return ods_status status
- *
- */
-ods_status zone_examine(zone_type* zone);
-
-/**
  * Clean up zone.
  * \param[in] zone zone
  *

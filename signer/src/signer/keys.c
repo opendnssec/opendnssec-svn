@@ -140,7 +140,7 @@ keylist_push(keylist_type* kl, const char* locator,
     }
     allocator_deallocate(sc->allocator, (void*) keys_old);
     kl->count++;
-    kl->keys[kl->count -1].locator = allocator_strdup(sc->allocator, locator);
+    kl->keys[kl->count -1].locator = locator;
     kl->keys[kl->count -1].algorithm = algorithm;
     kl->keys[kl->count -1].flags = flags;
     kl->keys[kl->count -1].publish = publish;
@@ -247,7 +247,7 @@ key_delfunc(key_type* key)
     if (!key) {
         return;
     }
-    ldns_rr_free(key->dnskey);
+    /* ldns_rr_free(key->dnskey); */
     hsm_key_free(key->hsmkey);
     hsm_sign_params_free(key->params);
     free((void*) key->locator);
@@ -361,10 +361,7 @@ key_recover(FILE* fd, keylist_type* kl)
     }
     /* key ok */
     key = keylist_push(kl, locator, algorithm, flags, publish, ksk, zsk);
-    if (locator) {
-       free((void*)locator);
-       locator = NULL;
-    }
+    locator = NULL;
     return key;
 }
 

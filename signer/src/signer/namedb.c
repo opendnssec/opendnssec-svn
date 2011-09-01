@@ -32,21 +32,15 @@
  */
 
 #include "config.h"
-#include "adapter/adapter.h"
 #include "shared/allocator.h"
+#include "shared/file.h"
 #include "shared/log.h"
 #include "shared/util.h"
 #include "signer/backup.h"
-#include "signer/domain.h"
-#include "signer/nsec3params.h"
 #include "signer/namedb.h"
 #include "signer/zone.h"
 
-#include <ldns/ldns.h> /* ldns_dname_*(), ldns_rbtree_*() */
-
 const char* db_str = "namedb";
-
-static ldns_rbnode_t* domain2node(domain_type* domain);
 
 
 /**
@@ -956,133 +950,55 @@ namedb_nsecify(namedb_type* db, uint32_t* num_added)
 
 
 /**
- * Examine domain for occluded data.
- *
- */
-static int
-namedb_examine_domain_is_occluded(namedb_type* db, domain_type* domain,
-    ldns_rdf* apex)
-{
-    ldns_rdf* parent_rdf = NULL;
-    ldns_rdf* next_rdf = NULL;
-    domain_type* parent_domain = NULL;
-    char* str_name = NULL;
-    char* str_parent = NULL;
-
-    ods_log_assert(apex);
-    ods_log_assert(domain);
-    ods_log_assert(domain->dname);
-    ods_log_assert(db);
-    ods_log_assert(db->domains);
-
-    if (ldns_dname_compare(domain->dname, apex) == 0) {
-        return 0;
-    }
-
-    if (domain_examine_valid_zonecut(domain) != 0) {
-        log_dname(domain->dname, "occluded (non-glue non-DS) data at NS",
-            LOG_WARNING);
-        return 1;
-    }
-
-    parent_rdf = ldns_dname_left_chop(domain->dname);
-    while (parent_rdf && ldns_dname_is_subdomain(parent_rdf, apex) &&
-           ldns_dname_compare(parent_rdf, apex) != 0) {
-
-        parent_domain = namedb_lookup_domain(db, parent_rdf);
-        next_rdf = ldns_dname_left_chop(parent_rdf);
-        ldns_rdf_deep_free(parent_rdf);
-
-        if (parent_domain) {
-            /* check for DNAME or NS */
-            if (domain_examine_data_exists(parent_domain, LDNS_RR_TYPE_DNAME,
-                0) && domain_examine_data_exists(domain, 0, 0)) {
-                /* data below DNAME */
-                str_name = ldns_rdf2str(domain->dname);
-                str_parent = ldns_rdf2str(parent_domain->dname);
-                ods_log_warning("[%s] occluded data at %s (below %s DNAME)",
-                    db_str, str_name, str_parent);
-                free((void*)str_name);
-                free((void*)str_parent);
-                return 1;
-            } else if (domain_examine_data_exists(parent_domain,
-                LDNS_RR_TYPE_NS, 0) &&
-                domain_examine_data_exists(domain, 0, 1)) {
-                /* data (non-glue) below NS */
-                str_name = ldns_rdf2str(domain->dname);
-                str_parent = ldns_rdf2str(parent_domain->dname);
-                ods_log_warning("[%s] occluded (non-glue) data at %s (below "
-                    "%s NS)", db_str, str_name, str_parent);
-                free((void*)str_name);
-                free((void*)str_parent);
-                return 1;
-/* allow for now (root zone has it)
-            } else if (domain_examine_data_exists(parent_domain,
-                LDNS_RR_TYPE_NS, 0) &&
-                domain_examine_data_exists(domain, 0, 0) &&
-                !domain_examine_ns_rdata(parent_domain, domain->dname)) {
-                str_name = ldns_rdf2str(domain->dname);
-                str_parent = ldns_rdf2str(parent_domain->dname);
-                ods_log_warning("[%s] occluded data at %s (below %s NS)",
-                    db_str, str_name, str_parent);
-                free((void*)str_name);
-                free((void*)str_parent);
-                return 1;
-*/
-            }
-        }
-        parent_rdf = next_rdf;
-    }
-    if (parent_rdf) {
-        ldns_rdf_deep_free(parent_rdf);
-    }
-    return 0;
-}
-
-
-/**
  * Examine updates to zone data.
  *
  */
 ods_status
-namedb_examine(namedb_type* db, ldns_rdf* apex, adapter_mode mode)
+namedb_examine(namedb_type* db)
 {
-    int result = 0;
+    ods_status status = ODS_STATUS_OK;
     ldns_rbnode_t* node = LDNS_RBTREE_NULL;
     domain_type* domain = NULL;
-    ods_status status = ODS_STATUS_OK;
+    rrset_type* rrset = NULL;
+    ldns_rr_type dstatus = LDNS_RR_TYPE_FIRST;
+    ldns_rr_type delegpt = LDNS_RR_TYPE_FIRST;
 
     if (!db || !db->domains) {
        /* no db, no error */
        return ODS_STATUS_OK;
     }
-    ods_log_assert(db);
-    ods_log_assert(db->domains);
-
     if (db->domains->root != LDNS_RBTREE_NULL) {
         node = ldns_rbtree_first(db->domains);
     }
     while (node && node != LDNS_RBTREE_NULL) {
         domain = (domain_type*) node->data;
-        result =
-        /* Thou shall not have other data next to CNAME */
-        domain_examine_rrset_is_alone(domain, LDNS_RR_TYPE_CNAME) &&
-        /* Thou shall have at most one CNAME per name */
-        domain_examine_rrset_is_singleton(domain, LDNS_RR_TYPE_CNAME) &&
-        /* Thou shall have at most one DNAME per name */
-        domain_examine_rrset_is_singleton(domain, LDNS_RR_TYPE_DNAME);
-        if (!result) {
-            status = ODS_STATUS_ERR;
-        }
-
-        if (mode == ADAPTER_FILE) {
-            result =
-            /* Thou shall not have occluded data in your zone file */
-            namedb_examine_domain_is_occluded(db, domain, apex);
-            if (result) {
-                ; /* just warn if there is occluded data */
+        rrset = domain_lookup_rrset(domain, LDNS_RR_TYPE_CNAME);
+        if (rrset) {
+            /* Thou shall not have other data next to CNAME */
+            if (domain_count_rrset_is_added(domain) > 1) {
+                log_rrset(domain->dname, rrset->rrtype,
+                    "CNAME and other data at the same name", LOG_ERR);
+                return ODS_STATUS_CONFLICT_ERR;
+            }
+            /* Thou shall have at most one CNAME per name */
+            if (rrset_count_rr_is_added(rrset) > 1) {
+                log_rrset(domain->dname, rrset->rrtype,
+                    "multiple CNAMEs at the same name", LOG_ERR);
+                return ODS_STATUS_CONFLICT_ERR;
             }
         }
+        rrset = domain_lookup_rrset(domain, LDNS_RR_TYPE_DNAME);
+        if (rrset) {
+            /* Thou shall have at most one DNAME per name */
+            if (rrset_count_rr_is_added(rrset) > 1) {
+                log_rrset(domain->dname, rrset->rrtype,
+                    "multiple DNAMEs at the same name", LOG_ERR);
+                return ODS_STATUS_CONFLICT_ERR;
+            }
+        }
+        dstatus = domain_is_occluded(domain);
+        delegpt = domain_is_delegpt(domain);
+        /* Thou shall not have occluded data in your zone file */
         node = ldns_rbtree_next(node);
     }
     return status;
@@ -1142,19 +1058,17 @@ namedb_export(FILE* fd, namedb_type* db)
 
 
 /**
- * Clean up domains in zone data.
+ * Clean up domains in namedb.
  *
  */
 static void
 domain_delfunc(ldns_rbnode_t* elem)
 {
     domain_type* domain = NULL;
-
     if (elem && elem != LDNS_RBTREE_NULL) {
         domain = (domain_type*) elem->data;
         domain_delfunc(elem->left);
         domain_delfunc(elem->right);
-
         domain_cleanup(domain);
         free((void*)elem);
     }
@@ -1163,7 +1077,7 @@ domain_delfunc(ldns_rbnode_t* elem)
 
 
 /**
- * Clean up denial of existence data points from zone data.
+ * Clean up denials.
  *
  */
 static void
@@ -1171,19 +1085,15 @@ denial_delfunc(ldns_rbnode_t* elem)
 {
     denial_type* denial = NULL;
     domain_type* domain = NULL;
-
-
     if (elem && elem != LDNS_RBTREE_NULL) {
         denial = (denial_type*) elem->data;
         denial_delfunc(elem->left);
         denial_delfunc(elem->right);
-
         domain = denial->domain;
         if (domain) {
             domain->denial = NULL;
         }
         denial_cleanup(denial);
-
         free((void*)elem);
     }
     return;
@@ -1211,7 +1121,7 @@ namedb_cleanup_domains(namedb_type* db)
  *
  */
 void
-namedb_cleanup_chain(namedb_type* db)
+namedb_cleanup_denials(namedb_type* db)
 {
     if (db && db->denials) {
         denial_delfunc(db->denials->root);
@@ -1234,8 +1144,11 @@ namedb_cleanup(namedb_type* db)
         return;
     }
     z = (zone_type*) db->zone;
-    namedb_cleanup_chain(db);
+    if (!z || !z->allocator) {
+        return;
+    }
     namedb_cleanup_domains(db);
+    namedb_cleanup_denials(db);
     allocator_deallocate(z->allocator, (void*) db);
     return;
 }

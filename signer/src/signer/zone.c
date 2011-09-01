@@ -610,21 +610,6 @@ zone_merge(zone_type* z1, zone_type* z2)
 
 
 /**
- * Examine zone.
- *
- */
-ods_status
-zone_examine(zone_type* zone)
-{
-    if (zone && zone->db && zone->adinbound) {
-        return namedb_examine(zone->db, zone->apex,
-            zone->adinbound->type);
-    }
-    return ODS_STATUS_ASSERT_ERR;
-}
-
-
-/**
  * Clean up zone.
  *
  */

@@ -32,17 +32,11 @@
  */
 
 #include "config.h"
-#include "shared/duration.h"
-#include "shared/allocator.h"
 #include "shared/log.h"
-#include "shared/status.h"
-#include "shared/util.h"
 #include "signer/backup.h"
 #include "signer/denial.h"
 #include "signer/domain.h"
 #include "signer/zone.h"
-
-#include <ldns/ldns.h>
 
 static const char* dname_str = "domain";
 
@@ -135,7 +129,6 @@ domain_count_rrset(domain_type* domain)
 {
     rrset_type* rrset = NULL;
     size_t count = 0;
-
     if (!domain) {
         return 0;
     }
@@ -149,11 +142,34 @@ domain_count_rrset(domain_type* domain)
 
 
 /**
+ * Count the number of RRsets at this domain with RRs that have is_added.
+ *
+ */
+size_t
+domain_count_rrset_is_added(domain_type* domain)
+{
+    rrset_type* rrset = NULL;
+    size_t count = 0;
+    if (!domain) {
+        return 0;
+    }
+    rrset = domain->rrsets;
+    while (rrset) {
+        if (rrset_count_rr_is_added(rrset)) {
+            count++;
+        }
+        rrset = rrset->next;
+    }
+    return count;
+}
+
+
+/**
  * Recover domain from backup.
  *
  */
 ods_status
-domain_recover(domain_type* domain, FILE* fd, domain_status dstatus)
+domain_recover(domain_type* domain, FILE* fd, int dstatus)
 {
     const char* token = NULL;
     const char* locator = NULL;
@@ -167,7 +183,7 @@ domain_recover(domain_type* domain, FILE* fd, domain_status dstatus)
     ods_log_assert(domain);
     ods_log_assert(fd);
 
-    if (dstatus == DOMAIN_STATUS_APEX) {
+    if (dstatus == 1) {
         domain->is_apex = 1;
     }
 
@@ -440,12 +456,6 @@ domain_diff(domain_type* domain)
     }
     rrset = domain->rrsets;
     while (rrset) {
-        /* special cases */
-        if (rrset->rrtype == LDNS_RR_TYPE_NSEC3PARAMS) {
-            rrset = rrset->next;
-            continue;
-        }
-        /* normal cases */
         rrset_diff(rrset);
         if (rrset->rr_count <= 0) {
             /* delete entire rrset */
@@ -489,7 +499,6 @@ domain_rollback(domain_type* domain)
     ldns_rr* del_rr = NULL;
     int del_rrset = 0;
     uint16_t i = 0;
-
     if (!domain) {
         return;
     }
@@ -539,178 +548,6 @@ domain_rollback(domain_type* domain)
         }
     }
     return;
-}
-
-
-/**
- * Examine domain and verify if data exists.
- *
- */
-int
-domain_examine_data_exists(domain_type* domain, ldns_rr_type rrtype,
-    int skip_glue)
-{
-    rrset_type* rrset = NULL;
-    uint16_t i = 0;
-
-    if (!domain) {
-        return 0;
-    }
-    rrset = domain->rrsets;
-    while (rrset) {
-        /* walk rrs */
-        for (i=0; i < rrset->rr_count; i++) {
-            if (!rrset->rrs[i].exists) {
-                rrset = rrset->next;
-                continue;
-            }
-            if (rrtype) {
-                /* looking for a specific RRset */
-                if (rrset->rrtype == rrtype) {
-                    return 1;
-                }
-            } else if (!skip_glue ||
-                (rrset->rrtype != LDNS_RR_TYPE_A &&
-                 rrset->rrtype != LDNS_RR_TYPE_AAAA)) {
-                /* not glue or not skipping glue */
-                return 1;
-            }
-        }
-    }
-    return 0;
-}
-
-
-/**
- * Examine domain and verify if there is no other data next to a RRset.
- *
- */
-int
-domain_examine_rrset_is_alone(domain_type* domain, ldns_rr_type rrtype)
-{
-    rrset_type* rrset = NULL;
-    size_t count = 0;
-
-    if (!domain || !rrtype) {
-        return 1;
-    }
-    rrset = domain_lookup_rrset(domain, rrtype);
-    if (rrset) {
-        count = rrset->rr_count;
-    }
-    if (count) {
-        if (domain_count_rrset(domain) < 2) {
-            /* one or zero, that's ok */
-            return 1;
-        }
-        rrset = domain->rrsets;
-        while (rrset) {
-            if (rrset->rrtype != rrtype && rrset->rr_count > 0) {
-                /* found other data next to rrtype */
-                log_dname(domain->dname, "other data next to RRset", LOG_ERR);
-                return 0;
-            }
-            rrset = rrset->next;;
-        }
-    }
-    return 1;
-}
-
-
-/**
- * Examine domain and verify if there is no occluded data next to a delegation.
- *
- */
-int
-domain_examine_valid_zonecut(domain_type* domain)
-{
-    rrset_type* rrset = NULL;
-    size_t count = 0;
-
-    if (!domain) {
-        return 1;
-    }
-    rrset = domain_lookup_rrset(domain, LDNS_RR_TYPE_NS);
-    if (rrset) {
-        count = rrset->rr_count;
-    }
-    if (count) {
-        /* make sure all other RRsets become empty (except DS, glue) */
-        rrset = domain->rrsets;
-        while (rrset) {
-            if (rrset->rrtype != LDNS_RR_TYPE_DS &&
-                rrset->rrtype != LDNS_RR_TYPE_NS &&
-                rrset->rrtype != LDNS_RR_TYPE_A &&
-                rrset->rrtype != LDNS_RR_TYPE_AAAA &&
-                rrset->rr_count > 0) {
-                /* found occluded data next to delegation */
-                ods_log_error("[%s] occluded glue data at zonecut, RRtype=%u",
-                    dname_str, rrset->rrtype);
-                return 0;
-            } else if (rrset->rrtype == LDNS_RR_TYPE_A ||
-                rrset->rrtype == LDNS_RR_TYPE_AAAA) {
-                /* check if glue is allowed at the delegation */
-/* TODO: allow for now (root zone has it)
-                if (rrset->rr_count > 0 &&
-                    !domain_examine_ns_rdata(domain, domain->dname)) {
-                    ods_log_error("[%s] occluded glue data at zonecut, #RR=%u",
-                        dname_str, rrset->rr_count);
-                    return 0;
-                }
-*/
-            }
-            rrset = rrset->next;
-        }
-    }
-    return 0;
-}
-
-
-/**
- * Examine domain and verify if the RRset is a singleton.
- *
- */
-int
-domain_examine_rrset_is_singleton(domain_type* domain, ldns_rr_type rrtype)
-{
-    rrset_type* rrset = NULL;
-    size_t count = 0;
-
-    if (!domain || !rrtype) {
-        return 1;
-    }
-    rrset = domain_lookup_rrset(domain, rrtype);
-    if (rrset) {
-        count = rrset->rr_count;
-    }
-    if (count > 1) {
-        /* multiple RRs in the RRset for singleton RRtype*/
-        log_dname(domain->dname, "multiple records for singleton type",
-            LOG_ERR);
-        return 0;
-    }
-    return 1;
-}
-
-
-/**
- * Examine domain NS RRset and verify its RDATA.
- *
- */
-int
-domain_examine_ns_rdata(domain_type* domain, ldns_rdf* nsdname)
-{
-    rrset_type* rrset = NULL;
-    if (!domain || !nsdname) {
-       return 0;
-    }
-    rrset = domain_lookup_rrset(domain, LDNS_RR_TYPE_NS);
-    if (rrset) {
-        if (rrset_examine_ns_rdata(rrset, nsdname)) {
-            return 1;
-        }
-    }
-    return 0;
 }
 
 
@@ -820,8 +657,6 @@ domain_print(FILE* fd, domain_type* domain)
     rrset_type* rrset = NULL;
     rrset_type* soa_rrset = NULL;
     rrset_type* cname_rrset = NULL;
-    denial_type* denial = NULL;
-
     if (!domain || !fd) {
         return;
     }
@@ -831,10 +666,7 @@ domain_print(FILE* fd, domain_type* domain)
         fprintf(fd, ";;Empty non-terminal %s\n", str);
         free((void*)str);
         /* Denial of Existence */
-        denial = (denial_type*) domain->denial;
-        if (denial) {
-            rrset_print(fd, denial->rrset, 0);
-        }
+        denial_print(fd, (denial_type*) domain->denial);
         return;
     }
     /* no other data may accompany a CNAME */
@@ -878,10 +710,7 @@ domain_print(FILE* fd, domain_type* domain)
         }
     }
     /* Denial of Existence */
-    denial = (denial_type*) domain->denial;
-    if (denial) {
-        rrset_print(fd, denial->rrset, 0);
-    }
+    denial_print(fd, (denial_type*) domain->denial);
     return;
 }
 

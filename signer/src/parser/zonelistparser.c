@@ -112,8 +112,8 @@ parse_zonelist_adapter(xmlXPathContextPtr xpathCtx, xmlChar* expr,
     }
     xpathObj = xmlXPathEvalExpression(expr, xpathCtx);
     if (xpathObj == NULL) {
-        ods_log_error("[%s] unable to evaluate xpath expression %s",
-            parser_str, expr);
+        ods_log_error("[%s] unable to parse adapter: xmlPathEvalExpression() "
+            "failed (expr %s)", parser_str, expr);
         return NULL;
     }
     if (xpathObj->nodesetval) {

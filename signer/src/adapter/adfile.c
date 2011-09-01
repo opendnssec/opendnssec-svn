@@ -298,14 +298,14 @@ adfile_read_file(FILE* fd, zone_type* zone)
     }
     /* input zone ok, set inbound serial and apply differences */
     if (result == ODS_STATUS_OK) {
-        result = zone_examine(zone);
+        result = namedb_examine(zone->db);
         if (result != ODS_STATUS_OK) {
             ods_log_error("[%s] unable to read file: zonefile contains errors",
                 adapter_str);
             return result;
         }
         adapi_set_serial(zone, new_serial);
-        adapi_trans_full(zone);    
+        adapi_trans_full(zone);
     }
     return result;
 }
