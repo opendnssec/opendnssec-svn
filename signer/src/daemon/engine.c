@@ -36,7 +36,6 @@
 #include "daemon/engine.h"
 #include "daemon/signal.h"
 #include "shared/allocator.h"
-#include "shared/duration.h"
 #include "shared/file.h"
 #include "shared/locks.h"
 #include "shared/log.h"
@@ -667,7 +666,7 @@ engine_all_zones_processed(engine_type* engine)
         ods_log_assert(zone);
         ods_log_assert(zone->db);
         if (!zone->db->is_processed) {
-		return 0;
+            return 0;
         }
         node = ldns_rbtree_next(node);
     }

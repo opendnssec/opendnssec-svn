@@ -57,11 +57,10 @@ tools_signconf(zone_type* zone)
     status = zone_load_signconf(zone, &new_signconf);
     if (status == ODS_STATUS_OK) {
         ods_log_assert(new_signconf);
-        denial_what = signconf_compare_denial(zone->signconf, new_signconf);
         /* Denial of Existence Rollover? */
+        denial_what = signconf_compare_denial(zone->signconf, new_signconf);
         if (denial_what == TASK_NSECIFY) {
-            /* or NSEC -> NSEC3, or NSEC3 -> NSEC, or NSEC3PARAM changed:
-               all NSEC(3)s become invalid */
+            /* or NSEC -> NSEC3, or NSEC3 -> NSEC, or NSEC3PARAM changed */
             namedb_wipe_denial(zone->db);
             namedb_cleanup_denials(zone->db);
             namedb_init_denials(zone->db);
@@ -193,7 +192,6 @@ lock_fetch:
                 ods_status2str(status));
         }
     }
-
     end = time(NULL);
     if (status == ODS_STATUS_OK && zone->stats) {
         lock_basic_lock(&zone->stats->stats_lock);
@@ -313,10 +311,13 @@ tools_output(zone_type* zone, const char* dir, const char* cfgfile)
     }
     /* Output Adapter */
     status = adapter_write((void*)zone);
-    if (status == ODS_STATUS_OK) {
-        zone->db->outserial = zone->db->intserial;
-        zone->db->is_initialized = 1;
+    if (status != ODS_STATUS_OK) {
+        ods_log_error("[%s] unable to write zone %s: adapter failed",
+            tools_str, zone->name);
+        return status;
     }
+    zone->db->outserial = zone->db->intserial;
+    zone->db->is_initialized = 1;
     /* kick the nameserver */
     if (zone->notify_ns) {
         ods_log_verbose("[%s] notify nameserver: %s", tools_str,

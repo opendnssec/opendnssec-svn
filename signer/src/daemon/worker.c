@@ -34,7 +34,6 @@
 #include "daemon/engine.h"
 #include "daemon/worker.h"
 #include "shared/allocator.h"
-#include "shared/duration.h"
 #include "shared/locks.h"
 #include "shared/log.h"
 #include "shared/status.h"
@@ -289,8 +288,7 @@ worker_perform_task(worker_type* worker)
         case TASK_SIGNCONF:
             /* perform 'load signconf' task */
             worker_working_with(worker, TASK_SIGNCONF, TASK_READ,
-                "configure", task_who2str(task),
-                &what, &when);
+                "configure", task_who2str(task), &what, &when);
             status = tools_signconf(zone);
             if (status == ODS_STATUS_UNCHANGED) {
                 if (!zone->signconf->last_modified) {
@@ -318,8 +316,7 @@ worker_perform_task(worker_type* worker)
         case TASK_READ:
             /* perform 'read input adapter' task */
             worker_working_with(worker, TASK_READ, TASK_SIGN,
-                "read", task_who2str(task),
-                &what, &when);
+                "read", task_who2str(task), &what, &when);
             if (!zone->signconf->last_modified) {
                 ods_log_debug("[%s[%i]] no signconf.xml for zone %s yet",
                     worker2str(worker->type), worker->thread_num,
@@ -343,8 +340,7 @@ worker_perform_task(worker_type* worker)
         case TASK_SIGN:
             /* perform 'sign' task */
             worker_working_with(worker, TASK_SIGN, TASK_WRITE,
-                "sign", task_who2str(task),
-                &what, &when);
+                "sign", task_who2str(task), &what, &when);
             status = zone_update_serial(zone);
             if (status == ODS_STATUS_OK) {
                 if (task->interrupt > TASK_SIGNCONF) {
@@ -407,8 +403,7 @@ worker_perform_task(worker_type* worker)
         case TASK_WRITE:
             /* perform 'write to output adapter' task */
             worker_working_with(worker, TASK_WRITE, TASK_SIGN,
-                "write", task_who2str(task),
-                &what, &when);
+                "write", task_who2str(task), &what, &when);
             status = tools_output(zone, engine->config->working_dir,
                 engine->config->cfg_filename);
             if (status == ODS_STATUS_OK) {
@@ -497,7 +492,6 @@ worker_perform_task(worker_type* worker)
 task_perform_fail:
     /* in case of failure, also mark zone processed (for single run usage) */
     zone->db->is_processed = 1;
-
     if (task->backoff) {
         task->backoff *= 2;
         if (task->backoff > ODS_SE_MAX_BACKOFF) {
@@ -609,7 +603,7 @@ worker_drudge(worker_type* worker)
     ods_log_assert(worker->engine);
     ods_log_assert(worker->type == WORKER_DRUDGER);
 
-    engine = worker->engine;
+    engine = (engine_type*) worker->engine;
 drudger_create_ctx:
     ctx = hsm_create_context();
     if (ctx == NULL) {
@@ -731,8 +725,9 @@ worker_sleep_unless(worker_type* worker, time_t timeout)
         lock_basic_sleep(&worker->worker_alarm, &worker->worker_lock,
             timeout);
         ods_log_debug("[%s[%i]] somebody poked me, check completed jobs %u "
-           "appointed, %u completed", worker2str(worker->type),
-           worker->thread_num, worker->jobs_appointed, worker->jobs_completed);
+           "appointed, %u completed, %u failed", worker2str(worker->type),
+           worker->thread_num, worker->jobs_appointed, worker->jobs_completed,
+           worker->jobs_failed);
     }
     lock_basic_unlock(&worker->worker_lock);
     return;

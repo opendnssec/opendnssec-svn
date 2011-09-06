@@ -83,17 +83,6 @@ void log_dname(ldns_rdf* rdf, const char* pre, int level);
 domain_type* domain_create(void* zoneptr, ldns_rdf* dname);
 
 /**
- * Recover domain from backup.
- * \param[in] domain domain
- * \param[in] fd backup file descriptor
- * \param[in] dstatus domain status
- * \return ods_status status
- *
- */
-ods_status domain_recover(domain_type* domain, FILE* fd,
-    int dstatus);
-
-/**
  * Count the number of RRsets at this domain.
  * \param[in] domain domain
  * \return size_t number of RRsets
@@ -193,6 +182,17 @@ void domain_print(FILE* fd, domain_type* domain);
  *
  */
 void domain_cleanup(domain_type* domain);
+
+/**
+ * Recover domain from backup.
+ * \param[in] domain domain
+ * \param[in] fd backup file descriptor
+ * \param[in] dstatus domain status
+ * \return ods_status status
+ *
+ */
+ods_status domain_recover(domain_type* domain, FILE* fd,
+    int dstatus);
 
 /**
  * Backup domain.

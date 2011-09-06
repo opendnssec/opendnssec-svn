@@ -365,7 +365,7 @@ zone_rollback_nsec3param(zone_type* zone)
 
 
 /**
- * Update SOA SERIAL.
+ * Update serial.
  *
  */
 ods_status
@@ -974,7 +974,6 @@ recover_error:
 
     ldns_rr_free(nsec3params_rr);
     nsec3params_rr = NULL;
-
     nsec3params_cleanup(nsec3params);
     nsec3params = NULL;
 

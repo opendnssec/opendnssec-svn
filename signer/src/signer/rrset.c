@@ -176,7 +176,6 @@ rrset_create(void* zoneptr, ldns_rr_type type)
 {
     zone_type* zone = (zone_type*) zoneptr;
     rrset_type* rrset = NULL;
-
     if (!type || !zoneptr) {
         return NULL;
     }
@@ -629,7 +628,7 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, time_t signtime)
     const char* locator = NULL;
     time_t inception = 0;
     time_t expiration = 0;
-    uint16_t i = 0;
+    size_t i = 0;
     domain_type* domain = NULL;
     ldns_rr_type dstatus = LDNS_RR_TYPE_FIRST;
     ldns_rr_type delegpt = LDNS_RR_TYPE_FIRST;
@@ -760,27 +759,6 @@ rrset_print(FILE* fd, rrset_type* rrset, int skip_rrsigs)
 
 
 /**
- * Backup RRset.
- *
- */
-void
-rrset_backup(FILE* fd, rrset_type* rrset)
-{
-    uint16_t i = 0;
-    if (!rrset || !fd) {
-        return;
-    }
-    if (!rrset || !fd) {
-        return;
-    }
-    for (i=0; i < rrset->rrsig_count; i++) {
-        ldns_rr_print(fd, rrset->rrsigs[i].rr);
-    }
-    return;
-}
-
-
-/**
  * Clean up RRset.
  *
  */
@@ -809,5 +787,26 @@ rrset_cleanup(rrset_type* rrset)
     allocator_deallocate(zone->allocator, (void*) rrset->rrs);
     allocator_deallocate(zone->allocator, (void*) rrset->rrsigs);
     allocator_deallocate(zone->allocator, (void*) rrset);
+    return;
+}
+
+
+/**
+ * Backup RRset.
+ *
+ */
+void
+rrset_backup(FILE* fd, rrset_type* rrset)
+{
+    uint16_t i = 0;
+    if (!rrset || !fd) {
+        return;
+    }
+    if (!rrset || !fd) {
+        return;
+    }
+    for (i=0; i < rrset->rrsig_count; i++) {
+        ldns_rr_print(fd, rrset->rrsigs[i].rr);
+    }
     return;
 }

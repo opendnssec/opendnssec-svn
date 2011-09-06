@@ -67,20 +67,6 @@ static char* cmdh_str = "cmdhandler";
 
 
 /**
- * Handle not implemented.
- *
-static void
-cmdhandler_handle_cmd_notimpl(int sockfd, const char* str)
-{
-    char buf[ODS_SE_MAXLINE];
-    (void)snprintf(buf, ODS_SE_MAXLINE, "Command %s not implemented.\n", str);
-    ods_writen(sockfd, buf, strlen(buf));
-    return;
-}
- */
-
-
-/**
  * Handle the 'help' command.
  *
  */
@@ -399,13 +385,10 @@ cmdhandler_handle_cmd_clear(int sockfd, cmdhandler_type* cmdc, const char* tbd)
     unlink_backup_file(tbd, ".backup");
 
     lock_basic_lock(&cmdc->engine->zonelist->zl_lock);
-    /* [LOCK] zonelist */
     zone = zonelist_lookup_zone_by_name(cmdc->engine->zonelist, tbd,
         LDNS_RR_CLASS_IN);
-    /* [UNLOCK] zonelist */
     lock_basic_unlock(&cmdc->engine->zonelist->zl_lock);
     if (zone) {
-        /* [LOCK] zone */
         lock_basic_lock(&zone->zone_lock);
         inbserial = zone->db->inbserial;
         intserial = zone->db->intserial;
@@ -432,7 +415,6 @@ cmdhandler_handle_cmd_clear(int sockfd, cmdhandler_type* cmdc, const char* tbd)
             task = (task_type*) zone->task;
             task->what = TASK_READ;
         }
-        /* [UNLOCK] zone */
         lock_basic_unlock(&zone->zone_lock);
 
         (void)snprintf(buf, ODS_SE_MAXLINE, "Internal zone information about "
@@ -645,6 +627,20 @@ cmdhandler_handle_cmd_unknown(int sockfd, const char* str)
     ods_writen(sockfd, buf, strlen(buf));
     return;
 }
+
+
+/**
+ * Handle not implemented.
+ *
+static void
+cmdhandler_handle_cmd_notimpl(int sockfd, const char* str)
+{
+    char buf[ODS_SE_MAXLINE];
+    (void)snprintf(buf, ODS_SE_MAXLINE, "Command %s not implemented.\n", str);
+    ods_writen(sockfd, buf, strlen(buf));
+    return;
+}
+ */
 
 
 /**

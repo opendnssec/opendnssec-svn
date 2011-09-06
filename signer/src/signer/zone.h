@@ -140,7 +140,7 @@ ods_status zone_publish_nsec3param(zone_type* zone);
 void zone_rollback_nsec3param(zone_type* zone);
 
 /**
- * Update SOA SERIAL.
+ * Update serial.
  * \param[in] zone zone
  * \return ods_status status
  *

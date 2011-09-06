@@ -53,9 +53,7 @@ ods_signerd_SOURCES=		ods-signerd.c \
 				signer/stats.c signer/stats.h \
 				signer/tools.c signer/tools.h \
 				signer/zone.c signer/zone.h \
-				signer/zonelist.c signer/zonelist.h \
-				tools/toolutil.c tools/toolutil.h \
-				tools/zone_fetcher.c tools/zone_fetcher.h
+				signer/zonelist.c signer/zonelist.h
 
 ods_signerd_LDADD=		$(LIBHSM)
 ods_signerd_LDADD+=		@LDNS_LIBS@ @XML2_LIBS@ @PTHREAD_LIBS@ @RT_LIBS@

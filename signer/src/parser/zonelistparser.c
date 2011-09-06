@@ -208,7 +208,7 @@ parse_zonelist_zones(void* zlist, const char* zlfile)
                 xpathCtx = xmlXPathNewContext(doc);
             }
             if (doc == NULL || xpathCtx == NULL) {
-                ods_log_alert("[%s] unable to read zone %s, skipping",
+                ods_log_alert("[%s] unable to read zone %s, skipping...",
                    parser_str, zone_name);
                 ret = xmlTextReaderRead(reader);
                 free((void*) zone_name);

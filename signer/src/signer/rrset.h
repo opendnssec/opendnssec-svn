@@ -79,7 +79,7 @@ struct rrset_struct {
     rrsig_type* rrsigs;
     size_t rr_count;
     size_t rrsig_count;
-    int needs_signing;
+    unsigned needs_signing : 1;
 };
 
 /**
@@ -152,7 +152,7 @@ size_t rrset_count_rr_is_added(rrset_type* rrset);
  * \param[in] rrset RRset
  * \param[in] rr RR
  * \return rr_type* added RR
-
+ *
  */
 rr_type* rrset_add_rr(rrset_type* rrset, ldns_rr* rr);
 
@@ -197,6 +197,7 @@ void rrset_diff(rrset_type* rrset);
  * \param[in] rrset RRset
  * \param[in] signtime time when the zone is being signed
  * \return ods_status status
+ *
  */
 ods_status rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, time_t signtime);
 
