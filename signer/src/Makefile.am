@@ -45,6 +45,7 @@ ods_signerd_SOURCES=		ods-signerd.c \
 				signer/backup.c signer/backup.h \
 				signer/denial.c signer/denial.h \
 				signer/domain.c signer/domain.h \
+				signer/ixfr.c signer/ixfr.h \
 				signer/keys.c signer/keys.h \
 				signer/namedb.c signer/namedb.h \
 				signer/nsec3params.c signer/nsec3params.h \
