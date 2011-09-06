@@ -52,7 +52,6 @@ struct engineconfig_struct {
     adapter_type** adapters;
     const char* cfg_filename;
     const char* zonelist_filename;
-    const char* zonefetch_filename;
     const char* log_filename;
     const char* pid_filename;
     const char* notify_command;

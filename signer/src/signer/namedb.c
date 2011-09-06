@@ -164,7 +164,7 @@ namedb_create(void* zone)
 
 
 /**
- * Recover zone data from backup.
+ * Recover namedb from backup.
  *
  */
 ods_status
@@ -950,7 +950,7 @@ namedb_nsecify(namedb_type* db, uint32_t* num_added)
 
 
 /**
- * Examine updates to zone data.
+ * Examine updates to db.
  *
  */
 ods_status
@@ -1155,7 +1155,7 @@ namedb_cleanup(namedb_type* db)
 
 
 /**
- * Backup zone data.
+ * Backup namedb.
  *
  */
 void

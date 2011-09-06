@@ -43,7 +43,6 @@
 #include "shared/status.h"
 #include "shared/util.h"
 #include "signer/zonelist.h"
-#include "tools/zone_fetcher.h"
 
 #include <errno.h>
 #include <libhsm.h>
@@ -376,155 +375,6 @@ engine_wakeup_workers(engine_type* engine)
 
 
 /**
- * Start zonefetcher.
- *
- */
-static int
-start_zonefetcher(engine_type* engine)
-{
-    pid_t zfpid = 0;
-    int result = 0;
-    char* zf_filename = NULL;
-    char* zl_filename = NULL;
-    char* log_filename = NULL;
-    char* grp = NULL;
-    char* usr = NULL;
-    char* chrt = NULL;
-    int use_syslog = 0;
-    int verbosity = 0;
-
-    ods_log_assert(engine);
-    ods_log_assert(engine->config);
-
-    if (!engine->config->zonefetch_filename) {
-        /* zone fetcher disabled */
-        return 0;
-    }
-
-    switch ((zfpid = fork())) {
-        case -1: /* error */
-            ods_log_error("failed to fork zone fetcher: %s",
-                strerror(errno));
-            return 1;
-        case 0: /* child */
-            break;
-        default: /* parent */
-            engine->zfpid = zfpid;
-            return 0;
-    }
-
-    if (setsid() == -1) {
-        ods_log_error("failed to setsid zone fetcher: %s",
-            strerror(errno));
-        return 1;
-    }
-
-    ods_log_verbose("zone fetcher running as pid %lu",
-        (unsigned long) getpid());
-
-    if (engine->config->zonefetch_filename) {
-        zf_filename = strdup(engine->config->zonefetch_filename);
-    }
-    if (engine->config->zonelist_filename) {
-        zl_filename = strdup(engine->config->zonelist_filename);
-    }
-    if (engine->config->group) {
-        grp = strdup(engine->config->group);
-    }
-    if (engine->config->username) {
-        usr = strdup(engine->config->username);
-    }
-    if (engine->config->chroot) {
-        chrt = strdup(engine->config->chroot);
-    }
-    if (engine->config->log_filename) {
-        log_filename = strdup(engine->config->log_filename);
-    }
-    use_syslog = engine->config->use_syslog;
-    verbosity = engine->config->verbosity;
-
-    result = tools_zone_fetcher(zf_filename, zl_filename, grp, usr,
-        chrt, log_filename, use_syslog, verbosity);
-
-    ods_log_verbose("zone fetcher done", result);
-    if (zf_filename)  { free((void*)zf_filename); }
-    if (zl_filename)  { free((void*)zl_filename); }
-    if (grp)          { free((void*)grp); }
-    if (usr)          { free((void*)usr); }
-    if (chrt)         { free((void*)chrt); }
-    if (log_filename) { free((void*)log_filename); }
-
-    engine_cleanup(engine);
-    engine = NULL;
-    ods_log_close();
-    xmlCleanupParser();
-    xmlCleanupGlobals();
-    xmlCleanupThreads();
-    exit(result);
-
-    return 0;
-}
-
-
-/**
- * Reload zonefetcher.
- *
- */
-static void
-reload_zonefetcher(engine_type* engine)
-{
-    int result = 0;
-
-    ods_log_assert(engine);
-    ods_log_assert(engine->config);
-
-    if (engine->config->zonefetch_filename) {
-        if (engine->zfpid > 0) {
-            result = kill(engine->zfpid, SIGHUP);
-            if (result == -1) {
-                ods_log_error("cannot reload zone fetcher: %s",
-                    strerror(errno));
-            } else {
-                ods_log_info("zone fetcher reloaded (pid=%i)", engine->zfpid);
-            }
-        } else {
-            ods_log_error("cannot reload zone fetcher: process id unknown");
-        }
-    }
-    return;
-}
-
-
-/**
- * Stop zonefetcher.
- *
- */
-static void
-stop_zonefetcher(engine_type* engine)
-{
-    int result = 0;
-
-    ods_log_assert(engine);
-    ods_log_assert(engine->config);
-
-    if (engine->config->zonefetch_filename) {
-        if (engine->zfpid > 0) {
-            result = kill(engine->zfpid, SIGTERM);
-            if (result == -1) {
-                ods_log_error("cannot stop zone fetcher: %s", strerror(errno));
-            } else {
-                ods_log_info("zone fetcher stopped (pid=%i)", engine->zfpid);
-            }
-            engine->zfpid = -1;
-        } else {
-            ods_log_error("cannot stop zone fetcher: process id unknown");
-        }
-    }
-    return;
-}
-
-
-/**
  * Initialize adapters.
  *
  */
@@ -561,11 +411,6 @@ engine_setup(engine_type* engine)
         engine->config->clisock_filename);
     if (!engine->cmdhandler) {
         return ODS_STATUS_CMDHANDLER_ERR;
-    }
-    /* fork of fetcher */
-    if (start_zonefetcher(engine) != 0) {
-        ods_log_error("[%s] cannot start zonefetcher", engine_str);
-        return ODS_STATUS_ERR;
     }
     /* initialize adapters */
     engine_init_adapters(engine);
@@ -774,7 +619,6 @@ engine_update_zones(engine_type* engine)
         return;
     }
     now = time_now();
-    reload_zonefetcher(engine);
 
     lock_basic_lock(&engine->zonelist->zl_lock);
     node = ldns_rbtree_first(engine->zonelist->zones);
@@ -817,8 +661,6 @@ engine_update_zones(engine_type* engine)
                 lock_basic_unlock(&engine->taskq->schedule_lock);
                 wake_up = 1;
            }
-           /* zone fetcher enabled? */
-           zone->fetch = (engine->config->zonefetch_filename != NULL);
            lock_basic_unlock(&zone->zone_lock);
         } else if (zone->zl_status == ZONE_ZL_UPDATED) {
             lock_basic_lock(&zone->zone_lock);
@@ -904,8 +746,6 @@ engine_recover(engine_type* engine)
             if (engine->config->notify_command && !zone->notify_ns) {
                 set_notify_ns(zone, engine->config->notify_command);
             }
-            /* zone fetcher enabled? */
-            zone->fetch = (engine->config->zonefetch_filename != NULL);
             /* schedule task */
             lock_basic_lock(&engine->taskq->schedule_lock);
             /* [LOCK] schedule */
@@ -1033,7 +873,6 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
 
     /* shutdown */
     ods_log_info("[%s] signer shutdown", engine_str);
-    stop_zonefetcher(engine);
     if (close_hsm) {
         hsm_close();
     }

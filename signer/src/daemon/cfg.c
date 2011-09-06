@@ -84,8 +84,6 @@ engine_config(allocator_type* allocator, const char* cfgfile,
         ecfg->cfg_filename = allocator_strdup(allocator, cfgfile);
         ecfg->zonelist_filename = parse_conf_zonelist_filename(allocator,
             cfgfile);
-        ecfg->zonefetch_filename = parse_conf_zonefetch_filename(allocator,
-            cfgfile);
         ecfg->log_filename = parse_conf_log_filename(allocator, cfgfile);
         ecfg->pid_filename = parse_conf_pid_filename(allocator, cfgfile);
         ecfg->notify_command = parse_conf_notify_command(allocator, cfgfile);
@@ -169,14 +167,8 @@ engine_config_print(FILE* out, engineconfig_type* config)
 	        fprintf(out, "\t\t\t</File>\n");
 	        fprintf(out, "\t\t</Logging>\n");
         }
-
         fprintf(out, "\t\t<ZoneListFile>%s</ZoneListFile>\n",
             config->zonelist_filename);
-        if (config->zonefetch_filename) {
-            fprintf(out, "\t\t<ZoneFetchFile>%s</ZoneFetchFile>\n",
-                config->zonefetch_filename);
-        }
-
         fprintf(out, "\t</Common>\n");
 
         /* Signer */
@@ -232,7 +224,6 @@ engine_config_cleanup(engineconfig_type* config)
     allocator = config->allocator;
     allocator_deallocate(allocator, (void*) config->cfg_filename);
     allocator_deallocate(allocator, (void*) config->zonelist_filename);
-    allocator_deallocate(allocator, (void*) config->zonefetch_filename);
     allocator_deallocate(allocator, (void*) config->log_filename);
     allocator_deallocate(allocator, (void*) config->pid_filename);
     allocator_deallocate(allocator, (void*) config->notify_command);

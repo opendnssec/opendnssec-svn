@@ -89,10 +89,8 @@ tools_input(zone_type* zone)
 {
     ods_status status = ODS_STATUS_OK;
     char* tmpname = NULL;
-    char* lockname = NULL;
     time_t start = 0;
     time_t end = 0;
-    FILE* fd = NULL;
 
     ods_log_assert(zone);
     ods_log_assert(zone->name);
@@ -127,50 +125,6 @@ tools_input(zone_type* zone)
         zone->stats->sort_count = 0;
         zone->stats->sort_time = 0;
         lock_basic_unlock(&zone->stats->stats_lock);
-    }
-    if (zone->adinbound->type == ADAPTER_FILE) {
-        if (zone->fetch) {
-            ods_log_verbose("[%s] fetch zone %s", tools_str,
-                zone->name?zone->name:"(null)");
-            tmpname = ods_build_path(
-                zone->adinbound->configstr, ".axfr", 0);
-            lockname = ods_build_path(
-                zone->adinbound->configstr, ".lock", 0);
-
-lock_fetch:
-            if (access(lockname, F_OK) == 0) {
-                ods_log_deeebug("[%s] axfr file %s is locked, "
-                    "waiting...", tools_str, tmpname);
-                sleep(1);
-                goto lock_fetch;
-            } else {
-                fd = fopen(lockname, "w");
-                if (!fd) {
-                    ods_log_error("[%s] cannot lock AXFR file %s",
-                        tools_str, lockname);
-                    free((void*)tmpname);
-                    free((void*)lockname);
-                    return ODS_STATUS_ERR;
-                }
-            }
-            ods_log_assert(fd); /* locked */
-
-            status = ods_file_copy(tmpname, zone->adinbound->configstr);
-
-            fclose(fd);
-            (void) unlink(lockname); /* unlocked */
-
-            if (status != ODS_STATUS_OK) {
-                ods_log_error("[%s] unable to copy axfr file %s to %s: %s",
-                    tools_str, tmpname, zone->adinbound->configstr,
-                    ods_status2str(status));
-                free((void*)tmpname);
-                free((void*)lockname);
-                return status;
-            }
-            free((void*)tmpname);
-            free((void*)lockname);
-        }
     }
     /* Input Adapter */
     start = time(NULL);

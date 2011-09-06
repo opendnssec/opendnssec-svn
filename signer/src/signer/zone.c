@@ -92,7 +92,6 @@ zone_create(char* name, ldns_rr_class klass)
     zone->adinbound = NULL;
     zone->adoutbound = NULL;
     zone->zl_status = ZONE_ZL_OK;
-    zone->fetch = 0;
     zone->task = NULL;
     zone->db = namedb_create((void*)zone);
     if (!zone->db) {
