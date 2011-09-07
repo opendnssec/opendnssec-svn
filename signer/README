@@ -242,6 +242,47 @@ latest version of the zone.
 
 
 -------------------------------------------------------------------
+TEMPORARY DNS FILE ADAPTERS
+-------------------------------------------------------------------
+You can use DNS adapters instead of File adapters. Put something 
+like this in your zonelist.xml:
+
+<Zone name="example.com">
+	...
+	<Adapters>
+		<Input>
+			<Adapter type="DNS">example.com.unsigned</Adapter>
+		</Input>
+		<Output>
+			<Adapter type="DNS">example.com.signed</Adapter>
+		</Output>
+	</Adapters>
+</Zone>
+
+Currently, the AXFRs and IXFRs are being read from file. Examples:
+
+AXFR style:
+
+example.com.      86400   IN      SOA     ns1.example.net. ... 1 ...
+example.com.      86400   IN      NS      ns2.example.net.
+example.com.      86400   IN      NS      ns1.example.net.
+example.com.      86400   IN      MX      10 mx1.example.net.
+example.com.      86400   IN      MX      20 mx2.example.net.
+example.com.      86400   IN      A       1.2.3.4
+www.example.com.  86400   IN      A       1.2.3.4
+example.com.      86400   IN      SOA     ns1.example.net. ... 1 ...
+
+IXFR style:
+
+example.com.      86400   IN      SOA     ns1.example.net. ... 2 ...
+example.com.      86400   IN      SOA     ns1.example.net. ... 1 ...
+www.example.com.  86400   IN      A       1.2.3.4
+example.com.      86400   IN      SOA     ns1.example.net. ... 2 ...
+www.example.com.  86400   IN      A       1.2.3.5
+www.example.com.  86400   IN      A       1.2.3.6
+example.com.      86400   IN      SOA     ns1.example.net. ... 2 ...
+
+-------------------------------------------------------------------
 DEBUGGING
 -------------------------------------------------------------------
 Warning: DO NOT TRY THIS EXCEPT FOR DEBUGGING PURPOSES
