@@ -389,6 +389,8 @@ addns_write(void* zone, const char* str)
     }
     fd = ods_fopen(str, NULL, "w");
     if (!fd) {
+        ods_log_error("[%s] unable to write zone %s: failed to open file %s "
+            "for writing", adapter_str, adzone->name, str);
         return ODS_STATUS_FOPEN_ERR;
     }
     adapi_printzone(fd, adzone);
@@ -397,6 +399,8 @@ addns_write(void* zone, const char* str)
     snprintf(ixfrname, SYSTEM_MAXLEN, "%s.ixfr", str);
     fd = ods_fopen(ixfrname, NULL, "a");
     if (!fd) {
+        ods_log_error("[%s] unable to write zone %s: failed to open file %s "
+            "for writing", adapter_str, adzone->name, ixfrname);
         return ODS_STATUS_FOPEN_ERR;
     }
     adapi_printixfr(fd, adzone);

@@ -193,7 +193,7 @@ ods_status
 adapter_write(void* zone)
 {
     zone_type* adzone = (zone_type*) zone;
-    if (!adzone || !adzone->db || adzone->adoutbound) {
+    if (!adzone || !adzone->db || !adzone->adoutbound) {
         return ODS_STATUS_ASSERT_ERR;
     }
     ods_log_assert(adzone->adoutbound->configstr);
