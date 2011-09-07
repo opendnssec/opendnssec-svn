@@ -98,6 +98,8 @@ engine_config(allocator_type* allocator, const char* cfgfile,
         ecfg->num_signer_threads = parse_conf_signer_threads(cfgfile);
         ecfg->verbosity = cmdline_verbosity;
         ecfg->num_adapters = 0;
+        ecfg->adapters = parse_conf_adapters(allocator, cfgfile,
+            &ecfg->num_adapters);
         /* done */
         ods_fclose(cfgfd);
         return ecfg;
@@ -129,6 +131,10 @@ engine_config_check(engineconfig_type* config)
     }
     if (!config->clisock_filename) {
         ods_log_error("[%s] config-check failed: no socket filename", conf_str);
+        return ODS_STATUS_CFG_ERR;
+    }
+    if (!config->adapters) {
+        ods_log_error("[%s] config-check failed: no adapters", conf_str);
         return ODS_STATUS_CFG_ERR;
     }
     /*  [TODO] room for more checks here */
