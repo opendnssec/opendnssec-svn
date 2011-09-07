@@ -117,7 +117,7 @@ start = element Configuration {
 
 		# Initialize Adapters
 		element Adapters {
-			element Adapter { adapter }+
+			adapter+
 		}?,
 
 		# System command to call after a zone has been (re)signed
