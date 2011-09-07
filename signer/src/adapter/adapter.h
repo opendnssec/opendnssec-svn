@@ -35,6 +35,7 @@
 #define ADAPTER_ADAPTER_H
 
 #include "config.h"
+#include "adapter/addns.h"
 #include "adapter/adfile.h"
 #include "shared/allocator.h"
 #include "shared/status.h"
@@ -44,7 +45,8 @@
 /** Adapter mode. */
 enum adapter_mode_enum
 {
-    ADAPTER_FILE = 1
+    ADAPTER_FILE = 1,
+    ADAPTER_DNS
 };
 typedef enum adapter_mode_enum adapter_mode;
 

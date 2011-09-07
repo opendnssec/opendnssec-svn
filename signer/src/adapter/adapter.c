@@ -55,6 +55,9 @@ adapter_init(adapter_type* adapter)
         case ADAPTER_FILE:
             adfile_init(adapter);
             break;
+        case ADAPTER_DNS:
+            addns_init(adapter);
+            break;
         default:
             ods_log_error("[%s] unable to initialize adapter: "
                 "unknown adapter", adapter_str);
@@ -106,6 +109,7 @@ ods_status
 adapter_read(void* zone)
 {
     zone_type* adzone = (zone_type*) zone;
+    ods_status status = ODS_STATUS_OK;
     if (!adzone || !adzone->adinbound) {
         ods_log_error("[%s] unable to read zone: no input adapter",
             adapter_str);
@@ -116,7 +120,20 @@ adapter_read(void* zone)
         case ADAPTER_FILE:
             ods_log_verbose("[%s] read zone %s from file input adapter %s",
                 adapter_str, adzone->name, adzone->adinbound->configstr);
+            if (adzone->signconf->audit) {
+                char* tmpname = ods_build_path(adzone->name, ".inbound", 0);
+                status = ods_file_copy(adzone->adinbound->configstr, tmpname);
+                free((void*)tmpname);
+                if (status != ODS_STATUS_OK) {
+                    return status;
+                }
+            }
             return adfile_read(zone, adzone->adinbound->configstr);
+            break;
+        case ADAPTER_DNS:
+            ods_log_verbose("[%s] read zone %s from dns input adapter %s",
+                adapter_str, adzone->name, adzone->adinbound->configstr);
+            return addns_read(zone, adzone->adinbound->configstr);
             break;
         default:
             ods_log_error("[%s] unable to read zone %s from adapter: unknown "
@@ -137,23 +154,19 @@ ods_status
 adapter_write(void* zone)
 {
     zone_type* adzone = (zone_type*) zone;
-    if (!adzone || !adzone->adoutbound) {
-        ods_log_error("[%s] unable to write zone: no output adapter",
-            adapter_str);
+    if (!adzone || !adzone->db || adzone->adoutbound) {
         return ODS_STATUS_ASSERT_ERR;
     }
     ods_log_assert(adzone->adoutbound->configstr);
-    if (!adzone->db) {
-        ods_log_error("[%s] unable to write zone %s: no zone data",
-            adapter_str, adzone->name);
-        return ODS_STATUS_ASSERT_ERR;
-    }
     switch(adzone->adoutbound->type) {
         case ADAPTER_FILE:
             ods_log_verbose("[%s] write zone %s serial %u to output file "
                 "adapter %s", adapter_str, adzone->name,
                 adzone->db->outserial, adzone->adinbound->configstr);
             return adfile_write(zone, adzone->adoutbound->configstr);
+            break;
+        case ADAPTER_DNS:
+            return addns_write(zone, adzone->adoutbound->configstr);
             break;
         default:
             ods_log_error("[%s] unable to write zone %s to adapter: unknown "
