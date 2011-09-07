@@ -376,7 +376,10 @@ zone_update_serial(zone_type* zone)
 {
     ods_status status = ODS_STATUS_OK;
     rrset_type* rrset = NULL;
+    rr_type* soa = NULL;
+    ldns_rr* rr = NULL;
     ldns_rdf* soa_rdata = NULL;
+    uint32_t tmp = 0;
 
     ods_log_assert(zone);
     ods_log_assert(zone->apex);
@@ -393,16 +396,24 @@ zone_update_serial(zone_type* zone)
     ods_log_assert(rrset);
     ods_log_assert(rrset->rrs);
     ods_log_assert(rrset->rrs[0].rr);
+    rr = ldns_rr_clone(rrset->rrs[0].rr);
+    if (!rr) {
+        ods_log_error("[%s] unable to update zone %s soa serial: failed to "
+            "clone soa rr", zone_str, zone->name);
+        return ODS_STATUS_ERR;
+    }
+    tmp = ldns_rdf2native_int32(ldns_rr_rdf(rr, SE_SOA_RDATA_SERIAL));
     status = namedb_update_serial(zone->db, zone->signconf->soa_serial,
         zone->db->inbserial);
     if (status != ODS_STATUS_OK) {
         ods_log_error("[%s] unable to update zone %s soa serial: %s",
             zone_str, zone->name, ods_status2str(status));
+        ldns_rr_free(rr);
         return status;
     }
     ods_log_verbose("[%s] zone %s set soa serial to %u", zone_str,
         zone->name, zone->db->intserial);
-    soa_rdata = ldns_rr_set_rdf(rrset->rrs[0].rr,
+    soa_rdata = ldns_rr_set_rdf(rr,
         ldns_native2rdf_int32(LDNS_RDF_TYPE_INT32,
         zone->db->intserial), SE_SOA_RDATA_SERIAL);
     if (soa_rdata) {
@@ -411,10 +422,13 @@ zone_update_serial(zone_type* zone)
     } else {
         ods_log_error("[%s] unable to update zone %s soa serial: failed to "
             "replace soa serial rdata", zone_str, zone->name);
+        ldns_rr_free(rr);
         return ODS_STATUS_ERR;
     }
+    soa = rrset_add_rr(rrset, rr);
+    ods_log_assert(soa);
+    rrset_diff(rrset, 0);
     zone->db->serial_updated = 0;
-    rrset->needs_signing = 1;
     return ODS_STATUS_OK;
 }
 
@@ -903,7 +917,7 @@ zone_recover(zone_type* zone)
             zone->task = NULL;
             goto recover_error;
         }
-        namedb_diff(zone->db);
+        namedb_diff(zone->db, 0);
         ods_fclose(fd);
 
         /* all ok */

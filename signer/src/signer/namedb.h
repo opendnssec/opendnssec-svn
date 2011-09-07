@@ -163,9 +163,10 @@ ods_status namedb_examine(namedb_type* db);
 /**
  * Apply differences in db.
  * \param[in] db namedb
+ * \param[in] is_ixfr true if incremental change
  *
  */
-void namedb_diff(namedb_type* db);
+void namedb_diff(namedb_type* db, unsigned is_ixfr);
 
 /**
  * Rollback differences in db.

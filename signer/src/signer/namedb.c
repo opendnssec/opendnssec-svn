@@ -868,7 +868,7 @@ namedb_del_denial(namedb_type* db, denial_type* denial)
  *
  */
 void
-namedb_diff(namedb_type* db)
+namedb_diff(namedb_type* db, unsigned is_ixfr)
 {
     ldns_rbnode_t* node = LDNS_RBTREE_NULL;
     domain_type* domain = NULL;
@@ -882,7 +882,7 @@ namedb_diff(namedb_type* db)
     while (node && node != LDNS_RBTREE_NULL) {
         domain = (domain_type*) node->data;
         node = ldns_rbtree_next(node);
-        domain_diff(domain);
+        domain_diff(domain, is_ixfr);
         domain = namedb_del_denial_trigger(db, domain, 0);
         if (domain) {
             namedb_add_denial_trigger(db, domain);
