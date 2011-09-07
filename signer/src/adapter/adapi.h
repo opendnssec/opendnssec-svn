@@ -120,4 +120,12 @@ ods_status adapi_del_rr(zone_type* zone, ldns_rr* rr);
  */
 void adapi_printzone(FILE* fd, zone_type* zone);
 
+/**
+ * Print ixfr.
+ * \param[in] fd file descriptor
+ * \param[in] zone zone
+ *
+ */
+void adapi_printixfr(FILE* fd, zone_type* zone);
+
 #endif /* ADAPTER_ADAPI_H */

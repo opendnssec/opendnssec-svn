@@ -51,7 +51,7 @@ static const char* adapter_str = "adapter";
 
 
 /**
- * Initialize DNS adapters.
+ * Initialize DNS adapter.
  *
  */
 void
@@ -102,7 +102,6 @@ addns_read_line:
                 }
                 *status = ldns_rr_new_frm_str(&rr, line, new_ttl, *orig, prev);
                 if (*status == LDNS_STATUS_OK) {
-                    ldns_rr2canonical(rr); /* TODO: canonicalize or not? */
                     return rr;
                 } else if (*status == LDNS_STATUS_SYNTAX_EMPTY) {
                     if (rr) {
@@ -214,14 +213,12 @@ addns_read_ixfr(FILE* fd, zone_type* zone)
             adapter_str);
         return ODS_STATUS_ERR;
     }
-
     /* $TTL <default ttl> */
     ttl = adapi_get_ttl(zone);
-
     /* read RRs */
-    while ((rr = addns_read_rr(fd, line, &orig, &prev, &ttl,
-        &status, &l)) != NULL) {
-
+    while ((rr = addns_read_rr(fd, line, &orig, &prev, &ttl, &status, &l))
+        != NULL) {
+        /* check status */
         if (status != LDNS_STATUS_OK) {
             ods_log_error("[%s] error reading RR at line %i (%s): %s",
                 adapter_str, l, ldns_get_errorstr_by_id(status), line);
@@ -242,12 +239,11 @@ addns_read_ixfr(FILE* fd, zone_type* zone)
             }
         }
         rr_count++;
-
+        /* debug update */
         if (l > line_update) {
             ods_log_debug("[%s] ...at line %i: %s", adapter_str, l, line);
             line_update += line_update_interval;
         }
-
         /* filter out DNSSEC RRs (except DNSKEY) from the Input File Adapter */
         if (util_is_dnssec_rr(rr)) {
             ldns_rr_free(rr);
@@ -261,7 +257,6 @@ addns_read_ixfr(FILE* fd, zone_type* zone)
             rr = NULL;
             continue;
         }
-
         /* if SOA, switch */
         if (!is_axfr && ldns_rr_get_type(rr) == LDNS_RR_TYPE_SOA) {
             tmp_serial =
@@ -288,8 +283,7 @@ addns_read_ixfr(FILE* fd, zone_type* zone)
             }
             continue;
         }
-
-        /* add/del to the database */
+        /* [add to/remove from] the zone */
         if (del_rr) {
             result = adapi_del_rr(zone, rr);
         } else {
@@ -320,7 +314,6 @@ addns_read_ixfr(FILE* fd, zone_type* zone)
         ldns_rdf_deep_free(prev);
         prev = NULL;
     }
-
     if (result == ODS_STATUS_OK && status != LDNS_STATUS_OK) {
         ods_log_error("[%s] error reading RR at line %i (%s): %s",
             adapter_str, l, ldns_get_errorstr_by_id(status), line);
@@ -367,39 +360,16 @@ addns_read(void* zone, const char* str)
     FILE* fd = NULL;
     zone_type* adzone = (zone_type*) zone;
     ods_status status = ODS_STATUS_OK;
-
-    /* [start] sanity parameter checking */
-    if (!adzone) {
-        ods_log_error("[%s] unable to read file: no zone (or no name given)",
-            adapter_str);
+    if (!adzone || !str) {
         return ODS_STATUS_ASSERT_ERR;
     }
-    ods_log_assert(adzone);
-    if (!str) {
-        ods_log_error("[%s] unable to read file: no configstr given",
-            adapter_str);
-        return ODS_STATUS_ASSERT_ERR;
-    }
-    ods_log_assert(str);
-    /* [end] sanity parameter checking */
-
-    /* [start] read zone */
     fd = ods_fopen(str, NULL, "r");
     if (!fd) {
-        ods_log_error("[%s] unable to read ixfr: fopen failed", adapter_str);
         return ODS_STATUS_FOPEN_ERR;
     }
     status = addns_read_ixfr(fd, zone);
     ods_fclose(fd);
-    fd = NULL;
-    if (status != ODS_STATUS_OK) {
-        ods_log_error("[%s] unable to read ixfr: %s", adapter_str,
-            ods_status2str(status));
-        return status;
-    }
-    /* [end] read zone */
-
-    return ODS_STATUS_OK;
+    return status;
 }
 
 
@@ -412,34 +382,14 @@ addns_write(void* zone, const char* str)
 {
     FILE* fd = NULL;
     zone_type* adzone = (zone_type*) zone;
-    ods_status status = ODS_STATUS_OK;
-
-    /* [start] sanity parameter checking */
-    if (!adzone) {
-        ods_log_error("[%s] unable to write file: no zone (or no "
-            "name given)", adapter_str);
+    if (!adzone || !str) {
         return ODS_STATUS_ASSERT_ERR;
     }
-    ods_log_assert(adzone);
-
-    if (!str) {
-        ods_log_error("[%s] unable to write file: no filename given",
-            adapter_str);
-        return ODS_STATUS_ERR;
-    }
-    ods_log_assert(str);
-    /* [end] sanity parameter checking */
-
-    /* [start] write zone */
     fd = ods_fopen(str, NULL, "w");
-    if (fd) {
-        adapi_printzone(fd, adzone);
-        ods_fclose(fd);
-        status = ODS_STATUS_OK;
-    } else {
-        status = ODS_STATUS_FOPEN_ERR;
+    if (!fd) {
+        return ODS_STATUS_FOPEN_ERR;
     }
-    /* [end] write zone */
-
-    return status;
+    adapi_printzone(fd, adzone);
+    ods_fclose(fd);
+    return ODS_STATUS_OK;
 }

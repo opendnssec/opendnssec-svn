@@ -175,7 +175,6 @@ adfile_read_rr:
                 }
                 *status = ldns_rr_new_frm_str(&rr, line, new_ttl, *orig, prev);
                 if (*status == LDNS_STATUS_OK) {
-                    ldns_rr2canonical(rr); /* TODO: canonicalize or not? */
                     return rr;
                 } else if (*status == LDNS_STATUS_SYNTAX_EMPTY) {
                     if (rr) {

@@ -34,6 +34,7 @@
 #include "config.h"
 #include "adapter/adapi.h"
 #include "shared/duration.h"
+#include "shared/file.h"
 #include "shared/log.h"
 #include "shared/status.h"
 #include "shared/util.h"
@@ -348,5 +349,20 @@ adapi_printzone(FILE* fd, zone_type* zone)
         return;
     }
     namedb_export(fd, zone->db);
+    return;
+}
+
+
+/**
+ * Print ixfr.
+ *
+ */
+void
+adapi_printixfr(FILE* fd, zone_type* zone)
+{
+    if (!fd || !zone || !zone->ixfr) {
+        return;
+    }
+    ixfr_print(fd, zone->ixfr);
     return;
 }

@@ -40,6 +40,7 @@
 #include "shared/allocator.h"
 #include "shared/locks.h"
 #include "shared/status.h"
+#include "signer/ixfr.h"
 #include "signer/namedb.h"
 #include "signer/signconf.h"
 #include "signer/stats.h"
@@ -80,6 +81,7 @@ struct zone_struct {
     signconf_type* signconf; /* signer configuration values */
     /* zone data */
     namedb_type* db;
+    ixfr_type* ixfr;
     /* worker variables */
     void* task; /* next assigned task */
     /* statistics */

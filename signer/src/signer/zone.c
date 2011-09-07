@@ -85,7 +85,6 @@ zone_create(char* name, ldns_rr_class klass)
     zone->default_ttl = 3600; /* TODO: configure --default-ttl option? */
     zone->apex = ldns_dname_new_frm_str(name);
     /* check zone->apex? */
-    ldns_dname2canonical(zone->apex);
     zone->notify_ns = NULL;
     zone->policy_name = NULL;
     zone->signconf_filename = NULL;
@@ -96,6 +95,13 @@ zone_create(char* name, ldns_rr_class klass)
     zone->db = namedb_create((void*)zone);
     if (!zone->db) {
         ods_log_error("[%s] unable to create zone %s: create namedb "
+            "failed", zone_str, name);
+        zone_cleanup(zone);
+        return NULL;
+    }
+    zone->ixfr = ixfr_create((void*)zone);
+    if (!zone->ixfr) {
+        ods_log_error("[%s] unable to create zone %s: create ixfr "
             "failed", zone_str, name);
         zone_cleanup(zone);
         return NULL;
@@ -214,7 +220,6 @@ zone_publish_dnskeys(zone_type* zone)
         ods_log_assert(zone->signconf->keys->keys[i].dnskey);
         ldns_rr_set_ttl(zone->signconf->keys->keys[i].dnskey, ttl);
         ldns_rr_set_class(zone->signconf->keys->keys[i].dnskey, zone->klass);
-        ldns_rr2canonical(zone->signconf->keys->keys[i].dnskey);
         status = zone_add_rr(zone, zone->signconf->keys->keys[i].dnskey, 0);
         if (status == ODS_STATUS_UNCHANGED) {
             /* rr already exists, adjust pointer */
@@ -312,7 +317,6 @@ zone_publish_nsec3param(zone_type* zone)
          * according to rfc5155 section 11
          */
         ldns_set_bit(ldns_rdf_data(ldns_rr_rdf(rr, 1)), 7, 0);
-        ldns_rr2canonical(rr);
         zone->signconf->nsec3params->rr = rr;
     }
     ods_log_assert(zone->signconf->nsec3params->rr);
@@ -626,6 +630,7 @@ zone_cleanup(zone_type* zone)
     adapter_cleanup(zone->adinbound);
     adapter_cleanup(zone->adoutbound);
     namedb_cleanup(zone->db);
+    ixfr_cleanup(zone->ixfr);
     signconf_cleanup(zone->signconf);
     stats_cleanup(zone->stats);
     allocator_deallocate(allocator, (void*) zone->notify_ns);
