@@ -247,7 +247,6 @@ AC_CONFIG_FILES([
 	conf/kasp.xml
 	conf/signconf.xml
 	conf/zonelist.xml
-	conf/zonefetch.xml
 	enforcer/Makefile
 	enforcer/ksm/Makefile
 	enforcer/ksm/include/Makefile
