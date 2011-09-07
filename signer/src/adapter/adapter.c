@@ -68,6 +68,40 @@ adapter_init(adapter_type* adapter)
 
 
 /**
+ * Signal adapter.
+ *
+ */
+void
+adapter_signal(adapter_type* adapter)
+{
+    ods_log_assert(adapter);
+    if (adapter->sleeping) {
+        lock_basic_lock(&adapter->adapter_lock);
+        lock_basic_alarm(&adapter->adapter_alarm);
+        adapter->sleeping = 0;
+        lock_basic_unlock(&adapter->adapter_lock);
+    }
+    return;
+}
+
+
+/**
+ * Make adapter idle.
+ *
+ */
+void
+adapter_idle(adapter_type* adapter)
+{
+    ods_log_assert(adapter);
+    lock_basic_lock(&adapter->adapter_lock);
+    adapter->sleeping = 1;
+    lock_basic_sleep(&adapter->adapter_alarm, &adapter->adapter_lock, 0);
+    lock_basic_unlock(&adapter->adapter_lock);
+    return;
+}
+
+
+/**
  * Create a new adapter.
  *
  */
@@ -92,11 +126,16 @@ adapter_create(const char* str, adapter_mode type, unsigned inbound)
         allocator_cleanup(allocator);
         return NULL;
     }
+    lock_basic_init(&adapter->adapter_lock);
+    lock_basic_set(&adapter->adapter_alarm);
+    lock_basic_lock(&adapter->adapter_lock);
     adapter->allocator = allocator;
     adapter->configstr = allocator_strdup(allocator, str);
     adapter->type = type;
     adapter->inbound = inbound;
+    adapter->need_to_exit = 0;
     adapter->data = allocator_alloc(allocator, sizeof(adapter_data));
+    lock_basic_unlock(&adapter->adapter_lock);
     return adapter;
 }
 
