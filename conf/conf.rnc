@@ -70,10 +70,7 @@ start = element Configuration {
 		element PolicyFile { xsd:string },
 
 		# Location to store the zonelist XML file
-		element ZoneListFile { xsd:string },
-
-		# Location to store the zonefetch XML file (optional)
-		element ZoneFetchFile { xsd:string }?
+		element ZoneListFile { xsd:string }
 	},
 
 	# Configuration parameters for the KASP Enforcer
@@ -174,12 +171,10 @@ mysql = element MySQL {
 sqlite = element SQLite { xsd:string }
 
 # adapters
-adapter = adfile | addns
+adapter = element Adapter {
+	# type of adapter
+	attribute type { xsd:string },
 
-# file adapter
-adfile = element File { xsd:string }
-
-# dns adapter
-addns = element DNS { xsd:string }
-
+	element ConfigurationFile { xsd:string }
+}
 
