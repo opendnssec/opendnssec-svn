@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- $Id: addnsconf.xml.in 2735 2010-01-28 14:11:27Z matthijs $ -->
+
+<Adapter type="DNS">
+	<Inbound>
+		<!-- TSIG secret for Inbound XFR -->
+	        <!-- DEFAULT: don't use TSIG -->
+		<TSIG>
+			<Name>secret.example.com.</Name>
+			<!-- http://www.iana.org/assignments/tsig-algorithm-names -->
+			<Algorithm>hmac-sha256</Algorithm>
+			<!-- base64 encoded secret -->
+			<Secret>sw0nMPCswVbes1tmQTm1pcMmpNRK+oGMYN+qKNR/BwQ=</Secret>
+		</TSIG>
+
+		<!-- Address of host to request XFR from -->
+		<!-- EXAMPLE: send request to 1.2.3.4 on the default port 53 -->
+		<RequestTransfer><IPv4>1.2.3.4</IPv4></RequestTransfer>
+		<!-- EXAMPLE: send request to dead:beef::1 port 5353 -->
+		<RequestTransfer><IPv6>dead:beef::1</IPv6><Port>5353</Port></RequestTransfer>
+		<!-- DEFAULT: don't request zone transfers -->
+
+		<!-- Allow NOTIFY messages from host -->
+		<!-- EXAMPLE: allow notifies from 1.2.3.4 -->
+		<AllowNotify><IPv4>1.2.3.4</IPv4></AllowNotify>
+		<!-- DEFAULT: none -->
+	</Inbound>
+	<Outbound>
+		<!-- TSIG secret for Inbound XFR -->
+	        <!-- DEFAULT: don't use TSIG -->
+		<TSIG>
+			<Name>secret.example.com.</Name>
+			<!-- http://www.iana.org/assignments/tsig-algorithm-names -->
+			<Algorithm>hmac-sha256</Algorithm>
+			<!-- base64 encoded secret -->
+			<Secret>sw0nMPCswVbes1tmQTm1pcMmpNRK+oGMYN+qKNR/BwQ=</Secret>
+		</TSIG>
+
+		<!-- Provide XFR to host -->
+		<!-- EXAMPLE: provide XFR to 1.2.3.5 -->
+		<ProvideTransfer><IPv4>1.2.3.5</IPv4></ProvideTransfer>
+		<!-- DEFAULT: none -->
+
+		<!-- EXAMPLE: send NOTIFY to 1.2.3.5 on the default port 53 -->
+		<Notify><IPv4>1.2.3.5</IPv4></Notify>
+		<!-- DEFAULT: don't send notifies -->
+	</Outbound>
+</Adapter>
