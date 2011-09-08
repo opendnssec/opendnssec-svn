@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- $Id: addns.xml.in 2735 2010-01-28 14:11:27Z matthijs $ -->
+
+<Adapter type="DNS">
+	<!-- Where to listen for notifies and zone transfer requests -->
+        <!-- EXAMPLE: listen to 1.2.3.4 on port 5353
+	<NotifyListen><IPv4>1.2.3.4</IPv4><Port>5353</Port></NotifyListen>
+        <!-- EXAMPLE: listen to dead:beef::1 on port 5335
+	<NotifyListen><IPv6>dead:beef::1</IPv6><Port>5335</Port></NotifyListen>
+	<!-- DEFAULT: do not listen on specific address, use port 53 -->
+</Adapter>
