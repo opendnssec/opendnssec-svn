@@ -217,7 +217,7 @@ addns_read_file(FILE* fd, zone_type* zone)
                 ldns_rdf2native_int32(ldns_rr_rdf(rr, SE_SOA_RDATA_SERIAL));
             old_serial = adapi_get_serial(zone);
             if (!DNS_SERIAL_GT(new_serial, old_serial)) {
-                ods_log_error("[%s] zone %s is already up to date, have "
+                ods_log_info("[%s] zone %s is already up to date, have "
                     "serial %u, got serial %u", adapter_str, zone->name,
                     old_serial, new_serial);
                 ldns_rr_free(rr);
@@ -336,16 +336,16 @@ addns_read_file(FILE* fd, zone_type* zone)
         }
     }
     /* input zone ok, set inbound serial and apply differences */
-    if (result == ODS_STATUS_OK) {
+    if (result == ODS_STATUS_OK || result == ODS_STATUS_UNCHANGED) {
         adapi_set_serial(zone, new_serial);
         if (is_axfr) {
             adapi_trans_full(zone);
         } else {
             adapi_trans_diff(zone);
         }
-    } else if (result == ODS_STATUS_UNCHANGED) {
-        /* ok, just sign */
-        result = ODS_STATUS_OK;
+        if (result == ODS_STATUS_UNCHANGED) {
+            result = ODS_STATUS_OK;
+        }
     }
     return result;
 }

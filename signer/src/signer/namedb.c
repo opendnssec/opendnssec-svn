@@ -1014,16 +1014,34 @@ namedb_wipe_denial(namedb_type* db)
 {
     ldns_rbnode_t* node = LDNS_RBTREE_NULL;
     denial_type* denial = NULL;
+    zone_type* zone = NULL;
+    size_t i = 0;
 
     if (db && db->denials) {
+        zone = (zone_type*) db->zone;
         node = ldns_rbtree_first(db->denials);
         while (node && node != LDNS_RBTREE_NULL) {
             denial = (denial_type*) node->data;
-            if (denial->rrset) {
-                /* [TODO] IXFR delete NSEC */
-                rrset_cleanup(denial->rrset);
-                denial->rrset = NULL;
+            if (!denial->rrset) {
+                continue;
             }
+            for (i=0; i < denial->rrset->rr_count; i++) {
+                if (denial->rrset->rrs[i].exists) {
+                    /* ixfr -RR */
+                    ixfr_del_rr(zone->ixfr, denial->rrset->rrs[i].rr);
+                }
+                denial->rrset->rrs[i].exists = 0;
+                rrset_del_rr(denial->rrset, i);
+                i--;
+            }
+            for (i=0; i < denial->rrset->rrsig_count; i++) {
+                /* ixfr -RRSIG */
+                ixfr_del_rr(zone->ixfr, denial->rrset->rrsigs[i].rr);
+                rrset_del_rrsig(denial->rrset, i);
+                i--;
+            }
+            rrset_cleanup(denial->rrset);
+            denial->rrset = NULL;
             node = ldns_rbtree_next(node);
         }
     }

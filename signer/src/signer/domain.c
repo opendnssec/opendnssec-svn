@@ -289,7 +289,13 @@ domain_diff(domain_type* domain, unsigned is_ixfr)
     }
     rrset = domain->rrsets;
     while (rrset) {
-        rrset_diff(rrset, is_ixfr);
+        if (rrset->rrtype == LDNS_RR_TYPE_NSEC3PARAMS ||
+            rrset->rrtype == LDNS_RR_TYPE_DNSKEY) {
+            /* always do full diff on NSEC3PARAMS | DNSKEY RRset */
+            rrset_diff(rrset, 0);
+        } else {
+            rrset_diff(rrset, is_ixfr);
+        }
         if (rrset->rr_count <= 0) {
             /* delete entire rrset */
             if (!prev_rrset) {

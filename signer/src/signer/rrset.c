@@ -575,6 +575,9 @@ rrset2rrlist(rrset_type* rrset)
     size_t i = 0;
     rr_list = ldns_rr_list_new();
     for (i=0; i < rrset->rr_count; i++) {
+        if (!rrset->rrs[i].exists) {
+            continue;
+        }
         /* clone if you want to keep the original format in the signed zone */
         ldns_rr2canonical(rrset->rrs[i].rr);
         ret = (int) ldns_rr_list_push_rr(rr_list, rrset->rrs[i].rr);
@@ -756,18 +759,22 @@ rrset_print(FILE* fd, rrset_type* rrset, int skip_rrsigs)
         return;
     }
     for (i=0; i < rrset->rr_count; i++) {
-        ldns_rr_print(fd, rrset->rrs[i].rr);
-        if (rrset->rrtype == LDNS_RR_TYPE_CNAME ||
-            rrset->rrtype == LDNS_RR_TYPE_DNAME) {
-            /* singleton types */
-            break;
+        if (rrset->rrs[i].exists) {
+            ldns_rr_print(fd, rrset->rrs[i].rr);
+            if (rrset->rrtype == LDNS_RR_TYPE_CNAME ||
+                rrset->rrtype == LDNS_RR_TYPE_DNAME) {
+                /* singleton types */
+                break;
+            }
         }
     }
     if (skip_rrsigs || !rrset->rrsig_count) {
         return;
     }
     for (i=0; i < rrset->rrsig_count; i++) {
-        ldns_rr_print(fd, rrset->rrsigs[i].rr);
+        if (rrset->rrs[i].exists) {
+            ldns_rr_print(fd, rrset->rrsigs[i].rr);
+        }
     }
     return;
 }
