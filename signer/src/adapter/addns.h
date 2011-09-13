@@ -41,19 +41,6 @@
 #include <stdio.h>
 
 /**
- * DNS AXFR and IXFR adapter.
- *
- */
-/** NULL */
-
-/**
- * Initialize DNS adapters.
- * \param[in] adapter adapter
- *
- */
-void addns_init(void* adapter);
-
-/**
  * Read zone from input DNS adapter.
  * \param[in] zone zone reference
  * \return ods_status status

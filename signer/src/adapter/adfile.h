@@ -47,13 +47,6 @@
 /** NULL */
 
 /**
- * Initialize file adapters.
- * \param[in] adapter
- *
- */
-void adfile_init(void* adapter);
-
-/**
  * Read zone from input file adapter.
  * \param[in] zone zone reference
  * \return ods_status status

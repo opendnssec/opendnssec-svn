@@ -65,38 +65,12 @@ typedef union adapter_data_union adapter_data;
  */
 typedef struct adapter_struct adapter_type;
 struct adapter_struct {
-    ods_thread_type thread_id;
     allocator_type* allocator;
     const char* configstr;
     adapter_mode type;
     adapter_data* data;
-    cond_basic_type adapter_alarm;
-    lock_basic_type adapter_lock;
     unsigned inbound : 1;
-    unsigned sleeping : 1;
-    unsigned need_to_exit : 1;
 };
-
-/**
- * Initialize adapter.
- * \param[in] adapter adapter
- *
- */
-void adapter_init(adapter_type* adapter);
-
-/**
- * Signal adapter.
- * \param[in] adapter adapter
- *
- */
-void adapter_signal(adapter_type* adapter);
-
-/**
- * Make adapter idle.
- * \param[in] adapter adapter
- *
- */
-void adapter_idle(adapter_type* adapter);
 
 /**
  * Create new adapter.

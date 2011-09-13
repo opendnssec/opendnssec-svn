@@ -52,23 +52,6 @@ static ods_status adfile_read_file(FILE* fd, zone_type* zone);
 
 
 /**
- * Initialize file adapters.
- *
- */
-void
-adfile_init(void* adapter)
-{
-    adapter_type* ad = (adapter_type*) adapter;
-    ods_log_assert(ad);
-    ods_log_assert(ad->type == ADAPTER_FILE);
-    ods_log_assert(ad->configstr);
-    ods_log_info("[%s] initialize file adapter %s", adapter_str,
-        ad->configstr);
-    return;
-}
-
-
-/**
  * Read the next RR from zone file.
  *
  */

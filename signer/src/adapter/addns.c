@@ -52,23 +52,6 @@ static ods_status addns_read_file(FILE* fd, zone_type* zone);
 
 
 /**
- * Initialize DNS adapter.
- *
- */
-void
-addns_init(void* adapter)
-{
-    adapter_type* ad = (adapter_type*) adapter;
-    ods_log_assert(ad);
-    ods_log_assert(ad->type == ADAPTER_DNS);
-    ods_log_assert(ad->configstr);
-    ods_log_debug("[%s] initialize dns adapter %s", adapter_str,
-        ad->configstr);
-    return;
-}
-
-
-/**
  * Read the next RR from zone file.
  *
  */
