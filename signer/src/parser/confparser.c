@@ -170,6 +170,7 @@ parse_conf_adapter(xmlXPathContextPtr xpathCtx, xmlChar* expr, char* type)
         ods_log_error("[%s] unable to parse %s adapter: unknown type",
             parser_str, type);
     }
+    free((void*)str);
     xmlXPathFreeObject(xpathObj);
     return adapter;
 }

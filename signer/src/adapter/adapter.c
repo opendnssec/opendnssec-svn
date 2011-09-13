@@ -133,6 +133,7 @@ adapter_create(const char* str, adapter_mode type, unsigned inbound)
     adapter->configstr = allocator_strdup(allocator, str);
     adapter->type = type;
     adapter->inbound = inbound;
+    adapter->sleeping = 0;
     adapter->need_to_exit = 0;
     adapter->data = allocator_alloc(allocator, sizeof(adapter_data));
     lock_basic_unlock(&adapter->adapter_lock);

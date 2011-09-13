@@ -304,7 +304,6 @@ adfile_read_file(FILE* fd, zone_type* zone)
             return result;
         }
         adapi_set_serial(zone, new_serial);
-        adapi_trans_full(zone);
     }
     return result;
 }
