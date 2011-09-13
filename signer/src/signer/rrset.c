@@ -772,9 +772,7 @@ rrset_print(FILE* fd, rrset_type* rrset, int skip_rrsigs)
         return;
     }
     for (i=0; i < rrset->rrsig_count; i++) {
-        if (rrset->rrs[i].exists) {
-            ldns_rr_print(fd, rrset->rrsigs[i].rr);
-        }
+        ldns_rr_print(fd, rrset->rrsigs[i].rr);
     }
     return;
 }

@@ -179,7 +179,7 @@ void domain_print(FILE* fd, domain_type* domain);
 
 /**
  * Clean up domain.
- * \param[in] domain domain
+ * \param[in] domain domain to cleanup
  *
  */
 void domain_cleanup(domain_type* domain);
