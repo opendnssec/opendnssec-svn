@@ -102,12 +102,11 @@ void adapter_idle(adapter_type* adapter);
  * Create new adapter.
  * \param[in] str configuration string
  * \param[in] type type of adapter
- * \param[in] inbound inbound or not (thus outbound)
+ * \param[in] in inbound or not (thus outbound)
  * \return adapter_type* created adapter
  *
  */
-adapter_type* adapter_create(const char* str, adapter_mode type,
-    unsigned inbound);
+adapter_type* adapter_create(const char* str, adapter_mode type, unsigned in);
 
 /**
  * Compare adapters.

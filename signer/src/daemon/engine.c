@@ -376,53 +376,6 @@ engine_wakeup_workers(engine_type* engine)
 
 
 /**
- * Initialize/Turn off adapters.
- *
- */
-static void*
-adapter_thread_start(void* arg)
-{
-    adapter_type* adapter = (adapter_type*) arg;
-    ods_thread_blocksigs();
-    adapter_init(adapter);
-    return NULL;
-}
-static void
-engine_init_adapters(engine_type* engine)
-{
-    size_t i = 0;
-    ods_log_assert(engine);
-    ods_log_assert(engine->config);
-    ods_log_debug("[%s] initialize adapters", engine_str);
-    for (i=0; i < (size_t) engine->config->num_adapters; i++) {
-        engine->config->adapters[i]->need_to_exit = 0;
-        ods_thread_create(&engine->config->adapters[i]->thread_id,
-            adapter_thread_start, engine->config->adapters[i]);
-    }
-    return;
-}
-static void
-engine_turnoff_adapters(engine_type* engine)
-{
-    size_t i = 0;
-    ods_log_assert(engine);
-    ods_log_assert(engine->config);
-    ods_log_debug("[%s] turn off adapters", engine_str);
-    /* tell them to exit and wake up sleepyheads */
-    for (i=0; i < (size_t) engine->config->num_adapters; i++) {
-        engine->config->adapters[i]->need_to_exit = 1;
-        adapter_signal(engine->config->adapters[i]);
-    }
-    /* head count */
-    for (i=0; i < (size_t) engine->config->num_adapters; i++) {
-        ods_log_debug("[%s] join adapter %i", engine_str, i+1);
-        ods_thread_join(engine->config->adapters[i]->thread_id);
-    }
-    return;
-}
-
-
-/**
  * Set up engine.
  *
  */
@@ -442,8 +395,6 @@ engine_setup(engine_type* engine)
     if (!engine->cmdhandler) {
         return ODS_STATUS_CMDHANDLER_ERR;
     }
-    /* initialize adapters */
-    engine_init_adapters(engine);
     /* privdrop */
     engine->uid = privuid(engine->config->username);
     engine->gid = privgid(engine->config->group);
@@ -906,10 +857,7 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
     if (close_hsm) {
         hsm_close();
     }
-    engine_turnoff_adapters(engine);
-    if (engine->cmdhandler != NULL) {
-        engine_stop_cmdhandler(engine);
-    }
+    engine_stop_cmdhandler(engine);
 
 earlyexit:
     if (engine && engine->config) {

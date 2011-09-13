@@ -56,11 +56,10 @@ void adfile_init(void* adapter);
 /**
  * Read zone from input file adapter.
  * \param[in] zone zone reference
- * \param[in] filename read from this specific file
  * \return ods_status status
  *
  */
-ods_status adfile_read(void* zone, const char* filename);
+ods_status adfile_read(void* zone);
 
 /**
  * Read zone from backup file.

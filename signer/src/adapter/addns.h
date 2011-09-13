@@ -56,11 +56,10 @@ void addns_init(void* adapter);
 /**
  * Read zone from input DNS adapter.
  * \param[in] zone zone reference
- * \param[in] str configuration string
  * \return ods_status status
  *
  */
-ods_status addns_read(void* zone, const char* str);
+ods_status addns_read(void* zone);
 
 /**
  * Write zone to output DNS adapter.

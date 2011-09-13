@@ -314,15 +314,15 @@ adfile_read_file(FILE* fd, zone_type* zone)
  *
  */
 ods_status
-adfile_read(void* zone, const char* filename)
+adfile_read(void* zone)
 {
     FILE* fd = NULL;
     zone_type* adzone = (zone_type*) zone;
     ods_status status = ODS_STATUS_OK;
-    if (!adzone || !filename) {
+    if (!adzone || !adzone->adinbound || !adzone->adinbound->configstr) {
         return ODS_STATUS_ASSERT_ERR;
     }
-    fd = ods_fopen(filename, NULL, "r");
+    fd = ods_fopen(adzone->adinbound->configstr, NULL, "r");
     if (!fd) {
         return ODS_STATUS_FOPEN_ERR;
     }
