@@ -246,6 +246,12 @@ worker_check_jobs(worker_type* worker, task_type* task) {
             task_who2str(task), worker->jobs_completed,
             worker->jobs_appointed);
         return ODS_STATUS_ERR;
+    } else if (worker->need_to_exit) {
+        ods_log_debug("[%s[%i]] sign zone %s failed: worker needs to exit",
+            worker2str(worker->type), worker->thread_num,
+            task_who2str(task), worker->jobs_completed,
+            worker->jobs_appointed);
+        return ODS_STATUS_ERR;
     } else {
         ods_log_debug("[%s[%i]] sign zone %s ok: %u of %u signatures "
             "succeeded", worker2str(worker->type), worker->thread_num,
