@@ -1,5 +1,5 @@
 /*
- * $Id$
+ * $Id: dnshandler.h 4518 2011-02-24 15:39:09Z matthijs $
  *
  * Copyright (c) 2009 NLNet Labs. All rights reserved.
  *
@@ -27,79 +27,60 @@
  */
 
 /**
- * Signer engine configuration.
+ * DNS handler.
  *
  */
 
-#ifndef DAEMON_CONFIG_H
-#define DAEMON_CONFIG_H
+#ifndef DAEMON_DNSHANDLER_H
+#define DAEMON_DNSHANDLER_H
 
 #include "config.h"
 #include "shared/allocator.h"
 #include "shared/locks.h"
-#include "shared/status.h"
 #include "wire/listener.h"
+#include "wire/netio.h"
 
-#include <stdio.h>
+#define ODS_SE_MAX_HANDLERS 5
 
-/**
- * Engine configuration.
- *
- */
-typedef struct engineconfig_struct engineconfig_type;
-struct engineconfig_struct {
+typedef struct dnshandler_struct dnshandler_type;
+struct dnshandler_struct {
     allocator_type* allocator;
+    ods_thread_type thread_id;
+    void* engine;
     listener_type* interfaces;
-    const char* cfg_filename;
-    const char* zonelist_filename;
-    const char* log_filename;
-    const char* pid_filename;
-    const char* notify_command;
-    const char* clisock_filename;
-    const char* working_dir;
-    const char* username;
-    const char* group;
-    const char* chroot;
-    int use_syslog;
-    int num_worker_threads;
-    int num_signer_threads;
-    int verbosity;
+    socklist_type* socklist;
+    unsigned need_to_exit;
 };
 
 /**
- * Configure engine.
+ * Create dns handler.
  * \param[in] allocator memory allocator
- * \param[in] cfgfile config file
- * \param[in] cmdline_verbosity log level
- * \return engineconfig_type* engine configuration
+ * \param[in] interfaces list of interfaces
+ * \return dnshandler_type* created dns handler
  *
  */
-engineconfig_type* engine_config(allocator_type* allocator,
-    const char* cfgfile, int cmdline_verbosity);
+dnshandler_type* dnshandler_create(allocator_type* allocator,
+    listener_type* interfaces);
 
 /**
- * Check configuration.
- * \param[in] config engine configuration
- * \return ods_status status
- *         ODS_STATUS_OK: configuration settings ok
- *         else: error in configuration settings
+ * Start dns handler.
+ * \param[in] dnshandler_type* dns handler
  *
  */
-ods_status engine_config_check(engineconfig_type* config);
+void dnshandler_start(dnshandler_type* dnshandler);
 
 /**
- * Print engine configuration.
- * \param[in] out output file descriptor
- * \param[in] config engine configuration
+ * Signal dns handler.
+ * \param[in] dnshandler_type* dns handler
  *
  */
-void engine_config_print(FILE* out, engineconfig_type* config);
+void dnshandler_signal(dnshandler_type* dnshandler);
 
 /**
- * Clean up config.
- * \param[in] config engine configuration
+ * Cleanup dns handler.
+ * \param[in] dnshandler_type* dns handler
  *
  */
-void engine_config_cleanup(engineconfig_type* config);
+void dnshandler_cleanup(dnshandler_type* dnshandler);
 
-#endif /* DAEMON_CONFIG_H */
+#endif /* DAEMON_DNSHANDLER_H */

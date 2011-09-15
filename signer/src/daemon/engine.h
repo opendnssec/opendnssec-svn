@@ -37,6 +37,7 @@
 #include "config.h"
 #include "daemon/cfg.h"
 #include "daemon/cmdhandler.h"
+#include "daemon/dnshandler.h"
 #include "daemon/worker.h"
 #include "scheduler/fifoq.h"
 #include "scheduler/schedule.h"
@@ -59,6 +60,7 @@ struct engine_struct {
     zonelist_type* zonelist;
     schedule_type* taskq;
     fifoq_type* signq;
+    dnshandler_type* dnshandler;
     cmdhandler_type* cmdhandler;
     int cmdhandler_done;
 

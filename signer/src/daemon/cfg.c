@@ -97,9 +97,7 @@ engine_config(allocator_type* allocator, const char* cfgfile,
         ecfg->num_worker_threads = parse_conf_worker_threads(cfgfile);
         ecfg->num_signer_threads = parse_conf_signer_threads(cfgfile);
         ecfg->verbosity = cmdline_verbosity;
-        ecfg->num_adapters = 0;
-        ecfg->adapters = parse_conf_adapters(allocator, cfgfile,
-            &ecfg->num_adapters);
+        ecfg->interfaces = parse_conf_listener(allocator, cfgfile);
         /* done */
         ods_fclose(cfgfd);
         return ecfg;
@@ -122,19 +120,23 @@ engine_config_check(engineconfig_type* config)
         return ODS_STATUS_CFG_ERR;
     }
     if (!config->cfg_filename) {
-        ods_log_error("[%s] config-check failed: no config filename", conf_str);
+        ods_log_error("[%s] config-check failed: no config filename",
+            conf_str);
         return ODS_STATUS_CFG_ERR;
     }
     if (!config->zonelist_filename) {
-        ods_log_error("[%s] config-check failed: no zonelist filename", conf_str);
+        ods_log_error("[%s] config-check failed: no zonelist filename",
+            conf_str);
         return ODS_STATUS_CFG_ERR;
     }
     if (!config->clisock_filename) {
-        ods_log_error("[%s] config-check failed: no socket filename", conf_str);
+        ods_log_error("[%s] config-check failed: no socket filename",
+            conf_str);
         return ODS_STATUS_CFG_ERR;
     }
-    if (!config->adapters) {
-        ods_log_error("[%s] config-check failed: no adapters", conf_str);
+    if (!config->interfaces) {
+        ods_log_error("[%s] config-check failed: no listener",
+            conf_str);
         return ODS_STATUS_CFG_ERR;
     }
     /*  [TODO] room for more checks here */
@@ -229,12 +231,7 @@ engine_config_cleanup(engineconfig_type* config)
         return;
     }
     allocator = config->allocator;
-    if (config->adapters) {
-        for (i=0; i < (size_t) config->num_adapters; i++) {
-            adapter_cleanup(config->adapters[i]);
-        }
-        allocator_deallocate(allocator, (void*) config->adapters);
-    }
+    listener_cleanup(config->interfaces);
     allocator_deallocate(allocator, (void*) config->cfg_filename);
     allocator_deallocate(allocator, (void*) config->zonelist_filename);
     allocator_deallocate(allocator, (void*) config->log_filename);

@@ -89,6 +89,7 @@ engine_create(void)
     engine->drudgers = NULL;
     engine->cmdhandler = NULL;
     engine->cmdhandler_done = 0;
+    engine->dnshandler = NULL;
     engine->pid = -1;
     engine->zfpid = -1;
     engine->uid = -1;
@@ -202,6 +203,45 @@ engine_stop_cmdhandler(engine_type* engine)
         ods_log_error("[%s] command handler self pipe trick failed, "
             "unclean shutdown", engine_str);
     }
+    return;
+}
+
+
+/**
+ * Start/stop dnshandler.
+ *
+ */
+static void*
+dnshandler_thread_start(void* arg)
+{
+    dnshandler_type* dnshandler = (dnshandler_type*) arg;
+    dnshandler_start(dnshandler);
+    return NULL;
+}
+static void
+engine_start_dnshandler(engine_type* engine)
+{
+    if (!engine || !engine->dnshandler) {
+        return;
+    }
+    ods_log_debug("[%s] start dnshandler", engine_str);
+    engine->dnshandler->engine = engine;
+    ods_thread_create(&engine->dnshandler->thread_id,
+        dnshandler_thread_start, engine->dnshandler);
+    return;
+}
+static void
+engine_stop_dnshandler(engine_type* engine)
+{
+    if (!engine || !engine->dnshandler) {
+        return;
+    }
+    ods_log_debug("[%s] stop dnshandler", engine_str);
+    engine->dnshandler->need_to_exit = 1;
+    dnshandler_signal(engine->dnshandler);
+    ods_log_debug("[%s] join dnshandler", engine_str);
+    ods_thread_join(engine->dnshandler->thread_id);
+    engine->dnshandler->engine = NULL;
     return;
 }
 
@@ -395,6 +435,8 @@ engine_setup(engine_type* engine)
     if (!engine->cmdhandler) {
         return ODS_STATUS_CMDHANDLER_ERR;
     }
+    engine->dnshandler = dnshandler_create(engine->allocator,
+        engine->config->interfaces);
     /* privdrop */
     engine->uid = privuid(engine->config->username);
     engine->gid = privgid(engine->config->group);
@@ -462,6 +504,8 @@ engine_setup(engine_type* engine)
     engine_create_drudgers(engine);
     /* start command handler */
     engine_start_cmdhandler(engine);
+    /* start dnshandler */
+    engine_start_dnshandler(engine);
     /* write pidfile */
     if (util_write_pidfile(engine->config->pid_filename, engine->pid) == -1) {
         hsm_close();
@@ -857,6 +901,7 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
     if (close_hsm) {
         hsm_close();
     }
+    engine_stop_dnshandler(engine);
     engine_stop_cmdhandler(engine);
 
 earlyexit:
@@ -911,6 +956,7 @@ engine_cleanup(engine_type* engine)
     schedule_cleanup(engine->taskq);
     fifoq_cleanup(engine->signq);
     cmdhandler_cleanup(engine->cmdhandler);
+    dnshandler_cleanup(engine->dnshandler);
     engine_config_cleanup(engine->config);
     allocator_deallocate(allocator, (void*) engine);
     lock_basic_destroy(&signal_lock);
