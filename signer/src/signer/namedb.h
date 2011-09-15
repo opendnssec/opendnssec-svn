@@ -35,7 +35,6 @@
 #define SIGNER_NAMEDB_H
 
 #include "config.h"
-#include "adapter/adapter.h"
 #include "signer/denial.h"
 #include "signer/domain.h"
 #include "signer/nsec3params.h"

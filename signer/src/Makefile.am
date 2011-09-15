@@ -25,6 +25,7 @@ ods_signerd_SOURCES=		ods-signerd.c \
 				adapter/adutil.c adapter/adutil.h \
 				daemon/cfg.c daemon/cfg.h \
 				daemon/cmdhandler.c daemon/cmdhandler.h \
+				daemon/dnshandler.c daemon/dnshandler.h \
 				daemon/engine.c daemon/engine.h \
 				daemon/signal.c daemon/signal.h \
 				daemon/worker.c daemon/worker.h \
@@ -55,7 +56,9 @@ ods_signerd_SOURCES=		ods-signerd.c \
 				signer/stats.c signer/stats.h \
 				signer/tools.c signer/tools.h \
 				signer/zone.c signer/zone.h \
-				signer/zonelist.c signer/zonelist.h
+				signer/zonelist.c signer/zonelist.h \
+				wire/listener.c wire/listener.h \
+				wire/netio.c wire/netio.h
 
 ods_signerd_LDADD=		$(LIBHSM)
 ods_signerd_LDADD+=		@LDNS_LIBS@ @XML2_LIBS@ @PTHREAD_LIBS@ @RT_LIBS@
