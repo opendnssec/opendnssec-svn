@@ -693,6 +693,7 @@ zone_cleanup(zone_type* zone)
     adapter_cleanup(zone->adoutbound);
     namedb_cleanup(zone->db);
     ixfr_cleanup(zone->ixfr);
+    xfrd_cleanup(zone->xfrd);
     signconf_cleanup(zone->signconf);
     stats_cleanup(zone->stats);
     allocator_deallocate(allocator, (void*) zone->notify_ns);

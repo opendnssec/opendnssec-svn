@@ -228,3 +228,36 @@ tcp_conn_write(tcp_conn_type* tcp)
     return 1;
 }
 
+
+/**
+ * Clean up tcp connection.
+ *
+ */
+static void
+tcp_conn_cleanup(tcp_conn_type* conn, allocator_type* allocator)
+{
+    if (!conn || !allocator) {
+        return;
+    }
+    buffer_cleanup(conn->packet, allocator);
+    allocator_deallocate(allocator, (void*) conn);
+    return;
+}
+
+/**
+ * Clean up set of tcp connections.
+ *
+ */
+void
+tcp_set_cleanup(tcp_set_type* set, allocator_type* allocator)
+{
+    size_t i = 0;
+    if (!set || !allocator) {
+        return;
+    }
+    for (i=0; i < TCPSET_MAX; i++) {
+        tcp_conn_cleanup(set->tcp_conn[i], allocator);
+    }
+    allocator_deallocate(allocator, (void*) set);
+    return;
+}

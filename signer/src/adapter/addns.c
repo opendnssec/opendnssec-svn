@@ -638,6 +638,15 @@ addns_write(void* zone, const char* filename)
 void
 dnsin_cleanup(dnsin_type* addns)
 {
+    allocator_type* allocator = NULL;
+    if (!addns) {
+        return;
+    }
+    allocator = addns->allocator;
+    acl_cleanup(addns->request_xfr, allocator);
+    acl_cleanup(addns->allow_notify, allocator);
+    allocator_deallocate(allocator, (void*) addns);
+    allocator_cleanup(allocator);
     return;
 }
 
@@ -649,5 +658,14 @@ dnsin_cleanup(dnsin_type* addns)
 void
 dnsout_cleanup(dnsout_type* addns)
 {
+    allocator_type* allocator = NULL;
+    if (!addns) {
+        return;
+    }
+    allocator = addns->allocator;
+    acl_cleanup(addns->provide_xfr, allocator);
+    acl_cleanup(addns->do_notify, allocator);
+    allocator_deallocate(allocator, (void*) addns);
+    allocator_cleanup(allocator);
     return;
 }

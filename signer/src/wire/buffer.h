@@ -446,6 +446,14 @@ buffer_pkt_new(buffer_type* buffer, ldns_rdf* qname, ldns_rr_type qtype,
  */
 void buffer_pkt_print(FILE* fd, buffer_type* buffer);
 
+/**
+ * Clean up buffer.
+ * \param[in] buffer buffer
+ * \param[in] allocator memory allocator
+ *
+ */
+void buffer_cleanup(buffer_type* buffer, allocator_type* allocator);
+
 /** UTIL **/
 
 /*

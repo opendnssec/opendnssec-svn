@@ -781,3 +781,20 @@ buffer_pkt_print(FILE* fd, buffer_type* buffer)
     return;
 }
 
+
+/**
+ * Clean up buffer.
+ *
+ */
+void
+buffer_cleanup(buffer_type* buffer, allocator_type* allocator)
+{
+    if (!buffer || !allocator) {
+        return;
+    }
+    free((void*)buffer->data);
+    allocator_deallocate(allocator, (void*) buffer);
+    return;
+}
+
+

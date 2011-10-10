@@ -275,27 +275,14 @@ adapter_cleanup(adapter_type* adapter)
             break;
         case ADAPTER_DNS:
             if (adapter->inbound) {
-                adapter->config = (void*) dnsin_create();
-                if (!adapter->config) {
-                    ods_log_error("[%s] unable to create adapter: "
-                        "dnsin_create() failed", adapter_str);
-                    adapter_cleanup(adapter);
-                    return;
-                }
+                dnsin_cleanup((dnsin_type*) adapter->config);
             } else { /* outbound */
-                adapter->config = (void*) dnsout_create();
-                if (!adapter->config) {
-                    ods_log_error("[%s] unable to create adapter: "
-                        "dnsout_create() failed", adapter_str);
-                    adapter_cleanup(adapter);
-                    return;
-                }
+                dnsout_cleanup((dnsout_type*) adapter->config);
             }
             break;
         default:
             break;
     }
-    allocator_deallocate(allocator, (void*) adapter->config);
     allocator_deallocate(allocator, (void*) adapter);
     allocator_cleanup(allocator);
     return;

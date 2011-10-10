@@ -116,6 +116,7 @@ xfrd_create(void* xfrhandler, void* zone)
     xfrd->tcp_conn = -1;
     xfrd->round_num = 0;
     xfrd->master_num = 0;
+    xfrd->next_master = -1;
     xfrd->master = NULL;
     xfrd->serial_xfr = 0;
     xfrd->serial_disk = 0;

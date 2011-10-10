@@ -126,4 +126,12 @@ int tcp_conn_read(tcp_conn_type* tcp);
  */
 int tcp_conn_write(tcp_conn_type* tcp);
 
+/**
+ * Clean up set of tcp connections.
+ * \param[in] set set of tcp connections
+ * \param[in] allocator memory allocator
+ *
+ */
+void tcp_set_cleanup(tcp_set_type* set, allocator_type* allocator);
+
 #endif /* WIRE_TCPSET_H */

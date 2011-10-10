@@ -177,6 +177,8 @@ xfrhandler_cleanup(xfrhandler_type* xfrhandler)
     }
     allocator = xfrhandler->allocator;
     netio_cleanup(xfrhandler->netio);
+    buffer_cleanup(xfrhandler->packet, allocator);
+    tcp_set_cleanup(xfrhandler->tcp_set, allocator);
     allocator_deallocate(allocator, (void*) xfrhandler);
     return;
 }

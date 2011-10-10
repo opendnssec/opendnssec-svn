@@ -105,10 +105,10 @@ void acl_log(acl_type* acl);
 
 /**
  * Clean up ACL.
- * \param[in] allocator memory allocator
  * \param[in] acl ACL
+ * \param[in] allocator memory allocator
  *
  */
-void acl_cleanup(allocator_type* allocator, acl_type* acl);
+void acl_cleanup(acl_type* acl, allocator_type* allocator);
 
 #endif /* WIRE_ACL_H */
