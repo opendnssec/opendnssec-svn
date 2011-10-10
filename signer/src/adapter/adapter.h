@@ -51,14 +51,6 @@ enum adapter_mode_enum
 };
 typedef enum adapter_mode_enum adapter_mode;
 
-/** Adapter mode specific. */
-union adapter_data_union
-{
-    void* file;
-    void* dns;
-};
-typedef union adapter_data_union adapter_data;
-
 /**
  * Adapter.
  *
@@ -66,9 +58,10 @@ typedef union adapter_data_union adapter_data;
 typedef struct adapter_struct adapter_type;
 struct adapter_struct {
     allocator_type* allocator;
-    const char* configstr;
     adapter_mode type;
-    adapter_data* data;
+    time_t config_last_modified;
+    const char* configstr;
+    void* config;
     unsigned inbound : 1;
 };
 
@@ -83,6 +76,14 @@ struct adapter_struct {
 adapter_type* adapter_create(const char* str, adapter_mode type, unsigned in);
 
 /**
+ * Load configuration.
+ * \param[in] adapter adapter
+ * \return ods_status status
+ *
+ */
+ods_status adapter_load_config(adapter_type* adapter);
+
+/**
  * Compare adapters.
  * \param[in] a1 adapter 1
  * \param[in] a2 adapter 2
@@ -94,7 +95,7 @@ int adapter_compare(adapter_type* a1, adapter_type* a2);
 /**
  * Read zone from input adapter.
  * \param[in] zone zone
- * \return ods_status stats
+ * \return ods_status status
  *
  */
 ods_status adapter_read(void* zone);
@@ -102,7 +103,7 @@ ods_status adapter_read(void* zone);
 /**
  * Write zone to output adapter.
  * \param[in] zone zone
- * \return ods_status stats
+ * \return ods_status status
  *
  */
 ods_status adapter_write(void* zone);

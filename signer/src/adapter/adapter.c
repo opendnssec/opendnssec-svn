@@ -50,30 +50,110 @@ static const char* adapter_str = "adapter";
 adapter_type*
 adapter_create(const char* str, adapter_mode type, unsigned in)
 {
-    allocator_type* allocator;
-    adapter_type* adapter;
-
+    adapter_type* adapter = NULL;
+    allocator_type* allocator = NULL;
     allocator = allocator_create(malloc, free);
     if (!allocator) {
-        ods_log_error("[%s] unable to create adapter: create allocator failed",
-            adapter_str);
+        ods_log_error("[%s] unable to create adapter: allocator_create() "
+            "failed", adapter_str);
         return NULL;
     }
-    ods_log_assert(allocator);
-
     adapter = (adapter_type*) allocator_alloc(allocator, sizeof(adapter_type));
     if (!adapter) {
-        ods_log_error("[%s] unable to create adapter: allocator failed",
-            adapter_str);
+        ods_log_error("[%s] unable to create adapter: allocator_alloc() "
+            "failed", adapter_str);
         allocator_cleanup(allocator);
         return NULL;
     }
     adapter->allocator = allocator;
-    adapter->configstr = allocator_strdup(allocator, str);
     adapter->type = type;
     adapter->inbound = in;
-    adapter->data = NULL;
+    adapter->config = NULL;
+    adapter->config_last_modified = 0;
+    adapter->configstr = allocator_strdup(allocator, str);
+    if (!adapter->configstr) {
+        ods_log_error("[%s] unable to create adapter: allocator_strdup() "
+            "failed", adapter_str);
+        adapter_cleanup(adapter);
+        return NULL;
+    }
+    /* type specific */
+    switch(adapter->type) {
+        case ADAPTER_FILE:
+            break;
+        case ADAPTER_DNS:
+            if (adapter->inbound) {
+                adapter->config = (void*) dnsin_create();
+                if (!adapter->config) {
+                    ods_log_error("[%s] unable to create adapter: "
+                        "dnsin_create() failed", adapter_str);
+                    adapter_cleanup(adapter);
+                    return NULL;
+                }
+            } else {
+                adapter->config = (void*) dnsout_create();
+                if (!adapter->config) {
+                    ods_log_error("[%s] unable to create adapter: "
+                        "dnsout_create() failed", adapter_str);
+                    adapter_cleanup(adapter);
+                    return NULL;
+                }
+            }
+            break;
+        default:
+            break;
+    }
     return adapter;
+}
+
+
+/**
+ * Load ACL.
+ *
+ */
+ods_status
+adapter_load_config(adapter_type* adapter)
+{
+    dnsin_type* dnsin = NULL;
+    dnsout_type* dnsout = NULL;
+    ods_status status = ODS_STATUS_OK;
+
+    if (!adapter || !adapter->configstr) {
+        return ODS_STATUS_ASSERT_ERR;
+    }
+    /* type specific */
+    switch(adapter->type) {
+        case ADAPTER_FILE:
+            break;
+        case ADAPTER_DNS:
+            ods_log_assert(adapter->config);
+            if (adapter->inbound) {
+                status = dnsin_update(&dnsin, adapter->configstr,
+                    &adapter->config_last_modified);
+                if (status == ODS_STATUS_OK) {
+                    ods_log_assert(dnsin);
+                    dnsin_cleanup((dnsin_type*) adapter->config);
+                    adapter->config = (void*) dnsin;
+                } else if (status != ODS_STATUS_UNCHANGED) {
+                    return status;
+                }
+                return ODS_STATUS_OK;
+            } else { /* outbound */
+                status = dnsout_update(&dnsout, adapter->configstr,
+                    &adapter->config_last_modified);
+                if (status == ODS_STATUS_OK) {
+                    ods_log_assert(dnsout);
+                    dnsout_cleanup((dnsout_type*) adapter->config);
+                    adapter->config = (void*) dnsout;
+                } else if (status != ODS_STATUS_UNCHANGED) {
+                    return status;
+                }
+            }
+            break;
+        default:
+            break;
+    }
+    return ODS_STATUS_OK;
 }
 
 
@@ -184,13 +264,38 @@ adapter_compare(adapter_type* a1, adapter_type* a2)
 void
 adapter_cleanup(adapter_type* adapter)
 {
-    allocator_type* allocator;
+    allocator_type* allocator = NULL;
     if (!adapter) {
         return;
     }
     allocator = adapter->allocator;
     allocator_deallocate(allocator, (void*) adapter->configstr);
-    allocator_deallocate(allocator, (void*) adapter->data);
+    switch(adapter->type) {
+        case ADAPTER_FILE:
+            break;
+        case ADAPTER_DNS:
+            if (adapter->inbound) {
+                adapter->config = (void*) dnsin_create();
+                if (!adapter->config) {
+                    ods_log_error("[%s] unable to create adapter: "
+                        "dnsin_create() failed", adapter_str);
+                    adapter_cleanup(adapter);
+                    return;
+                }
+            } else { /* outbound */
+                adapter->config = (void*) dnsout_create();
+                if (!adapter->config) {
+                    ods_log_error("[%s] unable to create adapter: "
+                        "dnsout_create() failed", adapter_str);
+                    adapter_cleanup(adapter);
+                    return;
+                }
+            }
+            break;
+        default:
+            break;
+    }
+    allocator_deallocate(allocator, (void*) adapter->config);
     allocator_deallocate(allocator, (void*) adapter);
     allocator_cleanup(allocator);
     return;

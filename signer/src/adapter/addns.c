@@ -1,5 +1,5 @@
 /*
- * $Id: addns.c -1   $
+ * $Id: addns.c 5237 2011-06-20 13:05:39Z matthijs $
  *
  * Copyright (c) 2009 NLNet Labs. All rights reserved.
  *
@@ -27,7 +27,7 @@
  */
 
 /**
- * File Adapters.
+ * DNS Adapters.
  *
  */
 
@@ -36,12 +36,15 @@
 #include "adapter/adapter.h"
 #include "adapter/addns.h"
 #include "adapter/adutil.h"
+#include "parser/addnsparser.h"
+#include "parser/confparser.h"
 #include "shared/duration.h"
 #include "shared/file.h"
 #include "shared/log.h"
 #include "shared/status.h"
 #include "shared/util.h"
 #include "signer/zone.h"
+#include "wire/xfrd.h"
 
 #include <ldns/ldns.h>
 #include <stdio.h>
@@ -125,9 +128,9 @@ static ods_status
 addns_read_file(FILE* fd, zone_type* zone)
 {
     ldns_rr* rr = NULL;
-    uint32_t tmp_serial = 0;
-    uint32_t old_serial = 0;
     uint32_t new_serial = 0;
+    uint32_t old_serial = 0;
+    uint32_t tmp_serial = 0;
     ldns_rdf* prev = NULL;
     ldns_rdf* orig = NULL;
     ldns_rdf* dname = NULL;
@@ -196,13 +199,13 @@ addns_read_file(FILE* fd, zone_type* zone)
                 result = ODS_STATUS_ERR;
                 break;
             }
-            new_serial =
+            tmp_serial =
                 ldns_rdf2native_int32(ldns_rr_rdf(rr, SE_SOA_RDATA_SERIAL));
             old_serial = adapi_get_serial(zone);
-            if (!DNS_SERIAL_GT(new_serial, old_serial)) {
+            if (!util_serial_gt(tmp_serial, old_serial)) {
                 ods_log_info("[%s] zone %s is already up to date, have "
                     "serial %u, got serial %u", adapter_str, zone->name,
-                    old_serial, new_serial);
+                    old_serial, tmp_serial);
                 ldns_rr_free(rr);
                 rr = NULL;
                 result = ODS_STATUS_UNCHANGED;
@@ -217,12 +220,14 @@ addns_read_file(FILE* fd, zone_type* zone)
         if (rr_count == 1) {
             if (ldns_rr_get_type(rr) != LDNS_RR_TYPE_SOA) {
                 ods_log_verbose("[%s] detected axfr serial=%u for zone %s",
-                    adapter_str, new_serial, zone->name);
+                    adapter_str, tmp_serial, zone->name);
+                new_serial = tmp_serial;
                 is_axfr = 1;
                 del_mode = 0;
             } else {
                 ods_log_verbose("[%s] detected ixfr serial=%u for zone %s",
-                    adapter_str, new_serial, zone->name);
+                    adapter_str, tmp_serial, zone->name);
+                new_serial = tmp_serial;
                 tmp_serial =
                   ldns_rdf2native_int32(ldns_rr_rdf(rr, SE_SOA_RDATA_SERIAL));
                 ldns_rr_free(rr);
@@ -335,24 +340,259 @@ addns_read_file(FILE* fd, zone_type* zone)
 
 
 /**
+ * Create DNS input adapter.
+ *
+ */
+dnsin_type*
+dnsin_create(void)
+{
+    dnsin_type* addns = NULL;
+    allocator_type* allocator = allocator_create(malloc, free);
+    if (!allocator) {
+        ods_log_error("[%s] unable to create dnsin: allocator_create() "
+            " failed", adapter_str);
+        return NULL;
+    }
+    addns = (dnsin_type*) allocator_alloc(allocator, sizeof(dnsin_type));
+    if (!addns) {
+        ods_log_error("[%s] unable to create dnsin: allocator_alloc() "
+            " failed", adapter_str);
+        allocator_cleanup(allocator);
+        return NULL;
+    }
+    addns->allocator = allocator;
+    addns->request_xfr = NULL;
+    addns->allow_notify = NULL;
+    return addns;
+}
+
+
+/**
+ * Create DNS output adapter.
+ *
+ */
+dnsout_type*
+dnsout_create(void)
+{
+    dnsout_type* addns = NULL;
+    allocator_type* allocator = allocator_create(malloc, free);
+    if (!allocator) {
+        ods_log_error("[%s] unable to create dnsout: allocator_create() "
+            " failed", adapter_str);
+        return NULL;
+    }
+    addns = (dnsout_type*) allocator_alloc(allocator, sizeof(dnsout_type));
+    if (!addns) {
+        ods_log_error("[%s] unable to create dnsout: allocator_alloc() "
+            " failed", adapter_str);
+        allocator_cleanup(allocator);
+        return NULL;
+    }
+    addns->allocator = allocator;
+    addns->provide_xfr = NULL;
+    addns->do_notify = NULL;
+    return addns;
+}
+
+
+/**
+ * Read DNS input adapter.
+ *
+ */
+static ods_status
+dnsin_read(dnsin_type* addns, const char* filename)
+{
+    const char* rngfile = ODS_SE_RNGDIR "/addns.rng";
+    ods_status status = ODS_STATUS_OK;
+    FILE* fd = NULL;
+    if (!filename || !addns) {
+        return ODS_STATUS_ASSERT_ERR;
+    }
+    ods_log_debug("[%s] read dnsin file %s", adapter_str, filename);
+    status = parse_file_check(filename, rngfile);
+    if (status != ODS_STATUS_OK) {
+        ods_log_error("[%s] unable to read dnsin: parse error in "
+            "file %s (%s)", adapter_str, filename, ods_status2str(status));
+        return status;
+    }
+    fd = ods_fopen(filename, NULL, "r");
+    if (fd) {
+        addns->request_xfr = parse_addns_request_xfr(addns->allocator,
+            filename);
+        addns->allow_notify = parse_addns_allow_notify(addns->allocator,
+            filename);
+        ods_fclose(fd);
+        return ODS_STATUS_OK;
+    }
+    ods_log_error("[%s] unable to read dnsout: failed to open file %s",
+        adapter_str, filename);
+    return ODS_STATUS_ERR;
+}
+
+
+/**
+ * Update DNS input adapter.
+ *
+ */
+ods_status
+dnsin_update(dnsin_type** addns, const char* filename, time_t* last_mod)
+{
+    dnsin_type* new_addns = NULL;
+    time_t st_mtime = 0;
+    ods_status status = ODS_STATUS_OK;
+
+    if (!filename || !addns || !last_mod) {
+        return ODS_STATUS_UNCHANGED;
+    }
+    /* is the file updated? */
+    st_mtime = ods_file_lastmodified(filename);
+    if (st_mtime <= *last_mod) {
+        ods_log_debug("[%s] dnsin acl not modified", adapter_str);
+        return ODS_STATUS_UNCHANGED;
+    }
+    /* if so, read the new signer configuration */
+    new_addns = dnsin_create();
+    if (!new_addns) {
+        ods_log_error("[%s] unable to update dnsin: dnsin_create() "
+            "failed", adapter_str);
+        return ODS_STATUS_ERR;
+    }
+    status = dnsin_read(new_addns, filename);
+    if (status == ODS_STATUS_OK) {
+        *addns = new_addns;
+        *last_mod = st_mtime;
+    } else {
+        ods_log_error("[%s] unable to update dnsin: dnsin_read(%s) "
+            "failed (%s)", adapter_str, filename, ods_status2str(status));
+        dnsin_cleanup(new_addns);
+    }
+    return status;
+}
+
+/**
+ * Read DNS output adapter.
+ *
+ */
+static ods_status
+dnsout_read(dnsout_type* addns, const char* filename)
+{
+    const char* rngfile = ODS_SE_RNGDIR "/addns.rng";
+    ods_status status = ODS_STATUS_OK;
+    FILE* fd = NULL;
+    if (!filename || !addns) {
+        return ODS_STATUS_ASSERT_ERR;
+    }
+    ods_log_debug("[%s] read dnsout file %s", adapter_str, filename);
+    status = parse_file_check(filename, rngfile);
+    if (status != ODS_STATUS_OK) {
+        ods_log_error("[%s] unable to read dnsout: parse error in "
+            "file %s (%s)", adapter_str, filename, ods_status2str(status));
+        return status;
+    }
+    fd = ods_fopen(filename, NULL, "r");
+    if (fd) {
+        addns->provide_xfr = parse_addns_provide_xfr(addns->allocator,
+            filename);
+        addns->do_notify = parse_addns_do_notify(addns->allocator, filename);
+        ods_fclose(fd);
+        return ODS_STATUS_OK;
+    }
+    ods_log_error("[%s] unable to read dnsout: failed to open file %s",
+        adapter_str, filename);
+    return ODS_STATUS_ERR;
+}
+
+
+/**
+ * Update DNS output adapter.
+ *
+ */
+ods_status
+dnsout_update(dnsout_type** addns, const char* filename, time_t* last_mod)
+{
+    dnsout_type* new_addns = NULL;
+    time_t st_mtime = 0;
+    ods_status status = ODS_STATUS_OK;
+
+    if (!filename || !addns || !last_mod) {
+        return ODS_STATUS_UNCHANGED;
+    }
+    /* is the file updated? */
+    st_mtime = ods_file_lastmodified(filename);
+    if (st_mtime <= *last_mod) {
+        ods_log_debug("[%s] dnsout acl not modified", adapter_str);
+        return ODS_STATUS_UNCHANGED;
+    }
+    /* if so, read the new signer configuration */
+    new_addns = dnsout_create();
+    if (!new_addns) {
+        ods_log_error("[%s] unable to update dnsout: dnsout_create() "
+            "failed", adapter_str);
+        return ODS_STATUS_ERR;
+    }
+    status = dnsout_read(new_addns, filename);
+    if (status == ODS_STATUS_OK) {
+        *addns = new_addns;
+        *last_mod = st_mtime;
+    } else {
+        ods_log_error("[%s] unable to update dnsout: dnsout_read(%s) "
+            "failed (%s)", adapter_str, filename, ods_status2str(status));
+        dnsout_cleanup(new_addns);
+    }
+    return status;
+}
+
+
+/**
  * Read zone from DNS Input Adapter.
  *
  */
 ods_status
 addns_read(void* zone)
 {
-    FILE* fd = NULL;
-    zone_type* adzone = (zone_type*) zone;
+    zone_type* z = (zone_type*) zone;
     ods_status status = ODS_STATUS_OK;
-    if (!adzone || !adzone->adinbound || !adzone->adinbound->configstr) {
-        return ODS_STATUS_ASSERT_ERR;
+    char* xfrfile = NULL;
+    FILE* fd = NULL;
+    ods_log_assert(z);
+    ods_log_assert(z->name);
+    ods_log_assert(z->xfrd);
+    ods_log_assert(z->db);
+    ods_log_assert(z->adinbound);
+    ods_log_assert(z->adinbound->type == ADAPTER_DNS);
+
+    lock_basic_lock(&z->xfrd->rw_lock);
+    lock_basic_lock(&z->xfrd->serial_lock);
+    if (!z->xfrd->serial_disk_acquired ||
+        z->xfrd->serial_disk_acquired <= z->xfrd->serial_xfr_acquired) {
+        /* no new transfer */
+        ods_log_debug("[%s] not reading zone %s xfr, already have this serial: "
+            "disk serial=%u acquired=%u, memory serial=%u acquired=%u",
+            adapter_str, z->name, z->xfrd->serial_disk,
+            z->xfrd->serial_disk_acquired, z->xfrd->serial_xfr,
+            z->xfrd->serial_xfr_acquired);
+        lock_basic_unlock(&z->xfrd->serial_lock);
+        lock_basic_unlock(&z->xfrd->rw_lock);
+        return ODS_STATUS_UNCHANGED;
     }
-    fd = ods_fopen(adzone->adinbound->configstr, NULL, "r");
+    lock_basic_unlock(&z->xfrd->serial_lock);
+
+    xfrfile = ods_build_path(z->name, ".xfrd", 0);
+    fd = ods_fopen(xfrfile, NULL, "r");
+    free((void*) xfrfile);
     if (!fd) {
+        lock_basic_unlock(&z->xfrd->rw_lock);
         return ODS_STATUS_FOPEN_ERR;
     }
-    status = addns_read_file(fd, adzone);
+    status = addns_read_file(fd, z);
+    if (status == ODS_STATUS_OK) {
+        lock_basic_lock(&z->xfrd->serial_lock);
+        z->xfrd->serial_xfr = adapi_get_serial(z);
+        z->xfrd->serial_xfr_acquired = z->xfrd->serial_disk_acquired;
+        lock_basic_unlock(&z->xfrd->serial_lock);
+    }
     ods_fclose(fd);
+    lock_basic_unlock(&z->xfrd->rw_lock);
     return status;
 }
 
@@ -362,31 +602,52 @@ addns_read(void* zone)
  *
  */
 ods_status
-addns_write(void* zone, const char* str)
+addns_write(void* zone, const char* filename)
 {
     FILE* fd = NULL;
-    char ixfrname[SYSTEM_MAXLEN];
-    zone_type* adzone = (zone_type*) zone;
-    if (!adzone || !str) {
+    char* xfrfile = NULL;
+    zone_type* z = (zone_type*) zone;
+    if (!z) {
         return ODS_STATUS_ASSERT_ERR;
     }
-    fd = ods_fopen(str, NULL, "w");
+    xfrfile = ods_build_path(z->name, ".axfr", 0);
+    fd = ods_fopen(xfrfile, NULL, "w");
+    free((void*) xfrfile);
     if (!fd) {
-        ods_log_error("[%s] unable to write zone %s: failed to open file %s "
-            "for writing", adapter_str, adzone->name, str);
         return ODS_STATUS_FOPEN_ERR;
     }
-    adapi_printzone(fd, adzone);
+    adapi_printzone(fd, z);
     ods_fclose(fd);
 
-    snprintf(ixfrname, SYSTEM_MAXLEN, "%s.ixfr", str);
-    fd = ods_fopen(ixfrname, NULL, "a");
+    xfrfile = ods_build_path(z->name, ".ixfr", 0);
+    fd = ods_fopen(xfrfile, NULL, "a");
+    free((void*) xfrfile);
     if (!fd) {
-        ods_log_error("[%s] unable to write zone %s: failed to open file %s "
-            "for writing", adapter_str, adzone->name, ixfrname);
         return ODS_STATUS_FOPEN_ERR;
     }
-    adapi_printixfr(fd, adzone);
+    adapi_printixfr(fd, z);
     ods_fclose(fd);
     return ODS_STATUS_OK;
+}
+
+
+/**
+ * Clean up DNS input adapter.
+ *
+ */
+void
+dnsin_cleanup(dnsin_type* addns)
+{
+    return;
+}
+
+
+/**
+ * Clean up DNS output adapter.
+ *
+ */
+void
+dnsout_cleanup(dnsout_type* addns)
+{
+    return;
 }

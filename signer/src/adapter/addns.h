@@ -37,11 +37,73 @@
 #include "config.h"
 #include "shared/allocator.h"
 #include "shared/status.h"
+#include "wire/acl.h"
 
 #include <stdio.h>
+#include <time.h>
 
 /**
- * Read zone from input DNS adapter.
+ * DNS input adapter.
+ *
+ */
+typedef struct dnsin_struct dnsin_type;
+struct dnsin_struct {
+    allocator_type* allocator;
+    acl_type* request_xfr;
+    acl_type* allow_notify;
+    time_t last_modified;
+};
+
+/**
+ * DNS output adapter.
+ *
+ */
+typedef struct dnsout_struct dnsout_type;
+struct dnsout_struct {
+    allocator_type* allocator;
+    acl_type* provide_xfr;
+    acl_type* do_notify;
+    time_t last_modified;
+};
+
+/**
+ * Create DNS input adapter.
+ * \return dnsin_type* DNS input adapter
+ *
+ */
+dnsin_type* dnsin_create(void);
+
+/**
+ * Create DNS output adapter.
+ * \return dnsout_type* DNS output adapter
+ *
+ */
+dnsout_type* dnsout_create(void);
+
+/**
+ * Update DNS input adapter.
+ * \param[out] addns DNS input adapter
+ * \param[in] filename filename
+ * \param[out] last_mod last modified
+ * \return ods_status status
+ *
+ */
+ods_status dnsin_update(dnsin_type** addns, const char* filename,
+    time_t* last_mod);
+
+/**
+ * Update DNS output adapter.
+ * \param[out] addns DNS output adapter
+ * \param[in] filename filename
+ * \param[out] last_mod last modified
+ * \return ods_status status
+ *
+ */
+ods_status dnsout_update(dnsout_type** addns, const char* filename,
+    time_t* last_mod);
+
+/**
+ * Read zone from DNS input adapter.
  * \param[in] zone zone reference
  * \return ods_status status
  *
@@ -49,12 +111,26 @@
 ods_status addns_read(void* zone);
 
 /**
- * Write zone to output DNS adapter.
+ * Write zone to DNS output adapter.
  * \param[in] zone zone reference
  * \param[in] str configuration string
  * \return ods_status status
  *
  */
 ods_status addns_write(void* zone, const char* filename);
+
+/**
+ * Clean up DNS input adapter.
+ * \param[in] addns DNS input adapter
+ *
+ */
+void dnsin_cleanup(dnsin_type* addns);
+
+/**
+ * Clean up DNS output adapter.
+ * \param[in] addns DNS output adapter
+ *
+ */
+void dnsout_cleanup(dnsout_type* addns);
 
 #endif /* ADAPTER_ADDNS_H */
