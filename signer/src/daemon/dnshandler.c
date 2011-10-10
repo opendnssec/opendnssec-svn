@@ -84,7 +84,7 @@ dnshandler_create(allocator_type* allocator, listener_type* interfaces)
 void
 dnshandler_start(dnshandler_type* dnshandler)
 {
-    engine_type* engine;
+    engine_type* engine = NULL;
     ods_status status = ODS_STATUS_OK;
     size_t i = 0;
     fd_set rset, wset, eset;
@@ -96,11 +96,12 @@ dnshandler_start(dnshandler_type* dnshandler)
 
     ods_log_assert(dnshandler);
     ods_log_assert(dnshandler->engine);
+    ods_log_debug("[%s] start", dnsh_str);
     /* setup */
     engine = (engine_type*) dnshandler->engine;
-    status = sockets_listen(dnshandler->socklist, dnshandler->interfaces);
+    status = sock_listen(dnshandler->socklist, dnshandler->interfaces);
     if (status != ODS_STATUS_OK) {
-        ods_log_error("[%s] unable to start: sockets_listen() "
+        ods_log_error("[%s] unable to start: sock_listen() "
             "failed (%s)", dnsh_str, ods_status2str(status));
         exit(1);
     }
@@ -133,17 +134,18 @@ dnshandler_start(dnshandler_type* dnshandler)
         for (i=0; i < MAX_INTERFACES; i++) {
             if (dnshandler->socklist->udp[i].s != -1 &&
                 FD_ISSET(dnshandler->socklist->udp[i].s, &rset)) {
-                netio_handle_udp(dnshandler->socklist->udp[i].s,
+                sock_handle_udp(dnshandler->socklist->udp[i].s,
                     dnshandler->engine);
             }
             if (dnshandler->socklist->tcp[i].s != -1 &&
                 FD_ISSET(dnshandler->socklist->tcp[i].s, &rset)) {
-                netio_handle_tcp(dnshandler->socklist->tcp[i].s,
+                sock_handle_tcp(dnshandler->socklist->tcp[i].s,
                     dnshandler->engine);
             }
         }
     }
     /* shutdown */
+    ods_log_debug("[%s] shutdown", dnsh_str);
     for (i=0; i < MAX_INTERFACES; i++) {
         if (dnshandler->socklist->udp[i].s != -1) {
             close(dnshandler->socklist->udp[i].s);

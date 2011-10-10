@@ -38,12 +38,14 @@
 #include "daemon/cfg.h"
 #include "daemon/cmdhandler.h"
 #include "daemon/dnshandler.h"
+#include "daemon/xfrhandler.h"
 #include "daemon/worker.h"
 #include "scheduler/fifoq.h"
 #include "scheduler/schedule.h"
 #include "shared/allocator.h"
 #include "shared/locks.h"
 #include "signer/zonelist.h"
+#include "wire/netio.h"
 
 #include <signal.h>
 
@@ -60,8 +62,10 @@ struct engine_struct {
     zonelist_type* zonelist;
     schedule_type* taskq;
     fifoq_type* signq;
-    dnshandler_type* dnshandler;
+    netio_type* netio;
     cmdhandler_type* cmdhandler;
+    dnshandler_type* dnshandler;
+    xfrhandler_type* xfrhandler;
     int cmdhandler_done;
 
     pid_t pid;

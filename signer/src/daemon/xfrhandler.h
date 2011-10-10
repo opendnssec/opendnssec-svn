@@ -1,5 +1,5 @@
 /*
- * $Id: dnshandler.h 4518 2011-02-24 15:39:09Z matthijs $
+ * $Id: xfrhandler.h 4518 2011-02-24 15:39:09Z matthijs $
  *
  * Copyright (c) 2009 NLNet Labs. All rights reserved.
  *
@@ -27,60 +27,81 @@
  */
 
 /**
- * DNS handler.
+ * Zone transfer handler.
  *
  */
 
-#ifndef DAEMON_DNSHANDLER_H
-#define DAEMON_DNSHANDLER_H
+#ifndef DAEMON_XFRHANDLER_H
+#define DAEMON_XFRHANDLER_H
 
 #include "config.h"
 #include "shared/allocator.h"
 #include "shared/locks.h"
-#include "wire/listener.h"
-#include "wire/sock.h"
+#include "wire/buffer.h"
+#include "wire/netio.h"
+#include "wire/tcpset.h"
+#include "wire/xfrd.h"
 
-#define ODS_SE_MAX_HANDLERS 5
-
-typedef struct dnshandler_struct dnshandler_type;
-struct dnshandler_struct {
+/**
+ * Zone transfer handler.
+ *
+ */
+typedef struct xfrhandler_struct xfrhandler_type;
+struct xfrhandler_struct {
     allocator_type* allocator;
+    /* Engine reference */
     ods_thread_type thread_id;
     void* engine;
-    listener_type* interfaces;
-    socklist_type* socklist;
-    unsigned need_to_exit;
+    /* Start time */
+    time_t start_time;
+    time_t current_time;
+    /* Network support */
+    netio_type* netio;
+    tcp_set_type* tcp_set;
+    buffer_type* packet;
+    xfrd_type* udp_waiting_first;
+    xfrd_type* udp_waiting_last;
+    size_t udp_use_num;
+
+    unsigned got_time : 1;
+    unsigned need_to_exit : 1;
 };
 
 /**
- * Create dns handler.
+ * Create zone transfer handler.
  * \param[in] allocator memory allocator
- * \param[in] interfaces list of interfaces
- * \return dnshandler_type* created dns handler
+ * \return xfrhandler_type* created zoned transfer handler
  *
  */
-dnshandler_type* dnshandler_create(allocator_type* allocator,
-    listener_type* interfaces);
+xfrhandler_type* xfrhandler_create(allocator_type* allocator);
 
 /**
- * Start dns handler.
- * \param[in] dnshandler_type* dns handler
+ * Start zone transfer handler.
+ * \param[in] xfrhandler_type* zone transfer handler
  *
  */
-void dnshandler_start(dnshandler_type* dnshandler);
+void xfrhandler_start(xfrhandler_type* xfrhandler);
 
 /**
- * Signal dns handler.
- * \param[in] dnshandler_type* dns handler
+ * Get current time from the zone transfer handler.
+ * \param[in] xfrhandler_type* zone transfer handler
+ * \return time_t current time
  *
  */
-void dnshandler_signal(dnshandler_type* dnshandler);
+time_t xfrhandler_time(xfrhandler_type* xfrhandler);
 
 /**
- * Cleanup dns handler.
- * \param[in] dnshandler_type* dns handler
+ * Signal zone transfer handler.
+ * \param[in] xfrhandler_type* zone transfer handler
  *
  */
-void dnshandler_cleanup(dnshandler_type* dnshandler);
+void xfrhandler_signal(xfrhandler_type* xfrhandler);
 
-#endif /* DAEMON_DNSHANDLER_H */
+/**
+ * Cleanup zone transfer handler.
+ * \param[in] xfrhandler_type* zone transfer handler
+ *
+ */
+void xfrhandler_cleanup(xfrhandler_type* xfrhandler);
+
+#endif /* DAEMON_XFRHANDLER_H */
