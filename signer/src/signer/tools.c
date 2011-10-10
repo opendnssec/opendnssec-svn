@@ -88,7 +88,6 @@ ods_status
 tools_input(zone_type* zone)
 {
     ods_status status = ODS_STATUS_OK;
-    char* tmpname = NULL;
     time_t start = 0;
     time_t end = 0;
 
@@ -135,16 +134,6 @@ tools_input(zone_type* zone)
         zone_rollback_dnskeys(zone);
         zone_rollback_nsec3param(zone);
         namedb_rollback(zone->db);
-    } else {
-        tmpname = ods_build_path(zone->name, ".inbound", 0);
-        status = ods_file_copy(zone->adinbound->configstr, tmpname);
-        free((void*)tmpname);
-        tmpname = NULL;
-        if (status != ODS_STATUS_OK) {
-            ods_log_error("[%s] unable to copy zone input file %s: %s",
-                tools_str, zone->name?zone->name:"(null)",
-                ods_status2str(status));
-        }
     }
     end = time(NULL);
     if (status == ODS_STATUS_OK && zone->stats) {
