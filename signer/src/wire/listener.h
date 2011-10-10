@@ -122,6 +122,13 @@ void listener_print(FILE* fd, listener_type* listener);
 void listener_log(listener_type* listener);
 
 /**
+ * Clean up interface.
+ * \param[in] i interface
+ *
+ */
+void interface_cleanup(interface_type* i);
+
+/**
  * Clean up listener.
  * \param[in] listener listener to clean up
  *

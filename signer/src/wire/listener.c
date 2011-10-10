@@ -210,8 +210,8 @@ listener_log(listener_type* listener)
  * Clean up interface.
  *
  */
-static void
-interface_delfunc(interface_type* i)
+void
+interface_cleanup(interface_type* i)
 {
     if (!i) {
         return;
@@ -235,7 +235,7 @@ listener_cleanup(listener_type* listener)
         return;
     }
     for (i=0; i < listener->count; i++) {
-        interface_delfunc(&listener->interfaces[i]);
+        interface_cleanup(&listener->interfaces[i]);
     }
     allocator = listener->allocator;
     allocator_deallocate(allocator, (void*) listener->interfaces);
