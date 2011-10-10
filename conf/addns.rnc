@@ -30,12 +30,36 @@ datatypes xsd = "http://www.w3.org/2001/XMLSchema-datatypes"
 start = element Adapter {
 	# Type of adapter
 	attribute type { xsd:string },
-	# where to listen for notifies and zone transfer requests
-	element NotifyListen { localAddress }*
+
+	# inbound zone transfer settings
+	element Inbound {
+		# what TSIG secret to use
+		tsig?,
+		element RequestTransfer { remoteAddress }*,
+		element AllowNotify { remoteAddress }*
+	},
+
+	# outbound zone transfer settings
+	element Outbound {
+		# what TSIG secret to use
+		tsig?,
+		element ProvideTransfer { remoteAddress }*,
+		element Notify { remoteAddress }*
+	}
 }
+
+# TSIG secret
+tsig =
+	element TSIG {
+		element Name { xsd:string },
+		# http://www.iana.org/assignments/tsig-algorithm-names
+		element Algorithm { xsd:string },
+		# base64 encoded secret
+		element Secret { xsd:base64Binary }
+	}
 
 ipv4 = element IPv4 { xsd:string }
 ipv6 = element IPv6 { xsd:string }
 port = element Port { xsd:positiveInteger { maxInclusive = "65535" } }
 
-localAddress = (ipv4 | ipv6)?, port?
+remoteAddress = (ipv4 | ipv6), port?

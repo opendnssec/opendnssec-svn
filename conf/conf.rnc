@@ -115,9 +115,9 @@ start = element Configuration {
 		# DEFAULT: 4
 		element SignerThreads { xsd:positiveInteger }?,
 
-		# Initialize Adapters
-		element Adapters {
-			adapter+
+		# Listener
+		element Listener {
+			interface*
 		}?,
 
 		# System command to call after a zone has been (re)signed
@@ -170,11 +170,12 @@ mysql = element MySQL {
 
 sqlite = element SQLite { xsd:string }
 
-# adapters
-adapter = element Adapter {
-	# type of adapter
-	attribute type { xsd:string },
-
-	element ConfigurationFile { xsd:string }
+interface = element Interface {
+	localAddress
 }
 
+ipv4 = element IPv4 { xsd:string }
+ipv6 = element IPv6 { xsd:string }
+port = element Port { xsd:positiveInteger { maxInclusive = "65535" } }
+
+localAddress = (ipv4 | ipv6)?, port?

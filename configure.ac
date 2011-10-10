@@ -243,6 +243,7 @@ AC_CONFIG_FILES([
 	Doxyfile
 	common/Makefile
 	conf/Makefile
+	conf/addns.xml
 	conf/conf.xml
 	conf/kasp.xml
 	conf/signconf.xml

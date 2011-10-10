@@ -68,13 +68,10 @@
 -->
 
 <!--
-		<Adapters>
-			<Adapter type="DNS">
-				<ConfigurationFile>@OPENDNSSEC_CONFIG_DIR@/addns.xml</ConfigurationFile>
-			</Adapter>
-		</Adapters>
+		<Listener>
+			<Interface><Port>53</Port></Interface>
+		</Listener>
 -->
-
 
 		<!-- the <NotifyCommmand> will expand the following variables:
 
