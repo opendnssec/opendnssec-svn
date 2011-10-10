@@ -301,22 +301,22 @@ namedb_update_serial(namedb_type* db, const char* format, uint32_t serial)
 
     if (ods_strcmp(format, "unixtime") == 0) {
         soa = (uint32_t) time_now();
-        if (!DNS_SERIAL_GT(soa, prev)) {
+        if (!util_serial_gt(soa, prev)) {
             soa = prev + 1;
         }
     } else if (ods_strcmp(format, "datecounter") == 0) {
         soa = (uint32_t) time_datestamp(0, "%Y%m%d", NULL) * 100;
-        if (!DNS_SERIAL_GT(soa, prev)) {
+        if (!util_serial_gt(soa, prev)) {
             soa = prev + 1;
         }
     } else if (ods_strcmp(format, "counter") == 0) {
         soa = serial;
-        if (db->is_initialized && !DNS_SERIAL_GT(soa, prev)) {
+        if (db->is_initialized && !util_serial_gt(soa, prev)) {
             soa = prev + 1;
         }
     } else if (ods_strcmp(format, "keep") == 0) {
         soa = serial;
-        if (db->is_initialized && !DNS_SERIAL_GT(soa, prev)) {
+        if (db->is_initialized && !util_serial_gt(soa, prev)) {
             ods_log_error("[%s] cannot keep SOA SERIAL from input zone "
                 " (%u): previous output SOA SERIAL is %u", db_str, soa, prev);
             return ODS_STATUS_CONFLICT_ERR;

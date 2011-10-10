@@ -41,6 +41,7 @@
 #include "shared/util.h"
 #include "signer/backup.h"
 #include "signer/zone.h"
+#include "wire/netio.h"
 
 #include <ldns/ldns.h>
 
@@ -97,6 +98,7 @@ zone_create(char* name, ldns_rr_class klass)
     zone->adoutbound = NULL;
     zone->zl_status = ZONE_ZL_OK;
     zone->task = NULL;
+    zone->xfrd = NULL;
     zone->db = namedb_create((void*)zone);
     if (!zone->db) {
         ods_log_error("[%s] unable to create zone %s: namedb_create() "
@@ -173,6 +175,47 @@ zone_load_signconf(zone_type* zone, signconf_type** new_signconf)
             ods_status2str(status));
     }
     return status;
+}
+
+
+/**
+ * Reschedule task for zone.
+ *
+ */
+ods_status
+zone_reschedule_task(zone_type* zone, schedule_type* taskq, task_id what)
+{
+     task_type* task = NULL;
+     ods_status status = ODS_STATUS_OK;
+
+     ods_log_assert(taskq);
+     ods_log_assert(zone);
+     ods_log_assert(zone->name);
+     ods_log_assert(zone->task);
+     ods_log_debug("[%s] reschedule task for zone %s", zone_str, zone->name);
+     lock_basic_lock(&taskq->schedule_lock);
+     task = unschedule_task(taskq, (task_type*) zone->task);
+     if (task != NULL) {
+         if (task->what != what) {
+             task->halted = task->what;
+             task->halted_when = task->when;
+             task->interrupt = what;
+         }
+         task->what = what;
+         task->when = time_now();
+         status = schedule_task(taskq, task, 0);
+     } else {
+         /* task not queued, being worked on? */
+         ods_log_verbose("[%s] unable to reschedule task for zone %s now: "
+             "task is not queued (task will be rescheduled when it is put "
+             "back on the queue)", zone_str, zone->name);
+         task = (task_type*) zone->task;
+         task->interrupt = what;
+         /* task->halted(_when) set by worker */
+     }
+     lock_basic_unlock(&taskq->schedule_lock);
+     zone->task = task;
+     return status;
 }
 
 

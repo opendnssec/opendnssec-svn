@@ -36,7 +36,7 @@
 
 #include "config.h"
 #include "adapter/adapter.h"
-#include "scheduler/task.h"
+#include "scheduler/schedule.h"
 #include "shared/allocator.h"
 #include "shared/locks.h"
 #include "shared/status.h"
@@ -44,6 +44,7 @@
 #include "signer/namedb.h"
 #include "signer/signconf.h"
 #include "signer/stats.h"
+#include "wire/xfrd.h"
 
 #include <ldns/ldns.h>
 
@@ -82,6 +83,8 @@ struct zone_struct {
     /* zone data */
     namedb_type* db;
     ixfr_type* ixfr;
+    /* zone transfers */
+    xfrd_type* xfrd;
     /* worker variables */
     void* task; /* next assigned task */
     /* statistics */
@@ -109,6 +112,17 @@ zone_type* zone_create(char* name, ldns_rr_class klass);
  *
  */
 ods_status zone_load_signconf(zone_type* zone, signconf_type** new_signconf);
+
+/**
+ * Reschedule task for zone.
+ * \param[in] zone zone
+ * \param[in] taskq task queue
+ * \param[in] what new task identifier
+ * \return ods_status status
+ *
+ */
+ods_status zone_reschedule_task(zone_type* zone, schedule_type* taskq,
+    task_id what);
 
 /**
  * Publish the keys as indicated by the signer configuration.

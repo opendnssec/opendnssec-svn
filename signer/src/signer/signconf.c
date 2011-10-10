@@ -49,7 +49,7 @@ static const char* sc_str = "signconf";
 signconf_type*
 signconf_create(void)
 {
-    signconf_type* sc;
+    signconf_type* sc = NULL;
     allocator_type* allocator = allocator_create(malloc, free);
     if (!allocator) {
         ods_log_error("[%s] unable to create signconf: allocator_create() "
@@ -602,7 +602,7 @@ signconf_log(signconf_type* sc, const char* name)
 void
 signconf_cleanup(signconf_type* sc)
 {
-    allocator_type* allocator;
+    allocator_type* allocator = NULL;
     if (!sc) {
         return;
     }
