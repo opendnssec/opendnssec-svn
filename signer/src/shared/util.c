@@ -62,6 +62,17 @@ util_is_dnssec_rr(ldns_rr* rr)
 
 
 /**
+ * Compare SERIALs.
+ *
+ */
+int
+util_serial_gt(uint32_t serial_new, uint32_t serial_old)
+{
+    return DNS_SERIAL_GT(serial_new, serial_old);
+}
+
+
+/**
  * Compare SOA RDATAs.
  *
  */

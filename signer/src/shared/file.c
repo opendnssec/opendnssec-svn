@@ -264,9 +264,7 @@ ods_file_lastmodified(const char* file)
     int ret;
     struct stat buf;
     FILE* fd;
-
     ods_log_assert(file);
-
     if ((fd = ods_fopen(file, NULL, "r")) != NULL) {
         ret = stat(file, &buf);
         ods_fclose(fd);

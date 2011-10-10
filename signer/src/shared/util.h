@@ -60,6 +60,15 @@
 int util_is_dnssec_rr(ldns_rr* rr);
 
 /**
+ * Compare SERIALs.
+ * \param serial_new new SERIAL value
+ * \param serial_old old SERIAL value
+ * \return int 0 if the new SERIAL <= old SERIAL, non-zero otherwise
+ *
+ */
+int util_serial_gt(uint32_t serial_new, uint32_t serial_old);
+
+/**
  * Compare RRs, ignore SOA SERIAL.
  * \param[in] rr1 RR
  * \param[in] rr2 another RR
