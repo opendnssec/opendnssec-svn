@@ -77,11 +77,11 @@ parse_zonelist_element(xmlXPathContextPtr xpathCtx, xmlChar* expr)
  *
  */
 static adapter_type*
-zlp_adapter(xmlNode* curNode, adapter_mode type, int inbound)
+zlp_adapter(xmlNode* curNode, adapter_mode type, unsigned inbound)
 {
     const char* file = NULL;
     adapter_type* adapter = NULL;
-
+    ods_status status = ODS_STATUS_OK;
     file = (const char*) xmlNodeGetContent(curNode);
     if (!file) {
         ods_log_error("[%s] unable to read %s adapter", parser_str,
