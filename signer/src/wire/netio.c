@@ -16,9 +16,7 @@
 #include <stdlib.h>
 
 #include "shared/log.h"
-#include "signer/zone.h"
 #include "wire/netio.h"
-#include "wire/xfrd.h"
 
 
 #ifndef HAVE_PSELECT
@@ -268,6 +266,8 @@ netio_dispatch(netio_type* netio, const struct timespec* timeout,
          * On negative timeout for a handler, immediately
          * dispatch the timeout event without checking for other events.
          */
+        ods_log_debug("[%s] dispatch timeout event without checking for "
+            "other events", netio_str);
         if (timeout_handler &&
             (timeout_handler->event_types & NETIO_EVENT_TIMEOUT)) {
             timeout_handler->event_handler(netio, timeout_handler,
@@ -312,11 +312,6 @@ netio_dispatch(netio_type* netio, const struct timespec* timeout,
 	ods_log_assert(netio->dispatch_next == NULL);
         for (l = netio->handlers; l && rc; ) {
             netio_handler_type* handler = l->handler;
-            xfrd_type* xfrd = (xfrd_type*) handler->xfrd;
-            zone_type* zone = (zone_type*) xfrd->zone;
-            ods_log_debug("[%s] dispatch handler for zone %s", netio_str,
-                zone->name);
-
             netio->dispatch_next = l->next;
             if (handler->fd >= 0 && handler->fd < (int) FD_SETSIZE) {
                 netio_events_type event_types = NETIO_EVENT_NONE;

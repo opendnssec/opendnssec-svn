@@ -41,6 +41,8 @@
 
 static const char* dnsh_str = "dnshandler";
 
+static void dnshandler_handle_xfr(netio_type* netio,
+    netio_handler_type* handler, netio_events_type event_types);
 
 /**
  * Create dns handler.
@@ -73,6 +75,11 @@ dnshandler_create(allocator_type* allocator, listener_type* interfaces)
     dnsh->engine = NULL;
     dnsh->interfaces = interfaces;
     dnsh->socklist = socklist;
+    dnsh->xfrhandler.fd = -1;
+    dnsh->xfrhandler.xfrd = (void*) dnsh;
+    dnsh->xfrhandler.timeout = 0;
+    dnsh->xfrhandler.event_types = NETIO_EVENT_READ;
+    dnsh->xfrhandler.event_handler = dnshandler_handle_xfr;
     return dnsh;
 }
 
@@ -103,7 +110,8 @@ dnshandler_start(dnshandler_type* dnshandler)
     if (status != ODS_STATUS_OK) {
         ods_log_error("[%s] unable to start: sock_listen() "
             "failed (%s)", dnsh_str, ods_status2str(status));
-        exit(1);
+        engine->need_to_exit = 1;
+        return;
     }
     /* service */
     while (dnshandler->need_to_exit == 0) {
@@ -170,6 +178,51 @@ dnshandler_signal(dnshandler_type* dnshandler)
     if (dnshandler) {
         ods_thread_kill(dnshandler->thread_id, SIGHUP);
     }
+    return;
+}
+
+
+/**
+ * Forward notify to zone transfer handler.
+ *
+ */
+void
+dnshandler_fwd_notify(dnshandler_type* dnshandler, uint8_t* pkt, size_t len)
+{
+    ssize_t nb = 0;
+    ods_log_assert(dnshandler);
+    ods_log_assert(pkt);
+    nb = send(dnshandler->xfrhandler.fd, (const void*) pkt, len, 0);
+    if (nb < 0) {
+        ods_log_error("[%s] unable to forward notify: send() failed (%s)",
+            dnsh_str, strerror(errno));
+    } else if (nb == 0) {
+        ods_log_error("[%s] unable to forward notify: no data sent", dnsh_str);
+    } else {
+        ods_log_error("[%s] forwarded notify: %u bytes sent", dnsh_str, nb);
+    }
+    return;
+}
+
+
+/**
+ * Handle forwarded dns packets.
+ *
+ */
+static void
+dnshandler_handle_xfr(netio_type* ATTR_UNUSED(netio),
+    netio_handler_type* handler, netio_events_type event_types)
+{
+    dnshandler_type* dnshandler = NULL;
+    uint8_t buf[MAX_PACKET_SIZE];
+    ssize_t received = 0;
+    if (!handler) {
+        return;
+    }
+    dnshandler = (dnshandler_type*) handler->xfrd;
+    ods_log_assert(event_types & NETIO_EVENT_READ);
+    ods_log_debug("[%s] read forwared xfr packet", dnsh_str);
+    received = read(dnshandler->xfrhandler.fd, &buf, MAX_PACKET_SIZE);
     return;
 }
 

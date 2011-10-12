@@ -464,6 +464,7 @@ engine_setup(engine_type* engine)
 {
     struct sigaction action;
     int result = 0;
+    int sockets[2] = {0,0};
 
     ods_log_debug("[%s] setup signer engine", engine_str);
     if (!engine || !engine->config) {
@@ -480,6 +481,13 @@ engine_setup(engine_type* engine)
     engine->xfrhandler = xfrhandler_create(engine->allocator);
     if (!engine->xfrhandler) {
         return ODS_STATUS_XFRHANDLER_ERR;
+    }
+    if (engine->dnshandler) {
+        if (socketpair(AF_UNIX, SOCK_DGRAM, 0, sockets) == -1) {
+            return ODS_STATUS_XFRHANDLER_ERR;
+        }
+        engine->xfrhandler->dnshandler.fd = sockets[0];
+        engine->dnshandler->xfrhandler.fd = sockets[1];
     }
     /* privdrop */
     engine->uid = privuid(engine->config->username);
@@ -713,6 +721,8 @@ engine_update_zones(engine_type* engine)
             task_cleanup(task);
             task = NULL;
             lock_basic_unlock(&zone->zone_lock);
+            netio_remove_handler(engine->xfrhandler->netio,
+                &zone->xfrd->handler);
             zone_cleanup(zone);
             zone = NULL;
             continue;
@@ -945,6 +955,7 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
         if (zl_changed == ODS_STATUS_OK ||
             zl_changed == ODS_STATUS_UNCHANGED) {
             engine_update_zones(engine);
+            dnshandler_fwd_notify(engine->dnshandler, (uint8_t*) "NOTIFY", 10);
         }
         engine_run(engine, single_run);
     }

@@ -38,7 +38,10 @@
 #include "shared/allocator.h"
 #include "shared/locks.h"
 #include "wire/listener.h"
+#include "wire/netio.h"
 #include "wire/sock.h"
+
+#include <stdint.h>
 
 #define ODS_SE_MAX_HANDLERS 5
 
@@ -49,6 +52,7 @@ struct dnshandler_struct {
     void* engine;
     listener_type* interfaces;
     socklist_type* socklist;
+    netio_handler_type xfrhandler;
     unsigned need_to_exit;
 };
 
@@ -75,6 +79,16 @@ void dnshandler_start(dnshandler_type* dnshandler);
  *
  */
 void dnshandler_signal(dnshandler_type* dnshandler);
+
+/**
+ * Forward notify to zone transfer handler.
+ * \param[in] dnshandler_type* dns handler
+ * \param[in] pkt notify packet
+ * \param[in] len packet length
+ *
+ */
+void dnshandler_fwd_notify(dnshandler_type* dnshandler,
+    uint8_t* pkt, size_t len);
 
 /**
  * Cleanup dns handler.

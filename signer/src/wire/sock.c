@@ -449,12 +449,12 @@ sock_handle_notify(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
     zone_type* zone, void (*sendfunc)(uint8_t*, size_t, void*),
     void* userdata)
 {
-    ods_status ret = ODS_STATUS_OK;
     ldns_status status = LDNS_STATUS_OK;
     ldns_rr_list* answer_section = NULL;
     uint32_t serial = 0;
     uint8_t *outbuf = NULL;
     size_t answer_size = 0;
+    ssize_t nb = 0;
 
     if (!pkt || !rr || !engine || !zone) {
         sock_send_error(pkt, LDNS_RCODE_FORMERR, sendfunc, userdata);
@@ -487,9 +487,7 @@ sock_handle_notify(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
         return;
     }
     sendfunc(outbuf, answer_size, userdata);
-    LDNS_FREE(outbuf);
-
-    /* soa included? */
+/*
     answer_section = ldns_pkt_answer(pkt);
     if (answer_section && ldns_rr_list_rr_count(answer_section) == 1) {
         lock_basic_lock(&zone->xfrd->serial_lock);
@@ -511,8 +509,11 @@ sock_handle_notify(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
         zone->xfrd->serial_notify_acquired = 0;
         lock_basic_unlock(&zone->xfrd->serial_lock);
     }
+*/
     /* request xfr */
     xfrd_set_timer_now(zone->xfrd);
+    dnshandler_fwd_notify(engine->dnshandler, outbuf, answer_size);
+    LDNS_FREE(outbuf);
     return;
 }
 

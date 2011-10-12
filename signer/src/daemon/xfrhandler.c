@@ -42,6 +42,9 @@
 
 static const char* xfrh_str = "xfrhandler";
 
+static void xfrhandler_handle_dns(netio_type* netio,
+    netio_handler_type* handler, netio_events_type event_types);
+
 
 /**
  * Create zone transfer handler.
@@ -63,6 +66,8 @@ xfrhandler_create(allocator_type* allocator)
     }
     xfrh->allocator = allocator;
     xfrh->engine = NULL;
+    xfrh->packet = NULL;
+    xfrh->netio = NULL;
     xfrh->tcp_set = NULL;
     xfrh->udp_waiting_first = NULL;
     xfrh->udp_waiting_last = NULL;
@@ -71,6 +76,34 @@ xfrhandler_create(allocator_type* allocator)
     xfrh->current_time = 0;
     xfrh->got_time = 0;
     xfrh->need_to_exit = 0;
+    /* setup */
+    xfrh->netio = netio_create(allocator);
+    if (!xfrh->netio) {
+        ods_log_error("[%s] unable to create xfrhandler: "
+            "netio_create() failed", xfrh_str);
+        xfrhandler_cleanup(xfrh);
+        return NULL;
+    }
+    xfrh->packet = buffer_create(allocator,
+        PACKET_BUFFER_SIZE);
+    if (!xfrh->packet) {
+        ods_log_error("[%s] unable to create xfrhandler: "
+            "buffer_create() failed", xfrh_str);
+        xfrhandler_cleanup(xfrh);
+        return NULL;
+    }
+    xfrh->tcp_set = tcp_set_create(allocator);
+    if (!xfrh->tcp_set) {
+        ods_log_error("[%s] unable to create xfrhandler: "
+            "tcp_set_create() failed", xfrh_str);
+        xfrhandler_cleanup(xfrh);
+        return NULL;
+    }
+    xfrh->dnshandler.fd = -1;
+    xfrh->dnshandler.xfrd = (void*) xfrh;
+    xfrh->dnshandler.timeout = 0;
+    xfrh->dnshandler.event_types = NETIO_EVENT_READ;
+    xfrh->dnshandler.event_handler = xfrhandler_handle_dns;
     return xfrh;
 }
 
@@ -92,23 +125,9 @@ xfrhandler_start(xfrhandler_type* xfrhandler)
     ods_log_debug("[%s] start", xfrh_str);
     /* setup */
     xfrhandler->start_time = time_now();
-    xfrhandler->netio = netio_create(xfrhandler->allocator);
-    if (!xfrhandler->netio) {
-        ods_fatal_exit("[%s] unable to start xfrhandler: netio_create() "
-            "failed", xfrh_str);
-    }
-    xfrhandler->packet = buffer_create(xfrhandler->allocator,
-        PACKET_BUFFER_SIZE);
-    if (!xfrhandler->packet) {
-        ods_fatal_exit("[%s] unable to start xfrhandler: buffer_create() "
-            "failed", xfrh_str);
-    }
-    xfrhandler->tcp_set = tcp_set_create(xfrhandler->allocator);
-    if (!xfrhandler->tcp_set) {
-        ods_fatal_exit("[%s] unable to start xfrhandler: tcp_set_create() "
-            "failed", xfrh_str);
-    }
     engine = (engine_type*) xfrhandler->engine;
+    /* handlers */
+    netio_add_handler(xfrhandler->netio, &xfrhandler->dnshandler);
     /* service */
     while (xfrhandler->need_to_exit == 0) {
         /* dispatch may block for a longer period, so current is gone */
@@ -160,6 +179,28 @@ xfrhandler_signal(xfrhandler_type* xfrhandler)
     if (xfrhandler) {
         ods_thread_kill(xfrhandler->thread_id, SIGHUP);
     }
+    return;
+}
+
+
+/**
+ * Handle forwarded dns packets.
+ *
+ */
+static void
+xfrhandler_handle_dns(netio_type* ATTR_UNUSED(netio),
+    netio_handler_type* handler, netio_events_type event_types)
+{
+    xfrhandler_type* xfrhandler = NULL;
+    uint8_t buf[MAX_PACKET_SIZE];
+    ssize_t received = 0;
+    if (!handler) {
+        return;
+    }
+    xfrhandler = (xfrhandler_type*) handler->xfrd;
+    ods_log_assert(event_types & NETIO_EVENT_READ);
+    ods_log_debug("[%s] read forwarded dns packet", xfrh_str);
+    received = read(xfrhandler->dnshandler.fd, &buf, MAX_PACKET_SIZE);
     return;
 }
 

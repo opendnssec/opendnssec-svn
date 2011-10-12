@@ -114,7 +114,7 @@ xfrd_create(void* xfrhandler, void* zone)
     xfrd->xfrhandler = xfrhandler;
     xfrd->zone = zone;
     xfrd->tcp_conn = -1;
-    xfrd->round_num = 0;
+    xfrd->round_num = -1;
     xfrd->master_num = 0;
     xfrd->next_master = -1;
     xfrd->master = NULL;
@@ -759,7 +759,7 @@ xfrd_tcp_open(xfrd_type* xfrd, tcp_set_type* set)
         return 0;
     }
     xfrd->handler.fd = fd;
-    xfrd->handler.event_types = NETIO_EVENT_TIMEOUT|NETIO_EVENT_WRITE;
+    xfrd->handler.event_types = NETIO_EVENT_WRITE|NETIO_EVENT_TIMEOUT;
     xfrd_set_timer(xfrd, xfrd_time(xfrd) + XFRD_TCP_TIMEOUT);
     return 1;
 }
@@ -1196,7 +1196,7 @@ xfrd_udp_release(xfrd_type* xfrd)
 
 
 /**
- * Make request.
+ * Make a zone transfer request.
  *
  */
 static void
@@ -1263,7 +1263,7 @@ xfrd_make_request(xfrd_type* xfrd)
     if (xfrd->serial_xfr_acquired && !xfrd->master->ixfr_disabled && 0) {
         xfrd_set_timer(xfrd, xfrd_time(xfrd) + XFRD_UDP_TIMEOUT);
         xfrd_udp_obtain(xfrd);
-    } if (xfrd->serial_xfr_acquired <= 0 || xfrd->master->ixfr_disabled) {
+    } else { /* if (xfrd->serial_xfr_acquired <= 0 || xfrd->master->ixfr_disabled) { */
         xfrhandler_type* xfrhandler = (xfrhandler_type*) xfrd->xfrhandler;
         ods_log_assert(xfrhandler);
         xfrd_set_timer(xfrd, xfrd_time(xfrd) + XFRD_TCP_TIMEOUT);
@@ -1279,7 +1279,7 @@ xfrd_make_request(xfrd_type* xfrd)
  */
 static void
 xfrd_handle_zone(netio_type* ATTR_UNUSED(netio),
-    netio_handler_type *handler, netio_events_type event_types)
+    netio_handler_type* handler, netio_events_type event_types)
 {
     xfrd_type* xfrd = NULL;
     zone_type* zone = NULL;
@@ -1302,13 +1302,13 @@ xfrd_handle_zone(netio_type* ATTR_UNUSED(netio),
            xfrd_set_timer(xfrd, xfrd_time(xfrd) + XFRD_TCP_TIMEOUT);
            xfrd_tcp_read(xfrd, xfrhandler->tcp_set);
            return;
-        } else if(event_types & NETIO_EVENT_WRITE) {
+        } else if (event_types & NETIO_EVENT_WRITE) {
            ods_log_debug("[%s] zone %s event tcp write", xfrd_str,
                zone->name);
            xfrd_set_timer(xfrd, xfrd_time(xfrd) + XFRD_TCP_TIMEOUT);
            xfrd_tcp_write(xfrd, xfrhandler->tcp_set);
            return;
-        } else if(event_types & NETIO_EVENT_TIMEOUT) {
+        } else if (event_types & NETIO_EVENT_TIMEOUT) {
            /* tcp connection timed out. Stop it. */
            ods_log_debug("[%s] zone %s event tcp timeout", xfrd_str,
                zone->name);

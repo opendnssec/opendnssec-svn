@@ -62,7 +62,7 @@ struct xfrhandler_struct {
     xfrd_type* udp_waiting_first;
     xfrd_type* udp_waiting_last;
     size_t udp_use_num;
-
+    netio_handler_type dnshandler;
     unsigned got_time : 1;
     unsigned need_to_exit : 1;
 };
