@@ -56,6 +56,10 @@ static void xfrd_make_request(xfrd_type* xfrd);
 static socklen_t xfrd_acl_sockaddr(acl_type* acl, unsigned int port,
     struct sockaddr_storage *sck);
 
+static int xfrd_parse_soa(xfrd_type* xfrd, buffer_type* buffer,
+    unsigned update, uint32_t* serial);
+static int xfrd_parse_rrs(xfrd_type* xfrd, buffer_type* buffer,
+    uint16_t count, int* done);
 static xfrd_pkt_status xfrd_parse_packet(xfrd_type* xfrd,
     buffer_type* buffer);
 static xfrd_pkt_status xfrd_handle_packet(xfrd_type* xfrd,
@@ -126,6 +130,11 @@ xfrd_create(void* xfrhandler, void* zone)
     xfrd->serial_notify_acquired = 0;
     xfrd->soa_retry = 300; /* use sane default values */
     xfrd->soa_refresh = 3600; /* use sane default values */
+    xfrd->msg_seq_nr = 0;
+    xfrd->msg_rr_count = 0;
+    xfrd->msg_old_serial = 0;
+    xfrd->msg_new_serial = 0;
+    xfrd->msg_is_ixfr = 0;
     xfrd->udp_waiting = 0;
     xfrd->udp_waiting_next = NULL;
     xfrd->tcp_waiting = 0;
@@ -326,6 +335,7 @@ xfrd_commit_packet(xfrd_type* xfrd)
     lock_basic_lock(&zone->zone_lock);
     lock_basic_lock(&xfrd->rw_lock);
     lock_basic_lock(&xfrd->serial_lock);
+    xfrd->serial_disk = xfrd->msg_new_serial;
     xfrd->serial_disk_acquired = xfrd_time(xfrd);
     if (xfrd->serial_disk_acquired > xfrd->serial_xfr_acquired) {
         /* reschedule task */
@@ -405,6 +415,67 @@ xfrd_dump_packet(xfrd_type* xfrd, buffer_type* buffer)
 
 
 /**
+ * Parse SOA RR in packet.
+ *
+ */
+static int
+xfrd_parse_soa(xfrd_type* xfrd, buffer_type* buffer, unsigned update,
+    uint32_t* serial)
+{
+    ldns_rr_type type = 0;
+    ldns_rr_class klass = 0;
+    uint32_t tmp = 0;
+    ods_log_assert(xfrd);
+    ods_log_assert(buffer);
+
+    /* type class ttl */
+    if (update) {
+        if (!buffer_available(buffer, 10)) {
+            ods_log_debug("[%s] unable to parse soa: rr too short",
+                xfrd_str);
+            return 0;
+        }
+        type = (ldns_rr_type) buffer_read_u16(buffer);
+        if (type != LDNS_RR_TYPE_SOA) {
+            ods_log_debug("[%s] unable to parse soa: rrtype %u != soa",
+                xfrd_str, (unsigned) type);
+            return 0;
+        }
+        klass = (ldns_rr_class) buffer_read_u16(buffer);
+        tmp = buffer_read_u32(buffer);
+        /* rdata length */
+        if (!buffer_available(buffer, buffer_read_u16(buffer))) {
+            ods_log_debug("[%s] unable to parse soa: rdata too short",
+                xfrd_str);
+            return 0;
+        }
+    }
+    /* MNAME */
+    if (!buffer_skip_dname(buffer)) {
+        ods_log_debug("[%s] unable to parse soa: bad mname",
+            xfrd_str);
+        return 0;
+    }
+    /* RNAME */
+    if (!buffer_skip_dname(buffer)) {
+        ods_log_debug("[%s] unable to parse soa: bad rname",
+            xfrd_str);
+        return 0;
+    }
+    if (serial) {
+        *serial = buffer_read_u32(buffer);
+    }
+    if (update) {
+        xfrd->soa_refresh = buffer_read_u32(buffer);
+        xfrd->soa_retry = buffer_read_u32(buffer);
+    }
+    tmp = buffer_read_u32(buffer);
+    tmp = buffer_read_u32(buffer);
+    return 1;
+}
+
+
+/**
  * Parse RRs in packet.
  *
  */
@@ -416,6 +487,7 @@ xfrd_parse_rrs(xfrd_type* xfrd, buffer_type* buffer, uint16_t count,
     ldns_rr_class klass = 0;
     uint16_t rrlen = 0;
     uint32_t ttl = 0;
+    uint32_t serial = 0;
     size_t i = 0;
     size_t pos = 0;
     ods_log_assert(xfrd);
@@ -437,15 +509,33 @@ xfrd_parse_rrs(xfrd_type* xfrd, buffer_type* buffer, uint16_t count,
              return 0;
          }
          if (type == LDNS_RR_TYPE_SOA) {
-             /* ixfr or axfr */
-             lock_basic_lock(&xfrd->serial_lock);
-             xfrd->serial_disk = 0; /* of course this is not 0 */
-             lock_basic_unlock(&xfrd->serial_lock);
-             ods_log_debug("[%s] axfr from %s for zone ok: saw 2nd soa",
-                 xfrd_str, xfrd->master->address);
-             *done = 1;
+             if (!xfrd_parse_soa(xfrd, buffer, 0, &serial)) {
+                 return 0;
+             }
+             if (xfrd->msg_rr_count == 1 && serial != xfrd->msg_new_serial) {
+                 /* 2nd RR is SOA with different serial, this is an IXFR */
+                 xfrd->msg_is_ixfr = 1;
+                 lock_basic_lock(&xfrd->serial_lock);
+                 if (!xfrd->serial_disk_acquired) {
+                     lock_basic_unlock(&xfrd->serial_lock);
+                     return 0; /* got IXFR but need AXFR */
+                 }
+                 if (serial != xfrd->serial_disk) {
+                     lock_basic_unlock(&xfrd->serial_lock);
+                     return 0; /* bad start serial in IXFR */
+                 }
+                 xfrd->msg_old_serial = serial;
+             } else if (serial == xfrd->msg_new_serial) {
+                 /* saw another SOA of new serial. */
+                 if (xfrd->msg_is_ixfr == 1) {
+                     xfrd->msg_is_ixfr = 2; /* seen middle SOA in ixfr */
+                 } else {
+                     *done = 1; /* final axfr/ixfr soa */
+                 }
+             }
+         } else {
+             buffer_skip(buffer, rrlen);
          }
-         buffer_skip(buffer, rrlen);
     }
     return 1;
 }
@@ -463,6 +553,7 @@ xfrd_parse_packet(xfrd_type* xfrd, buffer_type* buffer)
     uint16_t ancount = 0;
     uint16_t ancount_todo = 0;
     uint16_t rrcount = 0;
+    uint32_t serial = 0;
     int done = 0;
     ods_log_assert(buffer);
     ods_log_assert(xfrd);
@@ -524,19 +615,50 @@ xfrd_parse_packet(xfrd_type* xfrd, buffer_type* buffer)
     ancount_todo = ancount;
     if (xfrd->msg_rr_count == 0) {
         /* parse the first RR, see if it is a SOA */
-        if (!buffer_skip_rr(buffer, 0)) {
+        if (!buffer_skip_dname(buffer) ||
+            !xfrd_parse_soa(xfrd, buffer, 1, &serial)) {
             ods_log_error("[%s] dropped packet: zone %s received bad xfr "
                 "packet from %s (bad soa)", xfrd_str, zone->name,
                 xfrd->master->address);
             return XFRD_PKT_BAD;
         }
         /* check serial */
+        lock_basic_lock(&xfrd->serial_lock);
+        if (xfrd->serial_disk_acquired && xfrd->serial_disk == serial) {
+            ods_log_debug("[%s] zone %s got update indicating current "
+                "serial %u from %s", xfrd_str, zone->name, serial,
+                 xfrd->master->address);
+            xfrd->serial_disk_acquired = xfrd_time(xfrd);
+            if (xfrd->serial_xfr == serial) {
+                xfrd->serial_xfr_acquired = xfrd_time(xfrd);
+                if (!xfrd->serial_notify_acquired) {
+                    /* not notified or anything, so stop asking around */
+                    xfrd->round_num = -1; /* next try start a new round */
+                    xfrd_set_timer_refresh(xfrd);
+                    lock_basic_unlock(&xfrd->serial_lock);
+                    return XFRD_PKT_NEWLEASE;
+                }
+                /* try next master */
+                lock_basic_unlock(&xfrd->serial_lock);
+                return XFRD_PKT_BAD;
+            }
+        }
+        if (xfrd->serial_disk_acquired &&
+            !util_serial_gt(serial, xfrd->serial_disk)) {
+            ods_log_debug("[%s] dropped packet: zone %s ignoring old serial "
+                "%u from %s", xfrd_str, zone->name, serial,
+                xfrd->master->address);
+            lock_basic_unlock(&xfrd->serial_lock);
+            return XFRD_PKT_BAD;
+        }
+        xfrd->msg_new_serial = serial;
+        xfrd->msg_old_serial = xfrd->serial_disk;
+        lock_basic_unlock(&xfrd->serial_lock);
 
         if (ancount == 1) {
-            /* single record means it is like a notify */
-            /* (void)xfrd_handle_incoming_notify(zone, soa); */
+            /* xfr always needs at least 2 RRs */
+            return XFRD_PKT_BAD;
         }
-
         xfrd->msg_rr_count = 1;
         xfrd->msg_is_ixfr = 0;
         ancount_todo = ancount - 1;
@@ -846,6 +968,9 @@ xfrd_tcp_xfr(xfrd_type* xfrd, tcp_set_type* set)
     xfrd->query_id = buffer_pkt_id(tcp->packet);
     xfrd->msg_seq_nr = 0;
     xfrd->msg_rr_count = 0;
+    xfrd->msg_old_serial = 0;
+    xfrd->msg_new_serial = 0;
+    xfrd->msg_is_ixfr = 0;
     /* tsig sign */
     buffer_flip(tcp->packet);
     tcp->msglen = buffer_limit(tcp->packet);
@@ -1024,6 +1149,9 @@ xfrd_udp_send_request_ixfr(xfrd_type* xfrd)
     xfrd->query_id = buffer_pkt_id(xfrhandler->packet);
     xfrd->msg_seq_nr = 0;
     xfrd->msg_rr_count = 0;
+    xfrd->msg_old_serial = 0;
+    xfrd->msg_new_serial = 0;
+    xfrd->msg_is_ixfr = 0;
     /* NSCOUNT_SET(tcp->packet, 1); */
     /* xfrd_write_soa_buffer(tcp->packet, zone->apex, &zone->soa_disk); */
     /* tsig sign */

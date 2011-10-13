@@ -451,7 +451,6 @@ sock_handle_notify(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
 {
     ldns_status status = LDNS_STATUS_OK;
     ldns_rr_list* answer_section = NULL;
-    uint32_t serial = 0;
     uint8_t *outbuf = NULL;
     size_t answer_size = 0;
     ssize_t nb = 0;
@@ -487,7 +486,7 @@ sock_handle_notify(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
         return;
     }
     sendfunc(outbuf, answer_size, userdata);
-/*
+
     answer_section = ldns_pkt_answer(pkt);
     if (answer_section && ldns_rr_list_rr_count(answer_section) == 1) {
         lock_basic_lock(&zone->xfrd->serial_lock);
@@ -496,9 +495,9 @@ sock_handle_notify(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
             SE_SOA_RDATA_SERIAL));
         zone->xfrd->serial_notify_acquired = time_now();
         if (!util_serial_gt(zone->xfrd->serial_notify,
-            zone->xfrd->serial_xfr)) {
-            ods_log_verbose("[%s] already got zone %s serial %u",
-                sock_str, zone->name, serial);
+            zone->xfrd->serial_disk)) {
+            ods_log_verbose("[%s] already got zone %s serial %u on disk",
+                sock_str, zone->name, zone->xfrd->serial_notify);
             lock_basic_unlock(&zone->xfrd->serial_lock);
             return;
         }
@@ -509,7 +508,7 @@ sock_handle_notify(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
         zone->xfrd->serial_notify_acquired = 0;
         lock_basic_unlock(&zone->xfrd->serial_lock);
     }
-*/
+
     /* request xfr */
     xfrd_set_timer_now(zone->xfrd);
     dnshandler_fwd_notify(engine->dnshandler, outbuf, answer_size);

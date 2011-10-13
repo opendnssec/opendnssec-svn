@@ -206,6 +206,7 @@ addns_read_file(FILE* fd, zone_type* zone)
                 ods_log_info("[%s] zone %s is already up to date, have "
                     "serial %u, got serial %u", adapter_str, zone->name,
                     old_serial, tmp_serial);
+                new_serial = tmp_serial;
                 ldns_rr_free(rr);
                 rr = NULL;
                 result = ODS_STATUS_UNCHANGED;
@@ -562,21 +563,6 @@ addns_read(void* zone)
     ods_log_assert(z->adinbound->type == ADAPTER_DNS);
 
     lock_basic_lock(&z->xfrd->rw_lock);
-    lock_basic_lock(&z->xfrd->serial_lock);
-    if (!z->xfrd->serial_disk_acquired ||
-        z->xfrd->serial_disk_acquired <= z->xfrd->serial_xfr_acquired) {
-        /* no new transfer */
-        ods_log_debug("[%s] not reading zone %s xfr, already have this serial: "
-            "disk serial=%u acquired=%u, memory serial=%u acquired=%u",
-            adapter_str, z->name, z->xfrd->serial_disk,
-            z->xfrd->serial_disk_acquired, z->xfrd->serial_xfr,
-            z->xfrd->serial_xfr_acquired);
-        lock_basic_unlock(&z->xfrd->serial_lock);
-        lock_basic_unlock(&z->xfrd->rw_lock);
-        return ODS_STATUS_UNCHANGED;
-    }
-    lock_basic_unlock(&z->xfrd->serial_lock);
-
     xfrfile = ods_build_path(z->name, ".xfrd", 0);
     fd = ods_fopen(xfrfile, NULL, "r");
     free((void*) xfrfile);

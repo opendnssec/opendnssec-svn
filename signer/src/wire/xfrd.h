@@ -101,6 +101,8 @@ struct xfrd_struct
     /* packet handling */
     uint16_t query_id;
     uint32_t msg_seq_nr;
+    uint32_t msg_old_serial;
+    uint32_t msg_new_serial;
     size_t msg_rr_count;
     uint8_t msg_is_ixfr;
 
