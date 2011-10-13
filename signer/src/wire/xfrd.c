@@ -139,7 +139,6 @@ xfrd_create(void* xfrhandler, void* zone)
     xfrd->udp_waiting_next = NULL;
     xfrd->tcp_waiting = 0;
     xfrd->tcp_waiting_next = NULL;
-    xfrd->ixfr_disabled = 0;
 
     xfrd->handler.fd = -1;
     xfrd->handler.xfrd = (void*) xfrd;
@@ -580,7 +579,7 @@ xfrd_parse_packet(xfrd_type* xfrd, buffer_type* buffer)
         ods_log_error("[%s] dropped packet: zone %s received error code %u "
             "from %s", xfrd_str, zone->name, buffer_pkt_rcode(buffer),
             xfrd->master->address);
-        if (buffer_pkt_rcode(buffer) != LDNS_RCODE_NOTIMPL) {
+        if (buffer_pkt_rcode(buffer) == LDNS_RCODE_NOTIMPL) {
             return XFRD_PKT_NOTIMPL;
         } else {
             return XFRD_PKT_BAD;
@@ -636,9 +635,13 @@ xfrd_parse_packet(xfrd_type* xfrd, buffer_type* buffer)
                     xfrd->round_num = -1; /* next try start a new round */
                     xfrd_set_timer_refresh(xfrd);
                     lock_basic_unlock(&xfrd->serial_lock);
+                    ods_log_debug("[%s] zone %s wait refresh time", xfrd_str,
+                       zone->name);
                     return XFRD_PKT_NEWLEASE;
                 }
                 /* try next master */
+                ods_log_debug("[%s] zone %s try next master", xfrd_str,
+                    zone->name);
                 lock_basic_unlock(&xfrd->serial_lock);
                 return XFRD_PKT_BAD;
             }
@@ -953,7 +956,7 @@ xfrd_tcp_xfr(xfrd_type* xfrd, tcp_set_type* set)
     /* start AXFR or IXFR for the zone */
     tcp = set->tcp_conn[xfrd->tcp_conn];
 
-    if (xfrd->serial_xfr_acquired <= 0 || xfrd->master->ixfr_disabled || 1) {
+    if (xfrd->serial_xfr_acquired <= 0 || xfrd->master->ixfr_disabled) {
         ods_log_debug("[%s] zone %s request axfr to %s", xfrd_str,
             zone->name, xfrd->master->address);
         buffer_pkt_new(tcp->packet, zone->apex, LDNS_RR_TYPE_AXFR, zone->klass);
@@ -1021,12 +1024,14 @@ xfrd_tcp_read(xfrd_type* xfrd, tcp_set_type* set)
             ods_log_assert(xfrd->round_num == -1);
             break;
         case XFRD_PKT_NOTIMPL:
-            xfrd->master->ixfr_disabled = time(NULL);
+            xfrd->master->ixfr_disabled = time_now();
+            ods_log_debug("[%s] disable ixfr requests for %s from now (%u)",
+                xfrd_str, xfrd->master->address, xfrd->master->ixfr_disabled);
             /* break; */
         case XFRD_PKT_BAD:
         default:
             ods_log_debug("[%s] tcp read %s: release connection", xfrd_str,
-                XFRD_PKT_BAD?"bad":"notimpl");
+                ret==XFRD_PKT_BAD?"bad":"notimpl");
             xfrd_tcp_release(xfrd, set);
             xfrd_make_request(xfrd);
             break;
@@ -1267,7 +1272,9 @@ xfrd_udp_read(xfrd_type* xfrd)
             xfrd_udp_release(xfrd);
             break;
         case XFRD_PKT_NOTIMPL:
-            xfrd->master->ixfr_disabled = time(NULL);
+            xfrd->master->ixfr_disabled = time_now();
+            ods_log_debug("[%s] disable ixfr requests for %s from now (%u)",
+                xfrd_str, xfrd->master->address, xfrd->master->ixfr_disabled);
             /* break; */
         case XFRD_PKT_BAD:
         default:
@@ -1383,15 +1390,19 @@ xfrd_make_request(xfrd_type* xfrd)
          xfrd_time(xfrd)) {
         ods_log_verbose("[%s] clear negative caching ixfr disabled for "
             "master %s", xfrd_str, xfrd->master->address);
+        ods_log_debug("[%s] clear negative caching calc: %u + %u <= %u",
+            xfrd_str, xfrd->master->ixfr_disabled, XFRD_NO_IXFR_CACHE,
+            xfrd_time(xfrd));
         xfrd->master->ixfr_disabled = 0;
     }
     /* perform xfr request */
     ods_log_debug("[%s] zone %s make request round %d master %s",
         xfrd_str, zone->name, xfrd->round_num, xfrd->master->address);
-    if (xfrd->serial_xfr_acquired && !xfrd->master->ixfr_disabled && 0) {
+    if (xfrd->serial_xfr_acquired && !xfrd->master->ixfr_disabled) {
         xfrd_set_timer(xfrd, xfrd_time(xfrd) + XFRD_UDP_TIMEOUT);
         xfrd_udp_obtain(xfrd);
-    } else { /* if (xfrd->serial_xfr_acquired <= 0 || xfrd->master->ixfr_disabled) { */
+    } else if (xfrd->serial_xfr_acquired <= 0 ||
+        xfrd->master->ixfr_disabled) {
         xfrhandler_type* xfrhandler = (xfrhandler_type*) xfrd->xfrhandler;
         ods_log_assert(xfrhandler);
         xfrd_set_timer(xfrd, xfrd_time(xfrd) + XFRD_TCP_TIMEOUT);

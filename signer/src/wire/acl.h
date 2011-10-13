@@ -68,7 +68,7 @@ struct acl_struct {
     /* tsig */
     void* tsig;
     /* cache */
-    unsigned ixfr_disabled : 1;
+    time_t ixfr_disabled;
 };
 
 /**

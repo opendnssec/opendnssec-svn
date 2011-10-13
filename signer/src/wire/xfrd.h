@@ -111,7 +111,6 @@ struct xfrd_struct
     unsigned tcp_waiting : 1;
     unsigned udp_waiting : 1;
 
-    unsigned ixfr_disabled : 1;
 };
 
 /**
