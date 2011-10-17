@@ -794,6 +794,10 @@ engine_update_zones(engine_type* engine)
         node = ldns_rbtree_next(node);
     }
     lock_basic_unlock(&engine->zonelist->zl_lock);
+
+    if (engine->dnshandler) {
+        dnshandler_fwd_notify(engine->dnshandler, (uint8_t*) "NOTIFY", 10);
+    }
     if (wake_up) {
         engine_wakeup_workers(engine);
     }
@@ -955,7 +959,6 @@ engine_start(const char* cfgfile, int cmdline_verbosity, int daemonize,
         if (zl_changed == ODS_STATUS_OK ||
             zl_changed == ODS_STATUS_UNCHANGED) {
             engine_update_zones(engine);
-            dnshandler_fwd_notify(engine->dnshandler, (uint8_t*) "NOTIFY", 10);
         }
         engine_run(engine, single_run);
     }
