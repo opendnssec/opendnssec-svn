@@ -822,9 +822,6 @@ rrset_backup(FILE* fd, rrset_type* rrset)
     if (!rrset || !fd) {
         return;
     }
-    if (!rrset || !fd) {
-        return;
-    }
     for (i=0; i < rrset->rrsig_count; i++) {
         fprintf(fd, ";;RRSIG %s %u\n", rrset->rrsigs[i].key_locator,
             rrset->rrsigs[i].key_flags);

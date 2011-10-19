@@ -602,7 +602,7 @@ addns_write(void* zone, const char* filename)
     if (!fd) {
         return ODS_STATUS_FOPEN_ERR;
     }
-    adapi_printzone(fd, z);
+    adapi_printaxfr(fd, z);
     ods_fclose(fd);
 
     xfrfile = ods_build_path(z->name, ".ixfr", 0);

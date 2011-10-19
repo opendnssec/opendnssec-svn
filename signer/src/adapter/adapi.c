@@ -375,6 +375,25 @@ adapi_printzone(FILE* fd, zone_type* zone)
 
 
 /**
+ * Print axfr.
+ *
+ */
+void
+adapi_printaxfr(FILE* fd, zone_type* zone)
+{
+    rrset_type* rrset = NULL;
+    if (!fd || !zone || !zone->db) {
+        return;
+    }
+    namedb_export(fd, zone->db);
+    rrset = zone_lookup_rrset(zone, zone->apex, LDNS_RR_TYPE_SOA);
+    ods_log_assert(rrset);
+    rrset_print(fd, rrset, 1);
+    return;
+}
+
+
+/**
  * Print ixfr.
  *
  */
