@@ -230,9 +230,10 @@ tools_output(zone_type* zone, const char* dir, const char* cfgfile)
     /* Auditor? */
     if (zone->signconf->audit) {
         ods_log_assert(zone->adinbound);
-        if (zone->adinbound->type != ADAPTER_FILE) {
+        if (zone->adinbound->type != ADAPTER_FILE ||
+            zone->adoutbound->type != ADAPTER_FILE) {
             ods_log_warning("[%s] unable to audit zone %s: "
-                "auditor is only enabled for Input File Adapter",
+                "auditor is only enabled for File Adapters",
                 tools_str, zone->name);
             status = ODS_STATUS_OK;
         } else {

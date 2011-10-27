@@ -757,8 +757,7 @@ engine_update_zones(engine_type* engine)
                 ods_status2str(status));
         }
         /* for dns adapters */
-        if (zone->adinbound->type == ADAPTER_DNS ||
-            zone->adoutbound->type == ADAPTER_DNS) {
+        if (zone->adinbound->type == ADAPTER_DNS) {
             /* zone transfer handler */
             if (!zone->xfrd) {
                 zone->xfrd = xfrd_create((void*) engine->xfrhandler,
