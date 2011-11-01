@@ -270,7 +270,7 @@ tools_output(zone_type* zone, const char* dir, const char* cfgfile)
     }
     zone->db->outserial = zone->db->intserial;
     zone->db->is_initialized = 1;
-    ixfr_wipe(zone->ixfr);
+    ixfr_purge(zone->ixfr);
     /* kick the nameserver */
     if (zone->notify_ns) {
         ods_log_verbose("[%s] notify nameserver: %s", tools_str,

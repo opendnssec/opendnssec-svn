@@ -606,7 +606,7 @@ addns_write(void* zone, const char* filename)
     ods_fclose(fd);
 
     xfrfile = ods_build_path(z->name, ".ixfr", 0);
-    fd = ods_fopen(xfrfile, NULL, "a");
+    fd = ods_fopen(xfrfile, NULL, "w");
     free((void*) xfrfile);
     if (!fd) {
         return ODS_STATUS_FOPEN_ERR;

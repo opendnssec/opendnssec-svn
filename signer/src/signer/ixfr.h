@@ -38,6 +38,18 @@
 
 #include <ldns/ldns.h>
 
+#define IXFR_MAX_PARTS 3
+
+/**
+ * Part of IXFR Journal.
+ *
+ */
+typedef struct part_struct part_type;
+struct part_struct {
+    ldns_rr_list* plus;
+    ldns_rr_list* min;
+};
+
 /**
  * IXFR Journal.
  *
@@ -45,8 +57,7 @@
 typedef struct ixfr_struct ixfr_type;
 struct ixfr_struct {
     void* zone;
-    ldns_rr_list* plus;
-    ldns_rr_list* min;
+    part_type* part[IXFR_MAX_PARTS];
 };
 
 /**
@@ -82,11 +93,11 @@ void ixfr_del_rr(ixfr_type* ixfr, ldns_rr* rr);
 void ixfr_print(FILE* fd, ixfr_type* ixfr);
 
 /**
- * Wipe the ixfr journal.
+ * Purge the ixfr journal.
  * \param[in] ixfr journal
  *
  */
-void ixfr_wipe(ixfr_type* ixfr);
+void ixfr_purge(ixfr_type* ixfr);
 
 /**
  * Cleanup the ixfr journal.

@@ -361,6 +361,7 @@ rrset_diff(rrset_type* rrset, unsigned is_ixfr)
 {
     zone_type* zone = NULL;
     uint16_t i = 0;
+    uint8_t del_sigs = 0;
     if (!rrset) {
         return;
     }
@@ -370,6 +371,7 @@ rrset_diff(rrset_type* rrset, unsigned is_ixfr)
             if (!rrset->rrs[i].exists) {
                 /* ixfr +RR */
                 ixfr_add_rr(zone->ixfr, rrset->rrs[i].rr);
+                del_sigs = 1;
             }
             rrset->rrs[i].exists = 1;
             rrset->rrs[i].is_added = 0;
@@ -380,6 +382,15 @@ rrset_diff(rrset_type* rrset, unsigned is_ixfr)
             }
             rrset->rrs[i].exists = 0;
             rrset_del_rr(rrset, i);
+            del_sigs = 1;
+            i--;
+        }
+    }
+    if (del_sigs) {
+       for (i=0; i < rrset->rrsig_count; i++) {
+            /* ixfr -RRSIG */
+            ixfr_del_rr(zone->ixfr, rrset->rrsigs[i].rr);
+            rrset_del_rrsig(rrset, i);
             i--;
         }
     }
@@ -501,7 +512,7 @@ rrset_recycle(rrset_type* rrset, time_t signtime, ldns_rr_type dstatus,
             (delegpt == LDNS_RR_TYPE_SOA || rrset->rrtype == LDNS_RR_TYPE_DS));
         /* 1. If the RRset has changed, drop all signatures */
         /* 2. If Refresh is disabled, drop all signatures */
-        if (rrset->needs_signing || refresh <= signtime) {
+        if (rrset->needs_signing || refresh <= (uint32_t) signtime) {
             drop_sig = 1;
             goto recycle_drop_sig;
         }
