@@ -441,7 +441,7 @@ sock_send_error(ldns_pkt* pkt, ldns_pkt_rcode rcode,
 
 
 /**
- * Check NOTIFY.
+ * Handle NOTIFY.
  *
  */
 static void
@@ -453,13 +453,12 @@ sock_handle_notify(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
     ldns_rr_list* answer_section = NULL;
     uint8_t *outbuf = NULL;
     size_t answer_size = 0;
-    ssize_t nb = 0;
 
     if (!pkt || !rr || !engine || !zone) {
         sock_send_error(pkt, LDNS_RCODE_FORMERR, sendfunc, userdata);
         return;
     }
-    if (ldns_pkt_get_rcode(pkt)  != LDNS_RCODE_NOERROR ||
+    if (ldns_pkt_get_rcode(pkt) != LDNS_RCODE_NOERROR ||
         ldns_pkt_qr(pkt) ||
         !ldns_pkt_aa(pkt) ||
         ldns_pkt_tc(pkt) ||
@@ -499,6 +498,7 @@ sock_handle_notify(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
             ods_log_verbose("[%s] already got zone %s serial %u on disk",
                 sock_str, zone->name, zone->xfrd->serial_notify);
             lock_basic_unlock(&zone->xfrd->serial_lock);
+            LDNS_FREE(outbuf);
             return;
         }
         lock_basic_unlock(&zone->xfrd->serial_lock);
@@ -512,6 +512,69 @@ sock_handle_notify(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
     /* request xfr */
     xfrd_set_timer_now(zone->xfrd);
     dnshandler_fwd_notify(engine->dnshandler, outbuf, answer_size);
+    LDNS_FREE(outbuf);
+    return;
+}
+
+
+/**
+ * Handle QUERY.
+ *
+ */
+static void
+sock_handle_transfer(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
+    zone_type* zone, void (*sendfunc)(uint8_t*, size_t, void*),
+    void* userdata)
+{
+    ldns_status status = LDNS_STATUS_OK;
+    uint8_t *outbuf = NULL;
+    size_t answer_size = 0;
+
+    if (!pkt || !rr || !engine || !zone) {
+        sock_send_error(pkt, LDNS_RCODE_FORMERR, sendfunc, userdata);
+        return;
+    }
+    if (ldns_pkt_get_rcode(pkt) != LDNS_RCODE_NOERROR ||
+        ldns_pkt_qr(pkt) ||
+        ldns_pkt_aa(pkt) ||
+        ldns_pkt_tc(pkt) ||
+        ldns_pkt_ra(pkt) ||
+        ldns_pkt_qdcount(pkt) != 1 ||
+        ldns_pkt_ancount(pkt) > 1 ||
+        ldns_rr_get_class(rr) != LDNS_RR_CLASS_IN) {
+        sock_send_error(pkt, LDNS_RCODE_FORMERR, sendfunc, userdata);
+        return;
+    }
+    if (ldns_rr_get_type(rr) != LDNS_RR_TYPE_IXFR &&
+        (ldns_pkt_nscount(pkt) != 0 || ldns_pkt_arcount(pkt) != 0)) {
+        sock_send_error(pkt, LDNS_RCODE_FORMERR, sendfunc, userdata);
+        return;
+    }
+    /* query ok */
+    ldns_pkt_set_qr(pkt, 1);
+    ldns_pkt_set_aa(pkt, 1);
+    switch (ldns_rr_get_type(rr)) {
+        case LDNS_RR_TYPE_AXFR:
+            /* add axfr to answer section */
+        case LDNS_RR_TYPE_IXFR:
+            /* search serial */
+            /* add ixfr to answer section */
+        case LDNS_RR_TYPE_SOA:
+            /* add soa to answer section */
+            /* add ns to auth section */
+            /* add glues to addition section */
+        default:
+            sock_send_error(pkt, LDNS_RCODE_NOTIMPL, sendfunc, userdata);
+            return;
+    }
+
+    status = ldns_pkt2wire(&outbuf, pkt, &answer_size);
+    if (status != LDNS_STATUS_OK) {
+        ods_log_error("[%s] unable to send response: ldns_pkt2wire() "
+            "failed (%s)", sock_str, ldns_get_errorstr_by_id(status));
+        return;
+    }
+    sendfunc(outbuf, answer_size, userdata);
     LDNS_FREE(outbuf);
     return;
 }
@@ -533,7 +596,7 @@ sock_handle_query(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
     if (ldns_pkt_get_opcode(pkt) == LDNS_PACKET_NOTIFY) {
         sock_handle_notify(pkt, rr, engine, zone, sendfunc, userdata);
     } else if (ldns_pkt_get_opcode(pkt) == LDNS_PACKET_QUERY) {
-        ods_log_verbose("[%s] received query", sock_str);
+        sock_handle_transfer(pkt, rr, engine, zone, sendfunc, userdata);
     } else if (ldns_pkt_get_opcode(pkt) == LDNS_PACKET_UPDATE) {
         ods_log_verbose("[%s] received update", sock_str);
     } else {

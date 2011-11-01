@@ -45,8 +45,6 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#define DNS_PORT "53"
-
 static const char* xfrd_str = "xfrd";
 
 static void xfrd_handle_zone(netio_type* netio,
@@ -314,7 +312,7 @@ xfrd_acl_sockaddr_to(acl_type* acl, struct sockaddr_storage *to)
     if (!acl || !to) {
         return 0;
     }
-    port = acl->port ? acl->port : (unsigned) atoi(DNS_PORT);
+    port = acl->port ? acl->port : (unsigned) atoi(DNS_PORT_STRING);
     return xfrd_acl_sockaddr(acl, port, to);
 }
 
