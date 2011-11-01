@@ -762,13 +762,13 @@ engine_update_zones(engine_type* engine)
             if (!zone->xfrd) {
                 zone->xfrd = xfrd_create((void*) engine->xfrhandler,
                     (void*) zone);
+                ods_log_assert(zone->xfrd);
+                ods_log_debug("[%s] add transfer handler for zone %s",
+                    engine_str, zone->name);
+                netio_add_handler(engine->xfrhandler->netio,
+                    &zone->xfrd->handler);
             }
-            ods_log_assert(zone->xfrd);
-            ods_log_debug("[%s] add transfer handler for zone %s", engine_str,
-                zone->name);
-            netio_add_handler(engine->xfrhandler->netio, &zone->xfrd->handler);
         }
-
         if (zone->zl_status == ZONE_ZL_ADDED) {
             ods_log_assert(task);
             lock_basic_lock(&zone->zone_lock);
