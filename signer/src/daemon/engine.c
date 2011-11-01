@@ -678,6 +678,55 @@ set_notify_ns(zone_type* zone, const char* cmd)
 
 
 /**
+ * Update DNS configuration for zone.
+ *
+ */
+static void
+dnsconfig_zone(engine_type* engine, zone_type* zone)
+{
+    ods_log_assert(engine);
+    ods_log_assert(engine->xfrhandler);
+    ods_log_assert(engine->xfrhandler->netio);
+    ods_log_assert(zone);
+    ods_log_assert(zone->adinbound);
+    ods_log_assert(zone->adoutbound);
+    ods_log_assert(zone->name);
+
+    if (zone->adinbound->type == ADAPTER_DNS) {
+        /* zone transfer handler */
+        if (!zone->xfrd) {
+            ods_log_debug("[%s] add transfer handler for zone %s",
+                engine_str, zone->name);
+            zone->xfrd = xfrd_create((void*) engine->xfrhandler,
+                (void*) zone);
+            ods_log_assert(zone->xfrd);
+            netio_add_handler(engine->xfrhandler->netio,
+                &zone->xfrd->handler);
+        }
+    } else if (zone->xfrd) {
+        netio_remove_handler(engine->xfrhandler->netio,
+            &zone->xfrd->handler);
+        xfrd_cleanup(zone->xfrd);
+        zone->xfrd = NULL;
+    }
+    if (zone->adoutbound->type == ADAPTER_DNS) {
+        /* notify packet */
+        if (!zone->packet) {
+             ods_log_debug("[%s] add notify handler for zone %s",
+                engine_str, zone->name);
+             zone->packet = buffer_create(zone->allocator,
+                 PACKET_BUFFER_SIZE);
+             ods_log_assert(zone->packet);
+        }
+    } else if (zone->packet) {
+        buffer_cleanup(zone->packet, zone->allocator);
+        zone->packet = NULL;
+    }
+    return;
+}
+
+
+/**
  * Update zones.
  *
  */
@@ -757,18 +806,8 @@ engine_update_zones(engine_type* engine)
                 ods_status2str(status));
         }
         /* for dns adapters */
-        if (zone->adinbound->type == ADAPTER_DNS) {
-            /* zone transfer handler */
-            if (!zone->xfrd) {
-                zone->xfrd = xfrd_create((void*) engine->xfrhandler,
-                    (void*) zone);
-                ods_log_assert(zone->xfrd);
-                ods_log_debug("[%s] add transfer handler for zone %s",
-                    engine_str, zone->name);
-                netio_add_handler(engine->xfrhandler->netio,
-                    &zone->xfrd->handler);
-            }
-        }
+        dnsconfig_zone(engine, zone);
+
         if (zone->zl_status == ZONE_ZL_ADDED) {
             ods_log_assert(task);
             lock_basic_lock(&zone->zone_lock);

@@ -757,6 +757,34 @@ buffer_pkt_new(buffer_type* buffer, ldns_rdf* qname, ldns_rr_type qtype,
 
 
 /**
+ * Make a new notify.
+ *
+ */
+void
+buffer_pkt_notify(buffer_type* buffer, ldns_rdf* qname, ldns_rr_class qclass)
+{
+    ods_log_assert(buffer);
+    ods_log_assert(qname);
+    ods_log_assert(qclass);
+    /* The header */
+    buffer_clear(buffer);
+    buffer_pkt_set_random_id(buffer);
+    buffer_pkt_set_flags(buffer, 0);
+    buffer_pkt_set_opcode(buffer, LDNS_PACKET_NOTIFY);
+    buffer_pkt_set_qdcount(buffer, 1);
+    buffer_pkt_set_ancount(buffer, 0);
+    buffer_pkt_set_nscount(buffer, 0);
+    buffer_pkt_set_arcount(buffer, 0);
+    buffer_skip(buffer, BUFFER_PKT_HEADER_SIZE);
+    /* The question record */
+    buffer_write_rdf(buffer, qname);
+    buffer_write_u16(buffer, LDNS_RR_TYPE_SOA);
+    buffer_write_u16(buffer, qclass);
+    return;
+}
+
+
+/**
  * Print packet buffer.
  *
  */

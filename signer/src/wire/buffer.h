@@ -439,6 +439,16 @@ buffer_pkt_new(buffer_type* buffer, ldns_rdf* qname, ldns_rr_type qtype,
    ldns_rr_class qclass);
 
 /**
+ * Make a new notify.
+ * \param[in] buffer buffer
+ * \param[in] qname qname
+ * \param[in] qclass qclass
+ *
+ */
+void
+buffer_pkt_notify(buffer_type* buffer, ldns_rdf* qname, ldns_rr_class qclass);
+
+/**
  * Print packet buffer.
  * \param[in] fd file descriptor
  * \param[in] buffer buffer

@@ -959,7 +959,8 @@ xfrd_tcp_xfr(xfrd_type* xfrd, tcp_set_type* set)
     if (xfrd->serial_xfr_acquired <= 0 || xfrd->master->ixfr_disabled) {
         ods_log_debug("[%s] zone %s request axfr to %s", xfrd_str,
             zone->name, xfrd->master->address);
-        buffer_pkt_new(tcp->packet, zone->apex, LDNS_RR_TYPE_AXFR, zone->klass);
+        buffer_pkt_new(tcp->packet, zone->apex, LDNS_RR_TYPE_AXFR,
+            zone->klass);
     } else {
         ods_log_debug("[%s] zone %s request ixfr to %s", xfrd_str,
             zone->name, xfrd->master->address);
@@ -1086,8 +1087,9 @@ xfrd_udp_send(xfrd_type* xfrd, buffer_type* buffer)
 {
     struct sockaddr_storage to;
     socklen_t to_len = 0;
-    int fd, family;
-    ssize_t nb;
+    int fd = -1;
+    int family = PF_INET;
+    ssize_t nb = -1;
     ods_log_assert(buffer);
     ods_log_assert(xfrd);
     ods_log_assert(xfrd->master);
@@ -1095,14 +1097,12 @@ xfrd_udp_send(xfrd_type* xfrd, buffer_type* buffer)
     /* this will set the remote port to acl->port or TCP_PORT */
     to_len = xfrd_acl_sockaddr_to(xfrd->master, &to);
     /* get the address family of the remote host */
-    if(xfrd->master->family == AF_INET6) {
+    if (xfrd->master->family == AF_INET6) {
         family = PF_INET6;
-    } else {
-        family = PF_INET;
     }
     /* create socket */
     fd = socket(family, SOCK_DGRAM, IPPROTO_UDP);
-    if(fd == -1) {
+    if (fd == -1) {
         ods_log_error("[%s] unable to send data over udp to %s: "
             "socket() failed (%s)", xfrd_str, xfrd->master->address,
             strerror(errno));

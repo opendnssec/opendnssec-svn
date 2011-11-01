@@ -99,6 +99,7 @@ zone_create(char* name, ldns_rr_class klass)
     zone->zl_status = ZONE_ZL_OK;
     zone->task = NULL;
     zone->xfrd = NULL;
+    zone->packet = NULL;
     zone->db = namedb_create((void*)zone);
     if (!zone->db) {
         ods_log_error("[%s] unable to create zone %s: namedb_create() "
@@ -694,6 +695,7 @@ zone_cleanup(zone_type* zone)
     namedb_cleanup(zone->db);
     ixfr_cleanup(zone->ixfr);
     xfrd_cleanup(zone->xfrd);
+    buffer_cleanup(zone->packet, allocator);
     signconf_cleanup(zone->signconf);
     stats_cleanup(zone->stats);
     allocator_deallocate(allocator, (void*) zone->notify_ns);

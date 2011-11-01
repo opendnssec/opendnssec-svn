@@ -544,6 +544,84 @@ dnsout_update(dnsout_type** addns, const char* filename, time_t* last_mod)
 }
 
 
+/*
+ *
+ *
+ */
+static void
+dnsout_send_notify_to(void* zone, acl_type* acl)
+{
+    zone_type* z = (zone_type*) zone;
+    struct sockaddr_storage to;
+    socklen_t to_len = 0;
+    int fd = -1;
+    int family = PF_INET;
+    ssize_t nb = -1;
+    ods_log_assert(z);
+    ods_log_assert(z->packet);
+    ods_log_assert(acl);
+    ods_log_assert(acl->address);
+    buffer_clear(z->packet);
+    buffer_pkt_notify(z->packet, z->apex, z->klass);
+    /* tsig sign */
+    buffer_flip(z->packet);
+    ods_log_debug("[%s] zone %s sending notify to %s", adapter_str, z->name,
+        acl->address);
+    to_len = xfrd_acl_sockaddr_to(acl, &to);
+    if (acl->family == AF_INET6) {
+        family = PF_INET6;
+    }
+    fd = socket(family, SOCK_DGRAM, IPPROTO_UDP);
+    if (fd == -1) {
+        ods_log_error("[%s] unable to send notify for zone %s to %s: socket() "
+           "failed (%s)", adapter_str, z->name, acl->address, strerror(errno));
+        return;
+    }
+    /* bind it */
+
+    /* send it (udp) */
+    nb = sendto(fd, buffer_current(z->packet), buffer_remaining(z->packet), 0,
+        (struct sockaddr*)&to, to_len);
+    if (nb == -1) {
+        ods_log_error("[%s] unable to send notify for zone %s to %s: sendto() "
+           "failed (%s)", adapter_str, z->name, acl->address, strerror(errno));
+        close(fd);
+        return;
+    }
+    /* we don't wait for notify ok's */
+    return;
+}
+
+
+/**
+ * Send notifies.
+ *
+ */
+static void
+dnsout_send_notify(void* zone)
+{
+    zone_type* z = (zone_type*) zone;
+    dnsout_type* dnsout = NULL;
+    acl_type* acl = NULL;
+    ods_log_assert(z);
+    ods_log_assert(z->adoutbound);
+    ods_log_assert(z->adoutbound->config);
+    ods_log_assert(z->adoutbound->type == ADAPTER_DNS);
+    if (!z->packet) {
+        ods_log_error("[%s] unable to send notify for zone %s: no notify "
+           "handler", adapter_str, z->name);
+        return;
+    }
+    dnsout = (dnsout_type*) z->adoutbound->config;
+    acl = dnsout->do_notify;
+    while (acl) {
+        dnsout_send_notify_to(zone, acl);
+        acl = acl->next;
+    }
+    return;
+}
+
+
 /**
  * Read zone from DNS Input Adapter.
  *
@@ -593,9 +671,11 @@ addns_write(void* zone, const char* filename)
     FILE* fd = NULL;
     char* xfrfile = NULL;
     zone_type* z = (zone_type*) zone;
-    if (!z) {
-        return ODS_STATUS_ASSERT_ERR;
-    }
+    ods_log_assert(z);
+    ods_log_assert(z->name);
+    ods_log_assert(z->adoutbound);
+    ods_log_assert(z->adoutbound->type == ADAPTER_DNS);
+
     xfrfile = ods_build_path(z->name, ".axfr", 0);
     fd = ods_fopen(xfrfile, NULL, "w");
     free((void*) xfrfile);
@@ -613,6 +693,7 @@ addns_write(void* zone, const char* filename)
     }
     adapi_printixfr(fd, z);
     ods_fclose(fd);
+    dnsout_send_notify(zone);
     return ODS_STATUS_OK;
 }
 
