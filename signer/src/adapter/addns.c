@@ -669,30 +669,65 @@ ods_status
 addns_write(void* zone, const char* filename)
 {
     FILE* fd = NULL;
-    char* xfrfile = NULL;
+    char* atmpfile = NULL;
+    char* axfrfile = NULL;
+    char* itmpfile = NULL;
+    char* ixfrfile = NULL;
     zone_type* z = (zone_type*) zone;
+    int ret = 0;
     ods_log_assert(z);
     ods_log_assert(z->name);
     ods_log_assert(z->adoutbound);
     ods_log_assert(z->adoutbound->type == ADAPTER_DNS);
 
-    xfrfile = ods_build_path(z->name, ".axfr", 0);
-    fd = ods_fopen(xfrfile, NULL, "w");
-    free((void*) xfrfile);
+    atmpfile = ods_build_path(z->name, ".axfr.tmp", 0);
+    fd = ods_fopen(atmpfile, NULL, "w");
     if (!fd) {
+        free((void*) atmpfile);
         return ODS_STATUS_FOPEN_ERR;
     }
     adapi_printaxfr(fd, z);
     ods_fclose(fd);
 
-    xfrfile = ods_build_path(z->name, ".ixfr", 0);
-    fd = ods_fopen(xfrfile, NULL, "w");
-    free((void*) xfrfile);
+    itmpfile = ods_build_path(z->name, ".ixfr.tmp", 0);
+    fd = ods_fopen(itmpfile, NULL, "w");
     if (!fd) {
+        free((void*) atmpfile);
+        free((void*) itmpfile);
         return ODS_STATUS_FOPEN_ERR;
     }
     adapi_printixfr(fd, z);
     ods_fclose(fd);
+
+    /* lock and move */
+    axfrfile = ods_build_path(z->name, ".axfr", 0);
+    lock_basic_lock(&z->xfr_lock);
+    ret = rename(atmpfile, axfrfile);
+    if (ret != 0) {
+        ods_log_error("[%s] unable to rename file %s to %s: %s", adapter_str,
+            atmpfile, axfrfile, strerror(errno));
+        lock_basic_unlock(&z->xfr_lock);
+        free((void*) atmpfile);
+        free((void*) axfrfile);
+        free((void*) itmpfile);
+        return ODS_STATUS_RENAME_ERR;
+    }
+    free((void*) atmpfile);
+    free((void*) axfrfile);
+    ixfrfile = ods_build_path(z->name, ".ixfr", 0);
+    ret = rename(itmpfile, ixfrfile);
+    if (ret != 0) {
+        ods_log_error("[%s] unable to rename file %s to %s: %s", adapter_str,
+            itmpfile, ixfrfile, strerror(errno));
+        lock_basic_unlock(&z->xfr_lock);
+        free((void*) itmpfile);
+        free((void*) ixfrfile);
+        return ODS_STATUS_RENAME_ERR;
+    }
+    free((void*) itmpfile);
+    free((void*) ixfrfile);
+    lock_basic_unlock(&z->xfr_lock);
+
     dnsout_send_notify(zone);
     return ODS_STATUS_OK;
 }

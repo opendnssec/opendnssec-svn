@@ -123,6 +123,7 @@ zone_create(char* name, ldns_rr_class klass)
     }
     zone->stats = stats_create();
     lock_basic_init(&zone->zone_lock);
+    lock_basic_init(&zone->xfr_lock);
     return zone;
 }
 
@@ -684,11 +685,13 @@ zone_cleanup(zone_type* zone)
 {
     allocator_type* allocator;
     lock_basic_type zone_lock;
+    lock_basic_type xfr_lock;
     if (!zone) {
         return;
     }
     allocator = zone->allocator;
     zone_lock = zone->zone_lock;
+    xfr_lock = zone->zone_lock;
     ldns_rdf_deep_free(zone->apex);
     adapter_cleanup(zone->adinbound);
     adapter_cleanup(zone->adoutbound);
@@ -704,6 +707,7 @@ zone_cleanup(zone_type* zone)
     allocator_deallocate(allocator, (void*) zone->name);
     allocator_deallocate(allocator, (void*) zone);
     allocator_cleanup(allocator);
+    lock_basic_destroy(&xfr_lock);
     lock_basic_destroy(&zone_lock);
     return;
 }

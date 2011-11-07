@@ -55,6 +55,7 @@ ods_lookup_table ods_status_str[] = {
     { ODS_STATUS_HSM_ERR, "HSM error"},
     { ODS_STATUS_INSECURE, "Insecure"},
     { ODS_STATUS_MALLOC_ERR, "Memory allocation error"},
+    { ODS_STATUS_RENAME_ERR, "Unable to rename file"},
 
     { ODS_STATUS_SOCK_BIND, "Unable to bind socket"},
     { ODS_STATUS_SOCK_FCNTL_NONBLOCK, "Unable to set socket to nonblocking"},

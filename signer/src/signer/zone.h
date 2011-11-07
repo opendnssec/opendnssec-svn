@@ -92,6 +92,7 @@ struct zone_struct {
     /* statistics */
     stats_type* stats;
     lock_basic_type zone_lock;
+    lock_basic_type xfr_lock;
 };
 
 /**
