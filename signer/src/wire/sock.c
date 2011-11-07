@@ -365,7 +365,7 @@ send_udp(uint8_t* buf, size_t len, void* data)
 {
     struct handle_udp_userdata *userdata = (struct handle_udp_userdata*)data;
     ssize_t nb;
-    nb = sendto(userdata->udp_sock, buf, len, 0,
+    nb = sendto(userdata->udp_sock.s, buf, len, 0,
         (struct sockaddr*)&userdata->addr_him, userdata->hislen);
     if (nb == -1) {
         ods_log_error("[%s] unable to send data over udp: sendto() failed "
@@ -527,10 +527,6 @@ sock_handle_transfer(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
     zone_type* zone, void (*sendfunc)(uint8_t*, size_t, void*), int is_tcp,
     void* userdata)
 {
-    ldns_status status = LDNS_STATUS_OK;
-    uint8_t *outbuf = NULL;
-    size_t answer_size = 0;
-
     if (!pkt || !rr || !engine || !zone) {
         sock_send_error(pkt, LDNS_RCODE_FORMERR, sendfunc, userdata);
         return;
@@ -552,12 +548,14 @@ sock_handle_transfer(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
         return;
     }
     /* query ok */
-    ldns_pkt_set_qr(pkt, 1);
-    ldns_pkt_set_aa(pkt, 1);
     switch (ldns_rr_get_type(rr)) {
         case LDNS_RR_TYPE_AXFR:
             /* add axfr to answer section */
             if (is_tcp) {
+                struct handle_tcp_userdata *ud =
+                    (struct handle_tcp_userdata*) userdata;
+                query_reset((query_type*) ud->tcp_sock.query,
+                    TCP_MAX_MESSAGE_LEN);
                 axfr(pkt, rr, engine, zone, sendfunc, userdata);
             }
         case LDNS_RR_TYPE_IXFR:
@@ -572,14 +570,7 @@ sock_handle_transfer(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
             return;
     }
     /* default */
-    status = ldns_pkt2wire(&outbuf, pkt, &answer_size);
-    if (status != LDNS_STATUS_OK) {
-        ods_log_error("[%s] unable to send response: ldns_pkt2wire() "
-            "failed (%s)", sock_str, ldns_get_errorstr_by_id(status));
-        return;
-    }
-    sendfunc(outbuf, answer_size, userdata);
-    LDNS_FREE(outbuf);
+    sock_send_error(pkt, LDNS_RCODE_NOTIMPL, sendfunc, userdata);
     return;
 }
 
@@ -697,7 +688,7 @@ sock_parse_packet(uint8_t* inbuf, ssize_t inlen, engine_type* e,
  *
  */
 void
-sock_handle_udp(int s, void* engine)
+sock_handle_udp(sock_type s, void* engine)
 {
     ssize_t nb;
     uint8_t inbuf[INBUF_SIZE];
@@ -713,7 +704,7 @@ sock_handle_udp(int s, void* engine)
     userdata.udp_sock = s;
     userdata.hislen = (socklen_t) sizeof(userdata.addr_him);
     /* recv */
-    nb = recvfrom(s, inbuf, INBUF_SIZE, 0,
+    nb = recvfrom(s.s, inbuf, INBUF_SIZE, 0,
         (struct sockaddr*) &userdata.addr_him, &userdata.hislen);
     if (nb < 1) {
         ods_log_error("[%s] recvfrom() failed: %s", sock_str,
@@ -758,7 +749,7 @@ read_n_bytes(int sock, uint8_t* buf, size_t sz)
  *
  */
 void
-sock_handle_tcp(int s, void* engine)
+sock_handle_tcp(sock_type s, void* engine)
 {
     int tcp_s;
     struct sockaddr_storage addr_him;
@@ -776,16 +767,17 @@ sock_handle_tcp(int s, void* engine)
     }
     /* accept */
     hislen = (socklen_t)sizeof(addr_him);
-    if((tcp_s = accept(s, (struct sockaddr*)&addr_him, &hislen)) < 0) {
+    if((tcp_s = accept(s.s, (struct sockaddr*)&addr_him, &hislen)) < 0) {
         ods_log_error("[%s] accept() failed: %s", sock_str, strerror(errno));
         return;
     }
     userdata.s = tcp_s;
+    userdata.tcp_sock = s;
     /* tcp recv */
     read_n_bytes(tcp_s, (uint8_t*)&tcplen, sizeof(tcplen));
     tcplen = ntohs(tcplen);
     if(tcplen >= INBUF_SIZE) {
-        ods_log_error("zone fetcher query %d bytes too large, "
+        ods_log_error("tcp query %d bytes too large, "
             "buffer %d bytes.", tcplen, INBUF_SIZE);
         close(tcp_s);
         return;

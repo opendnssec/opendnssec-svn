@@ -106,6 +106,12 @@ dnshandler_start(dnshandler_type* dnshandler)
     ods_log_debug("[%s] start", dnsh_str);
     /* setup */
     engine = (engine_type*) dnshandler->engine;
+    for (i=0; i < dnshandler->interfaces->count; i++) {
+        dnshandler->socklist->udp[i].query = query_create();
+        dnshandler->socklist->tcp[i].query = query_create();
+        ods_log_assert(dnshandler->socklist->udp[i].query);
+        ods_log_assert(dnshandler->socklist->tcp[i].query);
+    }
     status = sock_listen(dnshandler->socklist, dnshandler->interfaces);
     if (status != ODS_STATUS_OK) {
         ods_log_error("[%s] unable to start: sock_listen() "
@@ -118,7 +124,7 @@ dnshandler_start(dnshandler_type* dnshandler)
         FD_ZERO(&rset);
         FD_ZERO(&wset);
         FD_ZERO(&eset);
-        for (i=0; i < MAX_INTERFACES; i++) {
+        for (i=0; i < dnshandler->interfaces->count; i++) {
             if (dnshandler->socklist->udp[i].s != -1) {
                 FD_SET(dnshandler->socklist->udp[i].s, &rset);
             }
@@ -139,22 +145,22 @@ dnshandler_start(dnshandler_type* dnshandler)
             ods_log_error("[%s] select() failed: %s", dnsh_str,
                 strerror(errno));
         }
-        for (i=0; i < MAX_INTERFACES; i++) {
+        for (i=0; i < dnshandler->interfaces->count; i++) {
             if (dnshandler->socklist->udp[i].s != -1 &&
                 FD_ISSET(dnshandler->socklist->udp[i].s, &rset)) {
-                sock_handle_udp(dnshandler->socklist->udp[i].s,
+                sock_handle_udp(dnshandler->socklist->udp[i],
                     dnshandler->engine);
             }
             if (dnshandler->socklist->tcp[i].s != -1 &&
                 FD_ISSET(dnshandler->socklist->tcp[i].s, &rset)) {
-                sock_handle_tcp(dnshandler->socklist->tcp[i].s,
+                sock_handle_tcp(dnshandler->socklist->tcp[i],
                     dnshandler->engine);
             }
         }
     }
     /* shutdown */
     ods_log_debug("[%s] shutdown", dnsh_str);
-    for (i=0; i < MAX_INTERFACES; i++) {
+    for (i=0; i < dnshandler->interfaces->count; i++) {
         if (dnshandler->socklist->udp[i].s != -1) {
             close(dnshandler->socklist->udp[i].s);
             freeaddrinfo((void*)dnshandler->socklist->udp[i].addr);
@@ -163,6 +169,8 @@ dnshandler_start(dnshandler_type* dnshandler)
             close(dnshandler->socklist->tcp[i].s);
             freeaddrinfo((void*)dnshandler->socklist->tcp[i].addr);
         }
+        query_cleanup(dnshandler->socklist->udp[i].query);
+        query_cleanup(dnshandler->socklist->tcp[i].query);
     }
     return;
 }

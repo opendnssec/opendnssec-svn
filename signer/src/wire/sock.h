@@ -37,6 +37,7 @@
 #include "config.h"
 #include "shared/status.h"
 #include "wire/listener.h"
+#include "wire/query.h"
 
 /**
  * Sockets.
@@ -45,6 +46,7 @@ typedef struct sock_struct sock_type;
 struct sock_struct {
     struct addrinfo* addr;
     int s;
+    query_type* query;
 };
 
 typedef struct socklist_struct socklist_type;
@@ -57,13 +59,14 @@ struct socklist_struct {
  * User data.
  */
 struct handle_udp_userdata {
-    int udp_sock;
+    sock_type udp_sock;
     struct sockaddr_storage addr_him;
     socklen_t hislen;
 };
 
 struct handle_tcp_userdata {
     int s;
+    sock_type tcp_sock;
 };
 
 /**
@@ -77,18 +80,18 @@ ods_status sock_listen(socklist_type* sockets, listener_type* listener);
 
 /**
  * Handle udp.
- * \param[in] s socket identifier
+ * \param[in] s socket
  * \param[in] engine signer engine reference
  *
  */
-void sock_handle_udp(int s, void* engine);
+void sock_handle_udp(sock_type s, void* engine);
 
 /**
  * Handle tcp.
- * \param[in] s socket identifier
+ * \param[in] s socket
  * \param[in] engine signer engine reference
  *
  */
-void sock_handle_tcp(int s, void* engine);
+void sock_handle_tcp(sock_type s, void* engine);
 
 #endif /* WIRE_SOCK_H */
