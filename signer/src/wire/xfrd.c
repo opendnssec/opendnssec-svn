@@ -957,7 +957,7 @@ xfrd_tcp_xfr(xfrd_type* xfrd, tcp_set_type* set)
     if (xfrd->serial_xfr_acquired <= 0 || xfrd->master->ixfr_disabled) {
         ods_log_debug("[%s] zone %s request axfr to %s", xfrd_str,
             zone->name, xfrd->master->address);
-        buffer_pkt_new(tcp->packet, zone->apex, LDNS_RR_TYPE_AXFR,
+        buffer_pkt_query(tcp->packet, zone->apex, LDNS_RR_TYPE_AXFR,
             zone->klass);
     } else {
         ods_log_debug("[%s] zone %s request ixfr to %s", xfrd_str,
@@ -1147,7 +1147,7 @@ xfrd_udp_send_request_ixfr(xfrd_type* xfrd)
     /* make packet */
     xfrhandler = (xfrhandler_type*) xfrd->xfrhandler;
     ods_log_assert(xfrhandler);
-    buffer_pkt_new(xfrhandler->packet, zone->apex, LDNS_RR_TYPE_IXFR,
+    buffer_pkt_query(xfrhandler->packet, zone->apex, LDNS_RR_TYPE_IXFR,
         zone->klass);
     xfrd->query_id = buffer_pkt_id(xfrhandler->packet);
     xfrd->msg_seq_nr = 0;

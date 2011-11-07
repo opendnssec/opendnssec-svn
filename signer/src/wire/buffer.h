@@ -54,6 +54,12 @@
 #define TC_SET(packet)  (*buffer_at((packet), 2) |= TC_MASK)
 #define TC_CLR(packet)  (*buffer_at((packet), 2) &= ~TC_MASK)
 
+#define QR_MASK         0x80U
+#define QR_SHIFT        7
+#define QR(packet)      (*buffer_at((packet), 2) & QR_MASK)
+#define QR_SET(packet)  (*buffer_at((packet), 2) |= QR_MASK)
+#define QR_CLR(packet)  (*buffer_at((packet), 2) &= ~QR_MASK)
+
 #define RCODE_MASK      0x0fU
 #define RCODE_SHIFT     0
 #define RCODE(packet)   (*buffer_at((packet), 3) & RCODE_MASK)
@@ -63,7 +69,7 @@
 /**
  * Buffer.
  */
-typedef struct buffer_struct buffer_type;
+	typedef struct buffer_struct buffer_type;
 struct buffer_struct {
     size_t position;
     size_t limit;
@@ -266,6 +272,14 @@ void buffer_write_u16(buffer_type* buffer, uint16_t data);
 void buffer_write_rdf(buffer_type* buffer, ldns_rdf* rdf);
 
 /**
+ * Write rr to buffer.
+ * \param[in] buffer buffer
+ * \param[in] rr data to write
+ *
+ */
+void buffer_write_rr(buffer_type* buffer, ldns_rr* rr);
+
+/**
  * Read from buffer.
  * \param[in] buffer buffer
  * \param[in] data read data
@@ -322,12 +336,11 @@ void buffer_pkt_set_random_id(buffer_type* buffer);
 void buffer_pkt_set_flags(buffer_type* buffer, uint16_t flags);
 
 /**
- * Get OPCODE from buffer.
+ * Set QR bit in buffer.
  * \param[in] buffer buffer
- * \return ldns_pkt_opcode OPCODE
  *
  */
-ldns_pkt_opcode buffer_pkt_opcode(buffer_type* buffer);
+void buffer_pkt_set_qr(buffer_type* buffer);
 
 /**
  * Get TC bit from buffer.
@@ -337,6 +350,14 @@ ldns_pkt_opcode buffer_pkt_opcode(buffer_type* buffer);
  *
  */
 int buffer_pkt_tc(buffer_type* buffer);
+
+/**
+ * Get OPCODE from buffer.
+ * \param[in] buffer buffer
+ * \return ldns_pkt_opcode OPCODE
+ *
+ */
+ldns_pkt_opcode buffer_pkt_opcode(buffer_type* buffer);
 
 /**
  * Set OPCODE in buffer.
@@ -427,7 +448,7 @@ uint16_t buffer_pkt_arcount(buffer_type* buffer);
 void buffer_pkt_set_arcount(buffer_type* buffer, uint16_t count);
 
 /**
- * Make a new packet.
+ * Make a new query.
  * \param[in] buffer buffer
  * \param[in] qname qname
  * \param[in] qtype qtype
@@ -435,7 +456,7 @@ void buffer_pkt_set_arcount(buffer_type* buffer, uint16_t count);
  *
  */
 void
-buffer_pkt_new(buffer_type* buffer, ldns_rdf* qname, ldns_rr_type qtype,
+buffer_pkt_query(buffer_type* buffer, ldns_rdf* qname, ldns_rr_type qtype,
    ldns_rr_class qclass);
 
 /**
@@ -447,6 +468,16 @@ buffer_pkt_new(buffer_type* buffer, ldns_rdf* qname, ldns_rr_type qtype,
  */
 void
 buffer_pkt_notify(buffer_type* buffer, ldns_rdf* qname, ldns_rr_class qclass);
+
+/**
+ * Make a new axfr.
+ * \param[in] buffer buffer
+ * \param[in] qname qname
+ * \param[in] qclass qclass
+ *
+ */
+void
+buffer_pkt_axfr(buffer_type* buffer, ldns_rdf* qname, ldns_rr_class qclass);
 
 /**
  * Print packet buffer.

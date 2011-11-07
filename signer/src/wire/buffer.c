@@ -423,6 +423,26 @@ buffer_write_rdf(buffer_type* buffer, ldns_rdf* rdf)
 
 
 /**
+ * Write rr to buffer.
+ *
+ */
+void
+buffer_write_rr(buffer_type* buffer, ldns_rr* rr)
+{
+    size_t i = 0;
+    ods_log_assert(rr);
+    buffer_write_rdf(buffer, ldns_rr_owner(rr));
+    buffer_write_u16(buffer, (uint16_t) ldns_rr_get_type(rr));
+    buffer_write_u16(buffer, (uint16_t) ldns_rr_get_class(rr));
+    for (i=0; i < ldns_rr_rd_count(rr); i++) {
+        buffer_write_rdf(buffer, ldns_rr_rdf(rr, i));
+    }
+    /* position updated by buffer_write() */
+    return;
+}
+
+
+/**
  * Read uint8_t from buffer at indicated position.
  *
  */
@@ -569,6 +589,30 @@ buffer_pkt_set_flags(buffer_type* buffer, uint16_t flags)
     return;
 }
 
+
+/**
+ * Set QR bit in buffer.
+ *
+ */
+void
+buffer_pkt_set_qr(buffer_type* buffer)
+{
+    QR_SET(buffer);
+    return;
+}
+
+
+/**
+ * Get TC bit from buffer.
+ *
+ */
+int
+buffer_pkt_tc(buffer_type* buffer)
+{
+    return (int) TC(buffer);
+}
+
+
 /**
  * Get OPCODE from buffer.
  *
@@ -589,17 +633,6 @@ buffer_pkt_set_opcode(buffer_type* buffer, ldns_pkt_opcode opcode)
 {
     OPCODE_SET(buffer, opcode);
     return;
-}
-
-
-/**
- * Get TC bit from buffer.
- *
- */
-int
-buffer_pkt_tc(buffer_type* buffer)
-{
-    return (int) TC(buffer);
 }
 
 
@@ -730,9 +763,9 @@ buffer_pkt_set_arcount(buffer_type* buffer, uint16_t count)
  * Make a new packet.
  *
  */
-void
+static void
 buffer_pkt_new(buffer_type* buffer, ldns_rdf* qname, ldns_rr_type qtype,
-   ldns_rr_class qclass)
+   ldns_rr_class qclass, ldns_pkt_opcode opcode)
 {
     ods_log_assert(buffer);
     ods_log_assert(qname);
@@ -741,8 +774,7 @@ buffer_pkt_new(buffer_type* buffer, ldns_rdf* qname, ldns_rr_type qtype,
     /* The header */
     buffer_clear(buffer);
     buffer_pkt_set_random_id(buffer);
-    buffer_pkt_set_flags(buffer, 0);
-    buffer_pkt_set_opcode(buffer, LDNS_PACKET_QUERY);
+    buffer_pkt_set_opcode(buffer, opcode);
     buffer_pkt_set_qdcount(buffer, 1);
     buffer_pkt_set_ancount(buffer, 0);
     buffer_pkt_set_nscount(buffer, 0);
@@ -757,29 +789,42 @@ buffer_pkt_new(buffer_type* buffer, ldns_rdf* qname, ldns_rr_type qtype,
 
 
 /**
+ * Make a new query.
+ *
+ */
+void
+buffer_pkt_query(buffer_type* buffer, ldns_rdf* qname, ldns_rr_type qtype,
+   ldns_rr_class qclass)
+{
+    buffer_pkt_new(buffer, qname, qtype, qclass, LDNS_PACKET_QUERY);
+    buffer_pkt_set_flags(buffer, 0);
+    return;
+}
+
+
+/**
  * Make a new notify.
  *
  */
 void
 buffer_pkt_notify(buffer_type* buffer, ldns_rdf* qname, ldns_rr_class qclass)
 {
-    ods_log_assert(buffer);
-    ods_log_assert(qname);
-    ods_log_assert(qclass);
-    /* The header */
-    buffer_clear(buffer);
-    buffer_pkt_set_random_id(buffer);
-    buffer_pkt_set_flags(buffer, 0);
-    buffer_pkt_set_opcode(buffer, LDNS_PACKET_NOTIFY);
-    buffer_pkt_set_qdcount(buffer, 1);
-    buffer_pkt_set_ancount(buffer, 0);
-    buffer_pkt_set_nscount(buffer, 0);
-    buffer_pkt_set_arcount(buffer, 0);
-    buffer_skip(buffer, BUFFER_PKT_HEADER_SIZE);
-    /* The question record */
-    buffer_write_rdf(buffer, qname);
-    buffer_write_u16(buffer, LDNS_RR_TYPE_SOA);
-    buffer_write_u16(buffer, qclass);
+    buffer_pkt_new(buffer, qname, LDNS_RR_TYPE_SOA, qclass,
+        LDNS_PACKET_NOTIFY);
+    return;
+}
+
+
+/**
+ * Make a new axfr.
+ *
+ */
+void
+buffer_pkt_axfr(buffer_type* buffer, ldns_rdf* qname, ldns_rr_class qclass)
+{
+    buffer_pkt_new(buffer, qname, LDNS_RR_TYPE_AXFR, qclass,
+        LDNS_PACKET_QUERY);
+    buffer_pkt_set_qr(buffer, 1);
     return;
 }
 
