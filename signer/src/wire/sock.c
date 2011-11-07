@@ -36,6 +36,7 @@
 #include "shared/log.h"
 #include "shared/util.h"
 #include "signer/zone.h"
+#include "wire/axfr.h"
 #include "wire/sock.h"
 
 #include <errno.h>
@@ -523,7 +524,7 @@ sock_handle_notify(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
  */
 static void
 sock_handle_transfer(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
-    zone_type* zone, void (*sendfunc)(uint8_t*, size_t, void*),
+    zone_type* zone, void (*sendfunc)(uint8_t*, size_t, void*), int is_tcp,
     void* userdata)
 {
     ldns_status status = LDNS_STATUS_OK;
@@ -556,6 +557,9 @@ sock_handle_transfer(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
     switch (ldns_rr_get_type(rr)) {
         case LDNS_RR_TYPE_AXFR:
             /* add axfr to answer section */
+            if (is_tcp) {
+                axfr(pkt, rr, engine, zone, sendfunc, userdata);
+            }
         case LDNS_RR_TYPE_IXFR:
             /* search serial */
             /* add ixfr to answer section */
@@ -567,7 +571,7 @@ sock_handle_transfer(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
             sock_send_error(pkt, LDNS_RCODE_NOTIMPL, sendfunc, userdata);
             return;
     }
-
+    /* default */
     status = ldns_pkt2wire(&outbuf, pkt, &answer_size);
     if (status != LDNS_STATUS_OK) {
         ods_log_error("[%s] unable to send response: ldns_pkt2wire() "
@@ -587,7 +591,7 @@ sock_handle_transfer(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
 static void
 sock_handle_query(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
     zone_type* zone, void (*sendfunc)(uint8_t*, size_t, void*),
-    void* userdata)
+    int is_tcp, void* userdata)
 {
     ods_log_assert(zone);
     ods_log_assert(pkt);
@@ -596,7 +600,8 @@ sock_handle_query(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
     if (ldns_pkt_get_opcode(pkt) == LDNS_PACKET_NOTIFY) {
         sock_handle_notify(pkt, rr, engine, zone, sendfunc, userdata);
     } else if (ldns_pkt_get_opcode(pkt) == LDNS_PACKET_QUERY) {
-        sock_handle_transfer(pkt, rr, engine, zone, sendfunc, userdata);
+        sock_handle_transfer(pkt, rr, engine, zone, sendfunc, is_tcp,
+            userdata);
     } else if (ldns_pkt_get_opcode(pkt) == LDNS_PACKET_UPDATE) {
         ods_log_verbose("[%s] received update", sock_str);
     } else {
@@ -726,7 +731,7 @@ sock_handle_udp(int s, void* engine)
         return;
     }
     sock_handle_query(qpkt, qrr, (engine_type*) engine, zone,
-        send_udp, &userdata);
+        send_udp, 0, &userdata);
     return;
 }
 
@@ -797,7 +802,7 @@ sock_handle_tcp(int s, void* engine)
         return;
     }
     sock_handle_query(qpkt, qrr, (engine_type*) engine, zone,
-        send_tcp, &userdata);
+        send_tcp, 1, &userdata);
     close(tcp_s);
     return;
 }
