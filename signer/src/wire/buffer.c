@@ -824,7 +824,7 @@ buffer_pkt_axfr(buffer_type* buffer, ldns_rdf* qname, ldns_rr_class qclass)
 {
     buffer_pkt_new(buffer, qname, LDNS_RR_TYPE_AXFR, qclass,
         LDNS_PACKET_QUERY);
-    buffer_pkt_set_qr(buffer, 1);
+    buffer_pkt_set_qr(buffer);
     return;
 }
 
