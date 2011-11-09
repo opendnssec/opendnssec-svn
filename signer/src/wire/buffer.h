@@ -336,6 +336,15 @@ void buffer_pkt_set_random_id(buffer_type* buffer);
 void buffer_pkt_set_flags(buffer_type* buffer, uint16_t flags);
 
 /**
+ * Get QR bit from buffer.
+ * \param[in] buffer buffer
+ * \return int 0 if QR bit is clear
+ *             1 if QR bit is set
+ *
+ */
+int buffer_pkt_qr(buffer_type* buffer);
+
+/**
  * Set QR bit in buffer.
  * \param[in] buffer buffer
  *

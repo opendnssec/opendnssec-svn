@@ -591,6 +591,17 @@ buffer_pkt_set_flags(buffer_type* buffer, uint16_t flags)
 
 
 /**
+ * Get QR bit from buffer.
+ *
+ */
+int
+buffer_pkt_qr(buffer_type* buffer)
+{
+    return (int) QR(buffer);
+}
+
+
+/**
  * Set QR bit in buffer.
  *
  */
