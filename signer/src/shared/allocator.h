@@ -41,6 +41,14 @@ typedef struct allocator_struct allocator_type;
 struct allocator_struct {
     void* (*allocator)(size_t);
     void  (*deallocator)(void *);
+/*
+    char* chunk;
+    char* next;
+    char* large_list;
+    size_t first_size;
+    size_t total_large;
+    size_t available;
+*/
 };
 
 /**
@@ -51,6 +59,16 @@ struct allocator_struct {
  */
 allocator_type* allocator_create(void *(*allocator)(size_t size),
     void (*deallocator)(void *));
+
+/**
+ * Create custom allocator.
+ * \param[in] allocator function for allocating
+ * \param[in] deallocator function for deallocating
+ * \param[in] size: first chunk size
+ * \return allocator_type* allocator
+ */
+allocator_type* allocator_create_custom(void *(*allocator)(size_t size),
+    void (*deallocator)(void *), size_t size);
 
 /**
  * Allocate memory.

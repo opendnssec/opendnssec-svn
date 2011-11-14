@@ -35,10 +35,25 @@
 #include "shared/allocator.h"
 #include "shared/log.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
+/** Alignment */
+#ifdef ALIGNMENT
+#  undef ALIGNMENT
+#endif
+/** increase size until it fits alignment of s bytes */
+#define ALIGN_UP(x, s) (((x) + s - 1) & (~(s - 1)))
+/** what size to align on; make sure a char* fits in it. */
+#define ALIGNMENT (sizeof(uint64_t))
+
+/** Default reasonable size for chunks and objects */
+#define ALLOCATOR_CHUNK_SIZE 8192
+#define ALLOCATOR_LARGE_OBJECT_SIZE 2048
+
 static const char* allocator_str = "allocator";
+
 
 /**
  * Create allocator.
@@ -47,14 +62,54 @@ static const char* allocator_str = "allocator";
 allocator_type*
 allocator_create(void *(*allocator)(size_t size), void (*deallocator)(void *))
 {
+    return allocator_create_custom(allocator, deallocator, ALLOCATOR_CHUNK_SIZE);
+}
+
+
+/**
+ * Initialize allocator.
+ *
+ */
+/*
+static void
+allocator_init(allocator_type* allocator)
+{
+    size_t a = 0;
+    ods_log_debug("[%s] initialize allocator", allocator_str);
+    if (!allocator) {
+        return;
+    }
+    ods_log_debug("[%s] align up allocator", allocator_str);
+    a = ALIGN_UP(sizeof(allocator_type), ALIGNMENT);
+    allocator->chunk = (char*) allocator + a;
+    allocator->next = NULL;
+    allocator->large_list = NULL;
+    allocator->available = allocator->first_size - a;
+    allocator->total_large = 0;
+    return;
+}
+*/
+
+/**
+ * Create allocator.
+ *
+ */
+allocator_type* allocator_create_custom(void *(*allocator)(size_t size),
+    void (*deallocator)(void *), size_t size)
+{
     allocator_type* result =
         (allocator_type*) allocator(sizeof(allocator_type));
+/*     ods_log_assert(sizeof(allocator_type) <= size); */
     if (!result) {
         ods_log_error("[%s] failed to create allocator", allocator_str);
         return NULL;
     }
     result->allocator = allocator;
     result->deallocator = deallocator;
+/*
+    result->first_size = size;
+    allocator_init(result);
+*/
     return result;
 }
 
@@ -66,19 +121,50 @@ allocator_create(void *(*allocator)(size_t size), void (*deallocator)(void *))
 void*
 allocator_alloc(allocator_type* allocator, size_t size)
 {
+    size_t a = ALIGN_UP(size, ALIGNMENT);
     void* result;
-
     ods_log_assert(allocator);
-    /* align size */
-    if (size == 0) {
-        size = 1;
-    }
     result = allocator->allocator(size);
     if (!result) {
         ods_fatal_exit("[%s] allocator failed: out of memory", allocator_str);
         return NULL;
     }
     return result;
+
+    /* large objects */
+/*
+    if (a > ALLOCATOR_LARGE_OBJECT_SIZE) {
+         result = allocator->allocator(ALIGNMENT + size);
+         if (!result) {
+            ods_fatal_exit("[%s] allocator failed: out of memory",
+                allocator_str);
+            return NULL;
+         }
+         allocator->total_large += ALIGNMENT + size;
+         *(char**)result = allocator->large_list;
+         allocator->large_list = (char*)result;
+         return (char*)result + ALIGNMENT;
+    }
+*/
+    /* new chunk */
+/*
+    if (a > allocator->available) {
+        result = allocator->allocator(ALLOCATOR_CHUNK_SIZE);
+         if (!result) {
+            ods_fatal_exit("[%s] allocator failed: out of memory",
+                allocator_str);
+            return NULL;
+         }
+         *(char**) result = allocator->next;
+         allocator->next = (char*) result;
+         allocator->chunk = (char*) result + ALIGNMENT;
+         allocator->available = ALLOCATOR_CHUNK_SIZE - ALIGNMENT;
+    }
+    allocator->available -= a;
+    result = allocator->chunk;
+    allocator->chunk += a;
+    return result;
+*/
 }
 
 
@@ -136,11 +222,43 @@ void
 allocator_deallocate(allocator_type *allocator, void* data)
 {
     ods_log_assert(allocator);
-
     if (!data) {
         return;
     }
     allocator->deallocator(data);
+    return;
+}
+
+
+/**
+ * Free all data in allocator.
+ *
+ */
+void
+allocator_free(allocator_type* allocator)
+{
+/*
+    char* chunk = NULL;
+    char* next_chunk = NULL;
+    void (*deallocator)(void *);
+    if (!allocator) {
+        return;
+    }
+    chunk = allocator->next;
+    deallocator = allocator->deallocator;
+    while (chunk) {
+        next_chunk = *(char**)chunk;
+        deallocator(chunk);
+        chunk = next_chunk;
+    }
+    chunk = allocator->large_list;
+    while (chunk) {
+        next_chunk = *(char**)chunk;
+        deallocator(chunk);
+        chunk = next_chunk;
+    }
+    allocator_init(allocator);
+*/
     return;
 }
 
@@ -156,6 +274,7 @@ allocator_cleanup(allocator_type *allocator)
     if (!allocator) {
         return;
     }
+/*    allocator_free(allocator); */
     deallocator = allocator->deallocator;
     deallocator(allocator);
     return;
