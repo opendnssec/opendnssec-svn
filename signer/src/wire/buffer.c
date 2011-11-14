@@ -85,9 +85,7 @@ buffer_create(allocator_type* allocator, size_t capacity)
 void
 buffer_create_from(buffer_type* buffer, void* data, size_t size)
 {
-    if (!buffer) {
-        return;
-    }
+    ods_log_assert(buffer);
     buffer->data = (uint8_t*) data;
     buffer->position = 0;
     buffer->limit = size;
@@ -551,7 +549,6 @@ buffer_pkt_id(buffer_type* buffer)
     return buffer_read_u16_at(buffer, 0);
 }
 
-
 /**
  * Get a random query id.
  *
@@ -578,6 +575,18 @@ buffer_pkt_set_random_id(buffer_type* buffer)
 
 
 /**
+ * Get flags from buffer.
+ *
+ */
+uint16_t
+buffer_pkt_flags(buffer_type* buffer)
+{
+    ods_log_assert(buffer);
+    return (uint16_t) buffer_read_u16_at(buffer, 2);
+}
+
+
+/**
  * Set flags in buffer.
  *
  */
@@ -597,6 +606,7 @@ buffer_pkt_set_flags(buffer_type* buffer, uint16_t flags)
 int
 buffer_pkt_qr(buffer_type* buffer)
 {
+    ods_log_assert(buffer);
     return (int) QR(buffer);
 }
 
@@ -608,19 +618,9 @@ buffer_pkt_qr(buffer_type* buffer)
 void
 buffer_pkt_set_qr(buffer_type* buffer)
 {
+    ods_log_assert(buffer);
     QR_SET(buffer);
     return;
-}
-
-
-/**
- * Get TC bit from buffer.
- *
- */
-int
-buffer_pkt_tc(buffer_type* buffer)
-{
-    return (int) TC(buffer);
 }
 
 
@@ -631,6 +631,7 @@ buffer_pkt_tc(buffer_type* buffer)
 ldns_pkt_opcode
 buffer_pkt_opcode(buffer_type* buffer)
 {
+    ods_log_assert(buffer);
     return (ldns_pkt_opcode) OPCODE(buffer);
 }
 
@@ -642,8 +643,81 @@ buffer_pkt_opcode(buffer_type* buffer)
 void
 buffer_pkt_set_opcode(buffer_type* buffer, ldns_pkt_opcode opcode)
 {
+    ods_log_assert(buffer);
     OPCODE_SET(buffer, opcode);
     return;
+}
+
+
+/**
+ * Get AA bit from buffer.
+ *
+ */
+int
+buffer_pkt_aa(buffer_type* buffer)
+{
+    ods_log_assert(buffer);
+    return (int) AA(buffer);
+}
+
+
+/**
+ * Get TC bit from buffer.
+ *
+ */
+int
+buffer_pkt_tc(buffer_type* buffer)
+{
+    ods_log_assert(buffer);
+    return (int) TC(buffer);
+}
+
+
+/**
+ * Get RD bit from buffer.
+ *
+ */
+int
+buffer_pkt_rd(buffer_type* buffer)
+{
+    ods_log_assert(buffer);
+    return (int) RD(buffer);
+}
+
+
+/**
+ * Get RA bit from buffer.
+ *
+ */
+int
+buffer_pkt_ra(buffer_type* buffer)
+{
+    ods_log_assert(buffer);
+    return (int) RA(buffer);
+}
+
+
+/**
+ * Get AD bit from buffer.
+ *
+ */
+int
+buffer_pkt_ad(buffer_type* buffer)
+{
+    ods_log_assert(buffer);
+    return (int) AD(buffer);
+}
+
+
+/**
+ * Get CD bit from buffer.
+ *
+ */
+int
+buffer_pkt_cd(buffer_type* buffer)
+{
+    ods_log_assert(buffer);
+    return (int) CD(buffer);
 }
 
 
@@ -654,6 +728,7 @@ buffer_pkt_set_opcode(buffer_type* buffer, ldns_pkt_opcode opcode)
 ldns_pkt_rcode
 buffer_pkt_rcode(buffer_type* buffer)
 {
+    ods_log_assert(buffer);
     return (ldns_pkt_rcode) RCODE(buffer);
 }
 
@@ -665,6 +740,7 @@ buffer_pkt_rcode(buffer_type* buffer)
 void
 buffer_pkt_set_rcode(buffer_type* buffer, ldns_pkt_rcode rcode)
 {
+    ods_log_assert(buffer);
     RCODE_SET(buffer, rcode);
     return;
 }

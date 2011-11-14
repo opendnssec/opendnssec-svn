@@ -42,11 +42,23 @@
 
 #define BUFFER_PKT_HEADER_SIZE 12
 
+#define QR_MASK         0x80U
+#define QR_SHIFT        7
+#define QR(packet)      (*buffer_at((packet), 2) & QR_MASK)
+#define QR_SET(packet)  (*buffer_at((packet), 2) |= QR_MASK)
+#define QR_CLR(packet)  (*buffer_at((packet), 2) &= ~QR_MASK)
+
 #define OPCODE_MASK     0x78U
 #define OPCODE_SHIFT    3
 #define OPCODE(packet)  ((*buffer_at((packet), 2) & OPCODE_MASK) >> OPCODE_SHIFT)
 #define OPCODE_SET(packet, opcode) \
         (*buffer_at((packet), 2) = (*buffer_at((packet), 2) & ~OPCODE_MASK) | ((opcode) << OPCODE_SHIFT))
+
+#define AA_MASK         0x04U
+#define AA_SHIFT        2
+#define AA(packet)      (*buffer_at((packet), 2) & AA_MASK)
+#define AA_SET(packet)  (*buffer_at((packet), 2) |= AA_MASK)
+#define AA_CLR(packet)  (*buffer_at((packet), 2) &= ~AA_MASK)
 
 #define TC_MASK         0x02U
 #define TC_SHIFT        1
@@ -54,11 +66,29 @@
 #define TC_SET(packet)  (*buffer_at((packet), 2) |= TC_MASK)
 #define TC_CLR(packet)  (*buffer_at((packet), 2) &= ~TC_MASK)
 
-#define QR_MASK         0x80U
-#define QR_SHIFT        7
-#define QR(packet)      (*buffer_at((packet), 2) & QR_MASK)
-#define QR_SET(packet)  (*buffer_at((packet), 2) |= QR_MASK)
-#define QR_CLR(packet)  (*buffer_at((packet), 2) &= ~QR_MASK)
+#define RD_MASK         0x01U
+#define RD_SHIFT        0
+#define RD(packet)      (*buffer_at((packet), 2) & RD_MASK)
+#define RD_SET(packet)  (*buffer_at((packet), 2) |= RD_MASK)
+#define RD_CLR(packet)  (*buffer_at((packet), 2) &= ~RD_MASK)
+
+#define RA_MASK         0x80U
+#define RA_SHIFT        7
+#define RA(packet)      (*buffer_at((packet), 3) & RA_MASK)
+#define RA_SET(packet)  (*buffer_at((packet), 3) |= RA_MASK)
+#define RA_CLR(packet)  (*buffer_at((packet), 3) &= ~RA_MASK)
+
+#define AD_MASK         0x20U
+#define AD_SHIFT        5
+#define AD(packet)      (*buffer_at((packet), 3) & AD_MASK)
+#define AD_SET(packet)  (*buffer_at((packet), 3) |= AD_MASK)
+#define AD_CLR(packet)  (*buffer_at((packet), 3) &= ~AD_MASK)
+
+#define CD_MASK         0x10U
+#define CD_SHIFT        4
+#define CD(packet)      (*buffer_at((packet), 3) & CD_MASK)
+#define CD_SET(packet)  (*buffer_at((packet), 3) |= CD_MASK)
+#define CD_CLR(packet)  (*buffer_at((packet), 3) &= ~CD_MASK)
 
 #define RCODE_MASK      0x0fU
 #define RCODE_SHIFT     0
@@ -69,7 +99,7 @@
 /**
  * Buffer.
  */
-	typedef struct buffer_struct buffer_type;
+typedef struct buffer_struct buffer_type;
 struct buffer_struct {
     size_t position;
     size_t limit;
@@ -328,6 +358,14 @@ uint16_t buffer_pkt_id(buffer_type* buffer);
 void buffer_pkt_set_random_id(buffer_type* buffer);
 
 /**
+ * Get flags from buffer.
+ * \param[in] buffer buffer
+ * \return uint16_t flags
+ *
+ */
+uint16_t buffer_pkt_flags(buffer_type* buffer);
+
+/**
  * Set flags in buffer.
  * \param[in] buffer buffer
  * \param[in] flags flags
@@ -352,6 +390,15 @@ int buffer_pkt_qr(buffer_type* buffer);
 void buffer_pkt_set_qr(buffer_type* buffer);
 
 /**
+ * Get AA bit from buffer.
+ * \param[in] buffer buffer
+ * \return int 0 if AA bit is clear
+ *             1 if AA bit is set
+ *
+ */
+int buffer_pkt_aa(buffer_type* buffer);
+
+/**
  * Get TC bit from buffer.
  * \param[in] buffer buffer
  * \return int 0 if TC bit is clear
@@ -359,6 +406,42 @@ void buffer_pkt_set_qr(buffer_type* buffer);
  *
  */
 int buffer_pkt_tc(buffer_type* buffer);
+
+/**
+ * Get RD bit from buffer.
+ * \param[in] buffer buffer
+ * \return int 0 if RD bit is clear
+ *             1 if RD bit is set
+ *
+ */
+int buffer_pkt_rd(buffer_type* buffer);
+
+/**
+ * Get RA bit from buffer.
+ * \param[in] buffer buffer
+ * \return int 0 if RA bit is clear
+ *             1 if RA bit is set
+ *
+ */
+int buffer_pkt_ra(buffer_type* buffer);
+
+/**
+ * Get AD bit from buffer.
+ * \param[in] buffer buffer
+ * \return int 0 if AD bit is clear
+ *             1 if AD bit is set
+ *
+ */
+int buffer_pkt_ad(buffer_type* buffer);
+
+/**
+ * Get CD bit from buffer.
+ * \param[in] buffer buffer
+ * \return int 0 if CD bit is clear
+ *             1 if CD bit is set
+ *
+ */
+int buffer_pkt_cd(buffer_type* buffer);
 
 /**
  * Get OPCODE from buffer.
