@@ -430,7 +430,6 @@ acl_cleanup(acl_type* acl, allocator_type* allocator)
         return;
     }
     acl_cleanup(acl->next, allocator);
-    allocator_deallocate(allocator, (void*) acl->port);
     allocator_deallocate(allocator, (void*) acl->address);
     allocator_deallocate(allocator, (void*) acl);
     return;

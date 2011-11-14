@@ -39,6 +39,7 @@
 #include "shared/locks.h"
 #include "wire/listener.h"
 #include "wire/netio.h"
+#include "wire/query.h"
 #include "wire/sock.h"
 
 #include <stdint.h>
@@ -52,6 +53,8 @@ struct dnshandler_struct {
     void* engine;
     listener_type* interfaces;
     socklist_type* socklist;
+    netio_type* netio;
+    query_type* query;
     netio_handler_type xfrhandler;
     unsigned need_to_exit;
 };

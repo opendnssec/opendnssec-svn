@@ -109,9 +109,9 @@ struct netio_handler_struct {
      */
     struct timespec* timeout;
     /*
-     * Zone transfer reference.
+     * User data.
      */
-    void* xfrd;
+    void* user_data;
     /*
      * The type of events that should be checked for.  These types
      * can be OR'ed together to wait for multiple types of events.
@@ -203,6 +203,15 @@ int netio_dispatch(netio_type* netio, const struct timespec* timeout,
  *
  */
 void netio_cleanup(netio_type* netio);
+
+/**
+ * Add timespecs.
+ * \param[in] left left
+ * \param[in] right right
+ *
+ */
+void timespec_add(struct timespec* left, const struct timespec* right);
+
 
 #ifdef __cplusplus
 inline netio_events_type

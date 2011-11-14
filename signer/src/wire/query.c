@@ -32,7 +32,10 @@
  */
 
 #include "config.h"
+#include "daemon/engine.h"
 #include "wire/query.h"
+
+const char* query_str = "query";
 
 
 /**
@@ -54,7 +57,12 @@ query_create(void)
         return NULL;
     }
     q->allocator = allocator;
-    query_reset(q, UDP_MAX_MESSAGE_LEN);
+    q->buffer = buffer_create(allocator, PACKET_BUFFER_SIZE);
+    if (!q->buffer) {
+        query_cleanup(q);
+        return NULL;
+    }
+    query_reset(q, UDP_MAX_MESSAGE_LEN, 0);
     return q;
 }
 
@@ -64,19 +72,75 @@ query_create(void)
  *
  */
 void
-query_reset(query_type* q, size_t maxlen)
+query_reset(query_type* q, size_t maxlen, int is_tcp)
 {
     if (!q) {
         return;
     }
+    q->addrlen = sizeof(q->addr);
     q->maxlen = maxlen;
+    q->reserved_space = 0;
+    buffer_clear(q->buffer);
+    /* edns */
     /* tsig */
-    q->tcp = 0;
+    q->tcp = is_tcp;
     q->tcplen = 0;
+    /* qname, qtype, qclass */
     q->zone = NULL;
+    /* domain, opcode, cname count, delegation, compression, temp */
     q->axfr_is_done = 0;
-    q->fd = -1;
+    q->axfr_fd = NULL;
     return;
+}
+
+
+/**
+ * Process query.
+ *
+ */
+query_state
+query_process(query_type* q, void* engine)
+{
+    engine_type* e = (engine_type*) engine;
+    ods_log_assert(e);
+    ods_log_assert(q);
+    ods_log_assert(q->buffer);
+    if (!e || !q || !q->buffer) {
+        ods_log_error("[%s] drop query: assertion error", query_str);
+        return QUERY_DISCARDED; /* should not happen */
+    }
+    if (buffer_limit(q->buffer) < BUFFER_PKT_HEADER_SIZE) {
+        ods_log_error("[%s] drop query: packet too small", query_str);
+        return QUERY_DISCARDED; /* too small */
+    }
+    if (buffer_pkt_qr(q->buffer)) {
+        ods_log_error("[%s] drop query: qr bit set", query_str);
+        return QUERY_DISCARDED; /* not a query */
+    }
+    /* parse packet */
+
+/*
+    ldns_status status = LDNS_STATUS_OK;
+    status = ldns_wire2pkt(pkt, inbuf, (size_t)inlen);
+    if (status != LDNS_STATUS_OK) {
+        ods_log_error("[%s] got bad packet: %s", sock_str,
+            ldns_get_errorstr_by_id(status));
+        return ODS_STATUS_ERR;
+    }
+    *rr = ldns_rr_list_rr(ldns_pkt_question(*pkt), 0);
+    ods_log_assert(e);
+    lock_basic_lock(&e->zonelist->zl_lock);
+    *zone = zonelist_lookup_zone_by_dname(e->zonelist, ldns_rr_owner(*rr),
+        ldns_rr_get_class(*rr));
+    if (*zone && (*zone)->zl_status == ZONE_ZL_ADDED) {
+        *zone = NULL;
+    }
+    lock_basic_unlock(&e->zonelist->zl_lock);
+    return ODS_STATUS_OK;
+*/
+
+    buffer_pkt_set_qr(q->buffer);
+    return QUERY_PROCESSED;
 }
 
 
@@ -92,6 +156,7 @@ query_cleanup(query_type* q)
         return;
     }
     allocator = q->allocator;
+    buffer_cleanup(q->buffer, allocator);
     allocator_deallocate(allocator, (void*)q);
     allocator_cleanup(allocator);
     return;

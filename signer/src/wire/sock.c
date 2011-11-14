@@ -37,7 +37,9 @@
 #include "shared/util.h"
 #include "signer/zone.h"
 #include "wire/axfr.h"
+#include "wire/netio.h"
 #include "wire/sock.h"
+#include "wire/xfrd.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -357,56 +359,27 @@ sock_listen(socklist_type* sockets, listener_type* listener)
 
 
 /**
- * Send data over tcp.
+ * Send data over udp.
  *
  */
 static void
-send_udp(uint8_t* buf, size_t len, void* data)
+send_udp(struct udp_data* data)
 {
-    struct handle_udp_userdata *userdata = (struct handle_udp_userdata*)data;
     ssize_t nb;
-    nb = sendto(userdata->udp_sock.s, buf, len, 0,
-        (struct sockaddr*)&userdata->addr_him, userdata->hislen);
+    nb = sendto(data->socket->s, buffer_begin(data->query->buffer),
+        buffer_remaining(data->query->buffer), 0,
+        (struct sockaddr*) &data->query->addr, data->query->addrlen);
     if (nb == -1) {
         ods_log_error("[%s] unable to send data over udp: sendto() failed "
             "(%s)", sock_str, strerror(errno));
-    } else if ((size_t) nb != len) {
+    } else if ((size_t) nb != buffer_remaining(data->query->buffer)) {
         ods_log_error("[%s] unable to send data over udp: only sent %d of %d "
-            "octets", sock_str, (int)nb, (int)len);
+            "octets", sock_str, (int)nb,
+            (int)buffer_remaining(data->query->buffer));
     }
     return;
 }
 
-
-/**
- * Send data over tcp.
- *
- */
-static void
-write_n_bytes(int sock, uint8_t* buf, size_t sz)
-{
-    size_t count = 0;
-    while(count < sz) {
-        ssize_t nb = send(sock, buf+count, sz-count, 0);
-        if(nb < 0) {
-            ods_log_error("[%s] unable to send data over tcp: send() failed "
-                "(%s)", sock_str, strerror(errno));
-            return;
-        }
-        count += nb;
-    }
-    return;
-}
-static void
-send_tcp(uint8_t* buf, size_t len, void* data)
-{
-    struct handle_tcp_userdata *userdata = (struct handle_tcp_userdata*)data;
-    uint16_t tcplen;
-    tcplen = htons(len);
-    write_n_bytes(userdata->s, (uint8_t*)&tcplen, sizeof(tcplen));
-    write_n_bytes(userdata->s, buf, len);
-    return;
-}
 
 /*
  * Handle error.
@@ -522,6 +495,7 @@ sock_handle_notify(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
  * Handle QUERY.
  *
  */
+/*
 static void
 sock_handle_transfer(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
     zone_type* zone, void (*sendfunc)(uint8_t*, size_t, void*), int is_tcp,
@@ -547,38 +521,39 @@ sock_handle_transfer(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
         sock_send_error(pkt, LDNS_RCODE_FORMERR, sendfunc, userdata);
         return;
     }
-    /* query ok */
+
     switch (ldns_rr_get_type(rr)) {
         case LDNS_RR_TYPE_AXFR:
-            /* add axfr to answer section */
+             add axfr to answer section
             if (is_tcp) {
-                struct handle_tcp_userdata *ud =
-                    (struct handle_tcp_userdata*) userdata;
-                query_reset((query_type*) ud->tcp_sock.query,
-                    TCP_MAX_MESSAGE_LEN);
-                axfr(pkt, rr, engine, zone, sendfunc, userdata);
+                struct tcp_data *ud =
+                    (struct tcp_data*) userdata;
+                query_reset(ud->socket->query, TCP_MAX_MESSAGE_LEN, 1);
+                axfr(ud->socket->query, engine);
             }
         case LDNS_RR_TYPE_IXFR:
-            /* search serial */
-            /* add ixfr to answer section */
+            search serial
+            add ixfr to answer section
         case LDNS_RR_TYPE_SOA:
-            /* add soa to answer section */
-            /* add ns to auth section */
-            /* add glues to addition section */
+            add soa to answer section
+            add ns to auth section
+            add glues to addition section
         default:
             sock_send_error(pkt, LDNS_RCODE_NOTIMPL, sendfunc, userdata);
             return;
     }
-    /* default */
+    default
     sock_send_error(pkt, LDNS_RCODE_NOTIMPL, sendfunc, userdata);
     return;
 }
+*/
 
 
 /**
  * Handle query.
  *
  */
+/*
 static void
 sock_handle_query(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
     zone_type* zone, void (*sendfunc)(uint8_t*, size_t, void*),
@@ -587,7 +562,6 @@ sock_handle_query(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
     ods_log_assert(zone);
     ods_log_assert(pkt);
     ods_log_assert(rr);
-    /* acl */
     if (ldns_pkt_get_opcode(pkt) == LDNS_PACKET_NOTIFY) {
         sock_handle_notify(pkt, rr, engine, zone, sendfunc, userdata);
     } else if (ldns_pkt_get_opcode(pkt) == LDNS_PACKET_QUERY) {
@@ -600,7 +574,7 @@ sock_handle_query(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
     }
     return;
 }
-
+*/
 
 /**
  * Check address against ACL.
@@ -683,118 +657,379 @@ sock_parse_packet(uint8_t* inbuf, ssize_t inlen, engine_type* e,
 }
 
 
-/*
- * Handle udp.
+/**
+ * Handle incoming udp queries.
  *
  */
 void
-sock_handle_udp(sock_type s, void* engine)
+sock_handle_udp(netio_type* ATTR_UNUSED(netio), netio_handler_type* handler,
+    netio_events_type event_types)
 {
-    ssize_t nb;
-    uint8_t inbuf[INBUF_SIZE];
-    struct handle_udp_userdata userdata;
-    zone_type* zone = NULL;
-    ldns_pkt *qpkt = NULL;
-    ldns_rr *qrr = NULL;
-    ldns_pkt_rcode rcode = LDNS_RCODE_NOERROR;
+    struct udp_data* data = (struct udp_data*) handler->user_data;
+    int received = 0;
+    query_type* q = data->query;
+    query_state qstate = QUERY_PROCESSED;
 
-    if (!engine) {
+    if (!(event_types & NETIO_EVENT_READ)) {
         return;
     }
-    userdata.udp_sock = s;
-    userdata.hislen = (socklen_t) sizeof(userdata.addr_him);
-    /* recv */
-    nb = recvfrom(s.s, inbuf, INBUF_SIZE, 0,
-        (struct sockaddr*) &userdata.addr_him, &userdata.hislen);
-    if (nb < 1) {
-        ods_log_error("[%s] recvfrom() failed: %s", sock_str,
-            strerror(errno));
+    query_reset(q, UDP_MAX_MESSAGE_LEN, 0);
+    received = recvfrom(handler->fd, buffer_begin(q->buffer),
+        buffer_remaining(q->buffer), 0, (struct sockaddr*) &q->addr,
+        &q->addrlen);
+    if (received < 1) {
+        if (errno != EAGAIN && errno != EINTR) {
+            ods_log_error("[%s] recvfrom() failed: %s", sock_str,
+                strerror(errno));
+        }
         return;
     }
+    buffer_skip(q->buffer, received);
+    buffer_flip(q->buffer);
+    buffer_pkt_print(stdout, q->buffer);
     /* acl */
-    if (sock_parse_packet(inbuf, nb, (engine_type*) engine,
-        &qpkt, &qrr, &zone) != ODS_STATUS_OK) {
-        return;
+    qstate = query_process(q, data->engine);
+
+    /* edns */
+    /* tsig */
+    if (qstate != QUERY_DISCARDED) {
+        buffer_pkt_print(stdout, q->buffer);
+        send_udp(data);
     }
-    rcode = sock_acl_matches(&userdata.addr_him, qpkt, zone);
-    if (rcode != LDNS_RCODE_NOERROR) {
-        sock_send_error(qpkt, rcode, send_udp, &userdata);
-        return;
-    }
-    sock_handle_query(qpkt, qrr, (engine_type*) engine, zone,
-        send_udp, 0, &userdata);
     return;
 }
 
 
+/**
+ * Cleanup tcp handler data.
+ *
+ */
 static void
-read_n_bytes(int sock, uint8_t* buf, size_t sz)
+cleanup_tcp_handler(netio_type* netio, netio_handler_type* handler)
 {
-    size_t count = 0;
-    while(count < sz) {
-        ssize_t nb = recv(sock, buf+count, sz-count, 0);
-        if(nb < 0) {
-            ods_log_error("[%s] recv() failed: %s", sock_str,
-                strerror(errno));
+    struct tcp_data* data = (struct tcp_data*) handler->user_data;
+    allocator_type* allocator = data->allocator;
+    netio_remove_handler(netio, handler);
+    close(handler->fd);
+    allocator_deallocate(allocator, (void*) handler->timeout);
+    allocator_deallocate(allocator, (void*) handler);
+    query_cleanup(data->query);
+    allocator_deallocate(allocator, (void*) data);
+    allocator_cleanup(allocator);
+    return;
+}
+
+
+/**
+ * Handle incoming tcp connections.
+ *
+ */
+void
+sock_handle_tcp_accept(netio_type* netio, netio_handler_type* handler,
+    netio_events_type event_types)
+{
+    allocator_type* allocator = NULL;
+    struct tcp_accept_data* accept_data = (struct tcp_accept_data*)
+        handler->user_data;
+    int s = 0;
+    struct tcp_data* tcp_data = NULL;
+    netio_handler_type* tcp_handler = NULL;
+    struct sockaddr_storage addr;
+    socklen_t addrlen = 0;
+
+    ods_log_debug("[%s] handle incoming tcp connection", sock_str);
+
+    if (!(event_types & NETIO_EVENT_READ)) {
+        return;
+    }
+    addrlen = sizeof(addr);
+    s = accept(handler->fd, (struct sockaddr *) &addr, &addrlen);
+    if (s == -1) {
+        if (errno != EINTR && errno != EWOULDBLOCK) {
+            ods_log_error("[%s] unable to handle incoming tcp connection: "
+                "accept() failed (%s)", sock_str, strerror(errno));
+        }
+        return;
+    }
+    if (fcntl(s, F_SETFL, O_NONBLOCK) == -1) {
+        ods_log_error("[%s] unable to handle incoming tcp connection: "
+            "fcntl() failed: %s", sock_str, strerror(errno));
+        close(s);
+        return;
+    }
+
+    /* create tcp handler data */
+    allocator = allocator_create(malloc, free);
+    if (!allocator) {
+        ods_log_error("[%s] unable to handle incoming tcp connection: "
+            "allocator_create() failed", sock_str);
+        close(s);
+        return;
+    }
+    tcp_data = (struct tcp_data*) allocator_alloc(allocator,
+        sizeof(struct tcp_data));
+    if (!tcp_data) {
+        ods_log_error("[%s] unable to handle incoming tcp connection: "
+            "allocator_alloc() data failed", sock_str);
+        allocator_cleanup(allocator);
+        close(s);
+        return;
+    }
+    tcp_data->allocator = allocator;
+    tcp_data->query = query_create();
+    if (!tcp_data->query) {
+        ods_log_error("[%s] unable to handle incoming tcp connection: "
+            "query_create() failed", sock_str);
+        allocator_deallocate(allocator, (void*) tcp_data);
+        allocator_cleanup(allocator);
+        close(s);
+        return;
+    }
+    tcp_data->engine = accept_data->engine;
+    tcp_data->tcp_accept_handler_count =
+        accept_data->tcp_accept_handler_count;
+    tcp_data->tcp_accept_handlers = accept_data->tcp_accept_handlers;
+    tcp_data->qstate = QUERY_PROCESSED;
+    tcp_data->bytes_transmitted = 0;
+    memcpy(&tcp_data->query->addr, &addr, addrlen);
+    tcp_data->query->addrlen = addrlen;
+
+    tcp_handler = (netio_handler_type*) allocator_alloc(allocator,
+        sizeof(netio_handler_type));
+    if (!tcp_data) {
+        ods_log_error("[%s] unable to handle incoming tcp connection: "
+            "allocator_alloc() handler failed", sock_str);
+        query_cleanup(tcp_data->query);
+        allocator_deallocate(allocator, (void*) tcp_data);
+        allocator_cleanup(allocator);
+        close(s);
+        return;
+    }
+    tcp_handler->fd = s;
+    tcp_handler->timeout = (struct timespec*) allocator_alloc(allocator,
+        sizeof(struct timespec));
+    if (!tcp_handler->timeout) {
+        ods_log_error("[%s] unable to handle incoming tcp connection: "
+            "allocator_alloc() timeout failed", sock_str);
+        allocator_deallocate(allocator, (void*) tcp_handler);
+        query_cleanup(tcp_data->query);
+        allocator_deallocate(allocator, (void*) tcp_data);
+        allocator_cleanup(allocator);
+        close(s);
+        return;
+    }
+    tcp_handler->timeout->tv_sec = XFRD_TCP_TIMEOUT;
+    tcp_handler->timeout->tv_nsec = 0L;
+    timespec_add(tcp_handler->timeout, netio_current_time(netio));
+    tcp_handler->user_data = tcp_data;
+    tcp_handler->event_types = NETIO_EVENT_READ | NETIO_EVENT_TIMEOUT;
+    tcp_handler->event_handler = sock_handle_tcp_read;
+    netio_add_handler(netio, tcp_handler);
+    return;
+}
+
+
+/**
+ * Handle incoming tcp queries.
+ *
+ */
+void
+sock_handle_tcp_read(netio_type* netio, netio_handler_type* handler,
+    netio_events_type event_types)
+{
+    struct tcp_data* data = (struct tcp_data *) handler->user_data;
+    ssize_t received = 0;
+    query_state qstate = QUERY_PROCESSED;
+
+    if (event_types & NETIO_EVENT_TIMEOUT) {
+        cleanup_tcp_handler(netio, handler);
+        return;
+    }
+    ods_log_assert(event_types & NETIO_EVENT_READ);
+    if (data->bytes_transmitted == 0) {
+        query_reset(data->query, TCP_MAX_MESSAGE_LEN, 1);
+    }
+    /* check if we received the leading packet length bytes yet. */
+    if (data->bytes_transmitted < sizeof(uint16_t)) {
+        received = read(handler->fd,
+            (char *) &data->query->tcplen + data->bytes_transmitted,
+            sizeof(uint16_t) - data->bytes_transmitted);
+         if (received == -1) {
+             if (errno == EAGAIN || errno == EINTR) {
+                 /* read would block, wait until more data is available. */
+                 return;
+             } else {
+                 ods_log_error("[%s] unable to handle incoming tcp query: "
+                     "read() failed (%s)", sock_str, strerror(errno));
+                 cleanup_tcp_handler(netio, handler);
+                 return;
+             }
+         } else if (received == 0) {
+             cleanup_tcp_handler(netio, handler);
+             return;
+         }
+         data->bytes_transmitted += received;
+         if (data->bytes_transmitted < sizeof(uint16_t)) {
+             /* not done with the tcplen yet, wait for more. */
+             return;
+         }
+         ods_log_assert(data->bytes_transmitted == sizeof(uint16_t));
+         data->query->tcplen = ntohs(data->query->tcplen);
+         /* minimum query size is: 12 + 1 + 2 + 2:
+          * header size + root dname + qclass + qtype */
+         if (data->query->tcplen < 17) {
+             ods_log_warning("[%s] unable to handle incoming tcp query: "
+                 "packet too small", sock_str);
+             cleanup_tcp_handler(netio, handler);
+             return;
+         }
+         if (data->query->tcplen > data->query->maxlen) {
+             ods_log_warning("[%s] unable to handle incoming tcp query: "
+                 "insufficient tcp buffer", sock_str);
+             cleanup_tcp_handler(netio, handler);
+             return;
+         }
+         buffer_set_limit(data->query->buffer, data->query->tcplen);
+    }
+    ods_log_assert(buffer_remaining(data->query->buffer) > 0);
+    /* read the (remaining) query data.  */
+    received = read(handler->fd, buffer_current(data->query->buffer),
+        buffer_remaining(data->query->buffer));
+    if (received == -1) {
+        if (errno == EAGAIN || errno == EINTR) {
+            /* read would block, wait until more data is available. */
+            return;
+        } else {
+                 ods_log_error("[%s] unable to handle incoming tcp query: "
+                     "read() failed (%s)", sock_str, strerror(errno));
+                 cleanup_tcp_handler(netio, handler);
+                 return;
+        }
+    } else if (received == 0) {
+        cleanup_tcp_handler(netio, handler);
+        return;
+    }
+    data->bytes_transmitted += received;
+    buffer_skip(data->query->buffer, received);
+    if (buffer_remaining(data->query->buffer) > 0) {
+        /* not done with message yet, wait for more. */
+        return;
+    }
+    ods_log_assert(buffer_position(data->query->buffer) ==
+        data->query->tcplen);
+    /* we have a complete query, process it. */
+    buffer_flip(data->query->buffer);
+    buffer_pkt_print(stdout, data->query->buffer);
+    /* acl */
+    qstate = query_process(data->query, data->engine);
+    if (qstate != QUERY_DISCARDED) {
+        cleanup_tcp_handler(netio, handler);
+        return;
+    }
+    /* edns */
+    /* tsig */
+    /* switch to tcp write handler. */
+    buffer_pkt_print(stdout, data->query->buffer);
+    data->query->tcplen = buffer_remaining(data->query->buffer);
+    data->bytes_transmitted = 0;
+    handler->timeout->tv_sec = XFRD_TCP_TIMEOUT;
+    handler->timeout->tv_nsec = 0L;
+    timespec_add(handler->timeout, netio_current_time(netio));
+    handler->event_types = NETIO_EVENT_WRITE | NETIO_EVENT_TIMEOUT;
+    handler->event_handler = sock_handle_tcp_write;
+    return;
+}
+
+
+/**
+ * Handle outgoing tcp responses.
+ *
+ */
+void
+sock_handle_tcp_write(netio_type* netio, netio_handler_type* handler,
+    netio_events_type event_types)
+{
+    struct tcp_data* data = (struct tcp_data *) handler->user_data;
+    ssize_t sent = 0;
+    query_type* q = data->query;
+
+    if (event_types & NETIO_EVENT_TIMEOUT) {
+        cleanup_tcp_handler(netio, handler);
+        return;
+    }
+    ods_log_assert(event_types & NETIO_EVENT_WRITE);
+    if (data->bytes_transmitted < sizeof(q->tcplen)) {
+        uint16_t n_tcplen = htons(q->tcplen);
+        sent = write(handler->fd,
+            (const char*) &n_tcplen + data->bytes_transmitted,
+            sizeof(n_tcplen) - data->bytes_transmitted);
+        if (sent == -1) {
+             if (errno == EAGAIN || errno == EINTR) {
+                 /* write would block, wait until socket becomes writeable. */
+                 return;
+             } else {
+                 ods_log_error("[%s] unable to handle outgoing tcp response: "
+                     "write() failed (%s)", sock_str, strerror(errno));
+                 cleanup_tcp_handler(netio, handler);
+                 return;
+             }
+         } else if (sent == 0) {
+             cleanup_tcp_handler(netio, handler);
+             return;
+         }
+         data->bytes_transmitted += sent;
+         if (data->bytes_transmitted < sizeof(q->tcplen)) {
+             /* writing not complete, wait until socket becomes writable. */
+             return;
+         }
+         ods_log_assert(data->bytes_transmitted == sizeof(q->tcplen));
+    }
+    ods_log_assert(data->bytes_transmitted < q->tcplen + sizeof(q->tcplen));
+
+    sent = write(handler->fd, buffer_current(q->buffer),
+        buffer_remaining(q->buffer));
+    if (sent == -1) {
+        if (errno == EAGAIN || errno == EINTR) {
+            /* write would block, wait until socket becomes writeable. */
+            return;
+        } else {
+            ods_log_error("[%s] unable to handle outgoing tcp response: "
+                 "write() failed (%s)", sock_str, strerror(errno));
+            cleanup_tcp_handler(netio, handler);
             return;
         }
-        count += nb;
-    }
-    return;
-}
-
-
-/*
- * Handle tcp.
- *
- */
-void
-sock_handle_tcp(sock_type s, void* engine)
-{
-    int tcp_s;
-    struct sockaddr_storage addr_him;
-    socklen_t hislen;
-    uint8_t inbuf[INBUF_SIZE];
-    uint16_t tcplen;
-    struct handle_tcp_userdata userdata;
-    zone_type* zone = NULL;
-    ldns_pkt *qpkt = NULL;
-    ldns_rr *qrr = NULL;
-    ldns_pkt_rcode rcode = LDNS_RCODE_NOERROR;
-
-    if (!engine) {
+    } else if (sent == 0) {
+        cleanup_tcp_handler(netio, handler);
         return;
     }
-    /* accept */
-    hislen = (socklen_t)sizeof(addr_him);
-    if((tcp_s = accept(s.s, (struct sockaddr*)&addr_him, &hislen)) < 0) {
-        ods_log_error("[%s] accept() failed: %s", sock_str, strerror(errno));
+    buffer_skip(q->buffer, sent);
+    data->bytes_transmitted += sent;
+    if (data->bytes_transmitted < q->tcplen + sizeof(q->tcplen)) {
+        /* still more data to write when socket becomes writable. */
         return;
     }
-    userdata.s = tcp_s;
-    userdata.tcp_sock = s;
-    /* tcp recv */
-    read_n_bytes(tcp_s, (uint8_t*)&tcplen, sizeof(tcplen));
-    tcplen = ntohs(tcplen);
-    if(tcplen >= INBUF_SIZE) {
-        ods_log_error("tcp query %d bytes too large, "
-            "buffer %d bytes.", tcplen, INBUF_SIZE);
-        close(tcp_s);
-        return;
+    ods_log_assert(data->bytes_transmitted == q->tcplen + sizeof(q->tcplen));
+    if (data->qstate == QUERY_AXFR) {
+        /* continue processing AXFR and writing back results.  */
+        buffer_clear(q->buffer);
+        data->qstate = axfr(q, data->engine);
+        if (data->qstate != QUERY_PROCESSED) {
+            /* edns, tsig */
+            buffer_flip(q->buffer);
+            q->tcplen = buffer_remaining(q->buffer);
+            data->bytes_transmitted = 0;
+            handler->timeout->tv_sec = XFRD_TCP_TIMEOUT;
+            handler->timeout->tv_nsec = 0L;
+            timespec_add(handler->timeout, netio_current_time(netio));
+            return;
+        }
     }
-    read_n_bytes(tcp_s, inbuf, tcplen);
-    /* acl */
-    if (sock_parse_packet(inbuf, (ssize_t) tcplen, (engine_type*) engine,
-        &qpkt, &qrr, &zone) != ODS_STATUS_OK) {
-        return;
-    }
-    rcode = sock_acl_matches(&addr_him, qpkt, zone);
-    if (rcode != LDNS_RCODE_NOERROR) {
-        sock_send_error(qpkt, rcode, send_tcp, &userdata);
-        return;
-    }
-    sock_handle_query(qpkt, qrr, (engine_type*) engine, zone,
-        send_tcp, 1, &userdata);
-    close(tcp_s);
+    /* done sending, wait for the next request. */
+    data->bytes_transmitted = 0;
+    handler->timeout->tv_sec = XFRD_TCP_TIMEOUT;
+    handler->timeout->tv_nsec = 0L;
+    timespec_add(handler->timeout, netio_current_time(netio));
+    handler->event_types = NETIO_EVENT_READ | NETIO_EVENT_TIMEOUT;
+    handler->event_handler = sock_handle_tcp_read;
     return;
 }

@@ -35,20 +35,26 @@
 #define WIRE_SOCK_H
 
 #include "config.h"
+#include "shared/allocator.h"
 #include "shared/status.h"
 #include "wire/listener.h"
+#include "wire/netio.h"
 #include "wire/query.h"
 
 /**
- * Sockets.
+ * Socket.
+ *
  */
 typedef struct sock_struct sock_type;
 struct sock_struct {
     struct addrinfo* addr;
     int s;
-    query_type* query;
 };
 
+/**
+ * List of sockets.
+ *
+ */
 typedef struct socklist_struct socklist_type;
 struct socklist_struct {
     sock_type tcp[MAX_INTERFACES];
@@ -56,17 +62,38 @@ struct socklist_struct {
 };
 
 /**
- * User data.
+ * Data for udp handlers.
+ *
  */
-struct handle_udp_userdata {
-    sock_type udp_sock;
-    struct sockaddr_storage addr_him;
-    socklen_t hislen;
+struct udp_data {
+    void* engine;
+    sock_type* socket;
+    query_type* query;
 };
 
-struct handle_tcp_userdata {
-    int s;
-    sock_type tcp_sock;
+/**
+ * Data for tcp accept handlers.
+ *
+ */
+struct tcp_accept_data {
+    void* engine;
+    sock_type* socket;
+    size_t tcp_accept_handler_count;
+    netio_handler_type* tcp_accept_handlers;
+};
+
+/**
+ * Data for tcp handlers.
+ *
+ */
+struct tcp_data {
+    allocator_type* allocator;
+    void* engine;
+    query_type* query;
+    size_t tcp_accept_handler_count;
+    netio_handler_type* tcp_accept_handlers;
+    query_state qstate;
+    size_t bytes_transmitted;
 };
 
 /**
@@ -79,19 +106,43 @@ struct handle_tcp_userdata {
 ods_status sock_listen(socklist_type* sockets, listener_type* listener);
 
 /**
- * Handle udp.
- * \param[in] s socket
- * \param[in] engine signer engine reference
+ * Handle incoming udp queries.
+ * \param[in] netio network I/O event handler
+ * \param[in] handler event handler
+ * \param[in] event_types the types of events that should be checked for
  *
  */
-void sock_handle_udp(sock_type s, void* engine);
+void sock_handle_udp(netio_type* netio, netio_handler_type* handler,
+    netio_events_type event_types);
 
 /**
- * Handle tcp.
- * \param[in] s socket
- * \param[in] engine signer engine reference
+ * Handle incoming tcp connections.
+ * \param[in] netio network I/O event handler
+ * \param[in] handler event handler
+ * \param[in] event_types the types of events that should be checked for
  *
  */
-void sock_handle_tcp(sock_type s, void* engine);
+void sock_handle_tcp_accept(netio_type* netio, netio_handler_type* handler,
+    netio_events_type event_types);
+
+/**
+ * Handle incoming tcp queries.
+ * \param[in] netio network I/O event handler
+ * \param[in] handler event handler
+ * \param[in] event_types the types of events that should be checked for
+ *
+ */
+void sock_handle_tcp_read(netio_type* netio, netio_handler_type* handler,
+    netio_events_type event_types);
+
+/**
+ * Handle outgoing tcp responses.
+ * \param[in] netio network I/O event handler
+ * \param[in] handler event handler
+ * \param[in] event_types the types of events that should be checked for
+ *
+ */
+void sock_handle_tcp_write(netio_type* netio, netio_handler_type* handler,
+    netio_events_type event_types);
 
 #endif /* WIRE_SOCK_H */

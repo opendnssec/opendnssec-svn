@@ -43,9 +43,9 @@
 #define TCP_MAX_MESSAGE_LEN 65535
 
 enum query_enum {
-        QUERY_PROCESSED,
+        QUERY_PROCESSED = 0,
         QUERY_DISCARDED,
-        QUERY_IN_AXFR
+        QUERY_AXFR
 };
 typedef enum query_enum query_state;
 
@@ -59,8 +59,10 @@ struct query_struct {
     allocator_type* allocator;
     /* Query from addres */
     struct sockaddr_storage addr;
+    socklen_t addrlen;
     /* Maximum supported query size */
     size_t maxlen;
+    size_t reserved_space;
     /* TSIG */
     /* TCP */
     int tcp;
@@ -73,7 +75,7 @@ struct query_struct {
 
     /* AXFR */
     int axfr_is_done;
-    FILE* fd;
+    FILE* axfr_fd;
 };
 
 /**
@@ -84,12 +86,22 @@ struct query_struct {
 query_type* query_create(void);
 
 /**
+ * Process query.
+ * \param[in] q query
+ * \param[in] engine signer engine
+ * \return query_state state of the query
+ *
+ */
+query_state query_process(query_type* q, void* engine);
+
+/**
  * Reset query.
  * \param[in] q query
  * \param[in] maxlen maximum message length
+ * \param[in] is_tcp 1 if tcp query
  *
  */
-void query_reset(query_type* q, size_t maxlen);
+void query_reset(query_type* q, size_t maxlen, int is_tcp);
 
 /**
  * Cleanup query.

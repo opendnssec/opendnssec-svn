@@ -36,7 +36,7 @@
 
 #include "config.h"
 #include "daemon/engine.h"
-#include "signer/zone.h"
+#include "wire/query.h"
 
 #include <ldns/ldns.h>
 
@@ -46,15 +46,11 @@
 
 /**
  * Do AXFR.
- * \param[in] pkt request packet
- * \param[in] rr question rr
+ * \param[in] q axfr request
  * \param[in] engine signer engine
- * \param[in] zone zone
- * \param[in] sendfunc function to be used for writing
- * \param[in] userdata userdata
+ * \return query_state state of the query
  *
  */
-void axfr(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine, zone_type* zone,
-    void (*sendfunc)(uint8_t*, size_t, void*), void* userdata);
+query_state axfr(query_type* q, engine_type* engine);
 
 #endif /* WIRE_AXFR_H */

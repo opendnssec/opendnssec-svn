@@ -84,8 +84,7 @@ xfrhandler_create(allocator_type* allocator)
         xfrhandler_cleanup(xfrh);
         return NULL;
     }
-    xfrh->packet = buffer_create(allocator,
-        PACKET_BUFFER_SIZE);
+    xfrh->packet = buffer_create(allocator, PACKET_BUFFER_SIZE);
     if (!xfrh->packet) {
         ods_log_error("[%s] unable to create xfrhandler: "
             "buffer_create() failed", xfrh_str);
@@ -100,7 +99,7 @@ xfrhandler_create(allocator_type* allocator)
         return NULL;
     }
     xfrh->dnshandler.fd = -1;
-    xfrh->dnshandler.xfrd = (void*) xfrh;
+    xfrh->dnshandler.user_data = (void*) xfrh;
     xfrh->dnshandler.timeout = 0;
     xfrh->dnshandler.event_types = NETIO_EVENT_READ;
     xfrh->dnshandler.event_handler = xfrhandler_handle_dns;
@@ -197,7 +196,7 @@ xfrhandler_handle_dns(netio_type* ATTR_UNUSED(netio),
     if (!handler) {
         return;
     }
-    xfrhandler = (xfrhandler_type*) handler->xfrd;
+    xfrhandler = (xfrhandler_type*) handler->user_data;
     ods_log_assert(event_types & NETIO_EVENT_READ);
     ods_log_debug("[%s] read forwarded dns packet", xfrh_str);
     received = read(xfrhandler->dnshandler.fd, &buf, MAX_PACKET_SIZE);

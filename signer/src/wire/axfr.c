@@ -32,28 +32,96 @@
  */
 
 #include "config.h"
+#include "adapter/addns.h"
+#include "adapter/adutil.h"
+#include "shared/file.h"
 #include "wire/axfr.h"
+#include "wire/buffer.h"
 #include "wire/sock.h"
+
+const char* axfr_str = "axfr";
 
 
 /**
  * Do AXFR.
  *
  */
-void
-axfr(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine, zone_type* zone,
-    void (*sendfunc)(uint8_t*, size_t, void*), void* userdata)
+query_state
+axfr(query_type* q, engine_type* engine)
 {
-    size_t maxlen = AXFR_MAX_MESSAGE_LEN;
-    zone_type* axfr_zone = NULL;
-    uint8_t axfr_is_done = 0;
+    char* xfrfile = NULL;
+    ldns_rr* rr = NULL;
+    ldns_rdf* prev = NULL;
+    ldns_rdf* orig = NULL;
+    uint32_t ttl = 0;
+    ldns_status status = LDNS_STATUS_OK;
+    char line[SE_ADFILE_MAXLINE];
+    unsigned soa_seen = 0;
+    unsigned l = 0;
 
-    ods_log_assert(pkt);
-    ods_log_assert(rr);
+    ods_log_assert(q);
     ods_log_assert(engine);
-    ods_log_assert(zone);
-    ods_log_assert(sendfunc);
-    ods_log_assert(userdata);
 
-    return;
+    if (q->axfr_is_done) {
+        return QUERY_PROCESSED;
+    }
+    if (q->maxlen > AXFR_MAX_MESSAGE_LEN) {
+        q->maxlen = AXFR_MAX_MESSAGE_LEN;
+    }
+
+    /* prepare tsig */
+
+    if (q->zone == NULL) {
+        /* start axfr */
+
+/*
+        q->zone = zone;
+        xfrfile = ods_build_path(zone->name, ".axfr", 0);
+        q->fd = ods_fopen(xfrfile, NULL, "r");
+        free((void*)xfrfile);
+        if (!q->fd) {
+            return QUERY_DISCARDED;
+        }
+*/
+        /* tsig sign it */
+        /* add compression domain */
+        /* add soa rr */
+
+/*
+        rr = addns_read_rr(q->fd, line, &orig, &prev, &ttl, &status,
+            &l);
+        if (!rr) {
+            return QUERY_DISCARDED;
+        }
+        if (ldns_rr_get_type(rr) != LDNS_RR_TYPE_SOA) {
+            ods_log_error("[%s] bad axfr zone %s, first rr is not soa",
+                axfr_str, q->zone->name);
+            ldns_rr_free(rr);
+            return QUERY_DISCARDED;
+        }
+        buffer_write_rr(q->buffer, rr);
+
+        ldns_rr_free(rr);
+        rr = NULL;
+*/
+    } else {
+        /* subsequent axfr packets */
+    }
+
+    /* add as many records as fit */
+/*
+    while ((rr = addns_read_rr(q->fd, line, &orig, &prev, &ttl,
+        &status, &l)) != NULL) {
+        if (status != LDNS_STATUS_OK) {
+            ods_log_error("[%s] error reading rr at line %i (%s): %s",
+                axfr_str, l, ldns_get_errorstr_by_id(status), line);
+            return QUERY_DISCARDED;
+        }
+
+        buffer_write_rr(q->buffer, rr);
+        ldns_rr_free(rr);
+        rr = NULL;
+    }
+*/
+    return QUERY_AXFR;
 }

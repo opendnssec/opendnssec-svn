@@ -139,7 +139,7 @@ xfrd_create(void* xfrhandler, void* zone)
     xfrd->tcp_waiting_next = NULL;
 
     xfrd->handler.fd = -1;
-    xfrd->handler.xfrd = (void*) xfrd;
+    xfrd->handler.user_data = (void*) xfrd;
     xfrd->handler.timeout = 0;
     xfrd->handler.event_types =
         NETIO_EVENT_READ|NETIO_EVENT_TIMEOUT;
@@ -1382,6 +1382,13 @@ xfrd_make_request(xfrd_type* xfrd)
             return;
         }
     }
+    if (!xfrd->master) {
+        ods_log_debug("[%s] unable to make request for zone %s: no master",
+            xfrd_str, zone->name);
+        xfrd->round_num = -1;
+        xfrd_set_timer_retry(xfrd);
+        return;
+    }
     /* cache ixfr_disabled only for XFRD_NO_IXFR_CACHE time */
     if (xfrd->master->ixfr_disabled &&
         (xfrd->master->ixfr_disabled + XFRD_NO_IXFR_CACHE) <=
@@ -1424,7 +1431,7 @@ xfrd_handle_zone(netio_type* ATTR_UNUSED(netio),
     if (!handler) {
         return;
     }
-    xfrd = (xfrd_type*) handler->xfrd;
+    xfrd = (xfrd_type*) handler->user_data;
     ods_log_assert(xfrd);
     zone = (zone_type*) xfrd->zone;
     ods_log_assert(zone);

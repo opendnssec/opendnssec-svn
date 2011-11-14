@@ -141,7 +141,7 @@ timespec_compare(const struct timespec* left,
  * Add timespecs.
  *
  */
-static void
+void
 timespec_add(struct timespec* left, const struct timespec* right)
 {
     left->tv_sec += right->tv_sec;
