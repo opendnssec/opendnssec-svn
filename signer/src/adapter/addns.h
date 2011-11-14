@@ -39,6 +39,7 @@
 #include "shared/status.h"
 #include "wire/acl.h"
 
+#include <ldns/ldns.h>
 #include <stdio.h>
 #include <time.h>
 
@@ -101,6 +102,22 @@ ods_status dnsin_update(dnsin_type** addns, const char* filename,
  */
 ods_status dnsout_update(dnsout_type** addns, const char* filename,
     time_t* last_mod);
+
+/**
+ * Read the next RR from zone file.
+ * \param[in] fd file descriptor
+ * \param[in] line read line
+ * \param[in] orig origin
+ * \param[in] prev previous name
+ * \param[in] ttl default ttl
+ * \param[in] status status
+ * \param[out] l line count
+ * \return ldns_rr* RR
+ *
+ */
+ldns_rr* addns_read_rr(FILE* fd, char* line, ldns_rdf** orig, ldns_rdf** prev,
+    uint32_t* ttl, ldns_status* status, unsigned int* l);
+
 
 /**
  * Read zone from DNS input adapter.

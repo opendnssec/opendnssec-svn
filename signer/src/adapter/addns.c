@@ -58,7 +58,7 @@ static ods_status addns_read_file(FILE* fd, zone_type* zone);
  * Read the next RR from zone file.
  *
  */
-static ldns_rr*
+ldns_rr*
 addns_read_rr(FILE* fd, char* line, ldns_rdf** orig, ldns_rdf** prev,
     uint32_t* ttl, ldns_status* status, unsigned int* l)
 {
