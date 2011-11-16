@@ -162,6 +162,10 @@ rrset_type2str(ldns_rr_type type)
     descriptor = ldns_rr_descript(type);
     if (descriptor && descriptor->_name) {
         return descriptor->_name;
+    } else if (type == LDNS_RR_TYPE_AXFR) {
+        return "AXFR";
+    } else if (type == LDNS_RR_TYPE_IXFR) {
+        return "IXFR";
     }
     return "TYPE???";
 }

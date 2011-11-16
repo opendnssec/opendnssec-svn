@@ -494,8 +494,8 @@ query_process_query(query_type* q, ldns_rr_type qtype)
         return QUERY_DISCARDED;
     }
     ods_log_assert(q->zone->name);
-    ods_log_debug("[%s] incoming query for zone %s", query_str,
-        q->zone->name);
+    ods_log_debug("[%s] incoming query qtype=%s for zone %s", query_str,
+        rrset_type2str(qtype), q->zone->name);
     /* sanity checks */
     if (buffer_pkt_qdcount(q->buffer) != 1 || buffer_pkt_tc(q->buffer)) {
         buffer_pkt_set_flags(q->buffer, 0);
