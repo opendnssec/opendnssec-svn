@@ -103,7 +103,7 @@ acl_parse_range_subnet(char* p, void* addr, int maxbits)
  */
 acl_type*
 acl_create(allocator_type* allocator, char* ipv4, char* ipv6, char* port,
-    char* tsig_name, char* tsig_algo, char* tsig_secret)
+    char* tsig_name)
 {
     ods_status status = ODS_STATUS_OK;
     acl_type* acl = NULL;
@@ -123,6 +123,7 @@ acl_create(allocator_type* allocator, char* ipv4, char* ipv6, char* port,
     }
     acl->next = NULL;
     acl->tsig = NULL;
+    acl->tsig_name = tsig_name;
     acl->port = 0;
     if (port) {
         acl->port = atoi((const char*) port);

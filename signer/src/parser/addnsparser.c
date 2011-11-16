@@ -54,6 +54,7 @@ parse_addns_acl(allocator_type* allocator, const char* filename, char* expr)
     char* ipv4 = NULL;
     char* ipv6 = NULL;
     char* port = NULL;
+    char* key = NULL;
     xmlDocPtr doc = NULL;
     xmlXPathContextPtr xpathCtx = NULL;
     xmlXPathObjectPtr xpathObj = NULL;
@@ -94,6 +95,7 @@ parse_addns_acl(allocator_type* allocator, const char* filename, char* expr)
             ipv4 = NULL;
             ipv6 = NULL;
             port = NULL;
+            key = NULL;
 
             curNode = xpathObj->nodesetval->nodeTab[i]->xmlChildrenNode;
             while (curNode) {
@@ -103,12 +105,13 @@ parse_addns_acl(allocator_type* allocator, const char* filename, char* expr)
                     ipv6 = (char *) xmlNodeGetContent(curNode);
                 } else if (xmlStrEqual(curNode->name, (const xmlChar *)"Port")) {
                     port = (char *) xmlNodeGetContent(curNode);
+                } else if (xmlStrEqual(curNode->name, (const xmlChar *)"Key")) {
+                    key = (char *) xmlNodeGetContent(curNode);
                 }
                 curNode = curNode->next;
             }
             if (ipv4 || ipv6) {
-                new_acl = acl_create(allocator, ipv4, ipv6, port, NULL, NULL,
-                        NULL);
+                new_acl = acl_create(allocator, ipv4, ipv6, port, key);
                 if (!new_acl) {
                    ods_log_error("[%s] unable to add %s%s:%s interface: "
                        "acl_push() failed", parser_str, ipv4?ipv4:"",
@@ -124,6 +127,7 @@ parse_addns_acl(allocator_type* allocator, const char* filename, char* expr)
             free((void*)ipv4);
             free((void*)ipv6);
             free((void*)port);
+            free((void*)key);
         }
     }
     xmlXPathFreeObject(xpathObj);

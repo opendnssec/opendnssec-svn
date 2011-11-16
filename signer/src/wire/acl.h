@@ -66,6 +66,7 @@ struct acl_struct {
     union acl_addr_storage range_mask;
     acl_range_type range_type;
     /* tsig */
+    const char* tsig_name;
     void* tsig;
     /* cache */
     time_t ixfr_disabled;
@@ -78,13 +79,11 @@ struct acl_struct {
  * \param[in] ipv6 IPv6 address
  * \param[in] port port
  * \param[in] tsig_name TSIG name
- * \param[in] tsig_algo TSIG algorithm
- * \param[in] tsig_secret TSIG secret
  * \return acl_type* ACL
  *
  */
 acl_type* acl_create(allocator_type* allocator, char* ipv4, char* ipv6,
-    char* port, char* tsig_name, char* tsig_algo, char* tsig_secret);
+    char* port, char* tsig_name);
 
 /**
  * Find ACL.
