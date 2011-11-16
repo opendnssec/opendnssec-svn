@@ -399,6 +399,13 @@ void buffer_pkt_set_qr(buffer_type* buffer);
 int buffer_pkt_aa(buffer_type* buffer);
 
 /**
+ * Set AA bit in buffer.
+ * \param[in] buffer buffer
+ *
+ */
+void buffer_pkt_set_aa(buffer_type* buffer);
+
+/**
  * Get TC bit from buffer.
  * \param[in] buffer buffer
  * \return int 0 if TC bit is clear

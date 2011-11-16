@@ -662,6 +662,19 @@ buffer_pkt_aa(buffer_type* buffer)
 
 
 /**
+ * Set AA bit in buffer.
+ *
+ */
+void
+buffer_pkt_set_aa(buffer_type* buffer)
+{
+    ods_log_assert(buffer);
+    AA_SET(buffer);
+    return;
+}
+
+
+/**
  * Get TC bit from buffer.
  *
  */
@@ -804,7 +817,7 @@ uint16_t
 buffer_pkt_nscount(buffer_type* buffer)
 {
     ods_log_assert(buffer);
-    return buffer_read_u16_at(buffer, 6);
+    return buffer_read_u16_at(buffer, 8);
 }
 
 
@@ -816,7 +829,7 @@ void
 buffer_pkt_set_nscount(buffer_type* buffer, uint16_t count)
 {
     ods_log_assert(buffer);
-    buffer_write_u16_at(buffer, 6, count);
+    buffer_write_u16_at(buffer, 8, count);
     return;
 }
 
@@ -829,7 +842,7 @@ uint16_t
 buffer_pkt_arcount(buffer_type* buffer)
 {
     ods_log_assert(buffer);
-    return buffer_read_u16_at(buffer, 8);
+    return buffer_read_u16_at(buffer, 10);
 }
 
 
@@ -841,7 +854,7 @@ void
 buffer_pkt_set_arcount(buffer_type* buffer, uint16_t count)
 {
     ods_log_assert(buffer);
-    buffer_write_u16_at(buffer, 8, count);
+    buffer_write_u16_at(buffer, 10, count);
     return;
 }
 
@@ -923,17 +936,19 @@ buffer_pkt_axfr(buffer_type* buffer, ldns_rdf* qname, ldns_rr_class qclass)
 void
 buffer_pkt_print(FILE* fd, buffer_type* buffer)
 {
+    ldns_status status = LDNS_STATUS_OK;
     ldns_pkt* pkt = NULL;
     ods_log_assert(fd);
     ods_log_assert(buffer);
-    if (ldns_wire2pkt(&pkt, buffer_begin(buffer), buffer_limit(buffer)) ==
-        LDNS_STATUS_OK) {
+    status = ldns_wire2pkt(&pkt, buffer_begin(buffer),
+        buffer_remaining(buffer));
+    if (status == LDNS_STATUS_OK) {
         ods_log_assert(pkt);
         ldns_pkt_print(fd, pkt);
         ldns_pkt_free(pkt);
     } else {
         fprintf(fd, ";;\n");
-        fprintf(fd, ";; Bogus packet\n");
+        fprintf(fd, ";; Bogus packet: %s\n", ldns_get_errorstr_by_id(status));
         fprintf(fd, ";;\n");
         fprintf(fd, ";;\n");
         fprintf(fd, "\n");
