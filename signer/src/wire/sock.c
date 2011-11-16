@@ -94,7 +94,7 @@ sock_v6only(sock_type* sock, const char* node, const char* port, int on,
     ods_log_assert(stype);
 #ifdef IPV6_V6ONLY
 #if defined(IPPROTO_IPV6)
-    ods_log_verbose("[%s] set %s/ipv6 socket '%s:%s' v6only", sock_str,
+    ods_log_debug("[%s] set %s/ipv6 socket '%s:%s' v6only", sock_str,
         stype, node?node:"localhost", port);
     if (setsockopt(sock->s, IPPROTO_IPV6, IPV6_V6ONLY, &on, sizeof(on)) < 0) {
         ods_log_error("[%s] unable to set %s/ipv6 socket '%s:%s' to "
@@ -363,19 +363,22 @@ sock_listen(socklist_type* sockets, listener_type* listener)
  *
  */
 static void
-send_udp(struct udp_data* data)
+send_udp(struct udp_data* data, query_type* q)
 {
     ssize_t nb;
-    nb = sendto(data->socket->s, buffer_begin(data->query->buffer),
-        buffer_remaining(data->query->buffer), 0,
-        (struct sockaddr*) &data->query->addr, data->query->addrlen);
+    ods_log_deeebug("[%s] sending %d bytes over udp", sock_str,
+        (int)buffer_remaining(q->buffer));
+    nb = sendto(data->socket->s, buffer_begin(q->buffer),
+        buffer_remaining(q->buffer), 0,
+        (struct sockaddr*) &q->addr, q->addrlen);
     if (nb == -1) {
         ods_log_error("[%s] unable to send data over udp: sendto() failed "
             "(%s)", sock_str, strerror(errno));
-    } else if ((size_t) nb != buffer_remaining(data->query->buffer)) {
+        ods_log_debug("[%s] len=%u", sock_str, buffer_remaining(q->buffer));
+    } else if ((size_t) nb != buffer_remaining(q->buffer)) {
         ods_log_error("[%s] unable to send data over udp: only sent %d of %d "
             "octets", sock_str, (int)nb,
-            (int)buffer_remaining(data->query->buffer));
+            (int)buffer_remaining(q->buffer));
     }
     return;
 }
@@ -550,114 +553,6 @@ sock_handle_transfer(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
 
 
 /**
- * Handle query.
- *
- */
-/*
-static void
-sock_handle_query(ldns_pkt* pkt, ldns_rr* rr, engine_type* engine,
-    zone_type* zone, void (*sendfunc)(uint8_t*, size_t, void*),
-    int is_tcp, void* userdata)
-{
-    ods_log_assert(zone);
-    ods_log_assert(pkt);
-    ods_log_assert(rr);
-    if (ldns_pkt_get_opcode(pkt) == LDNS_PACKET_NOTIFY) {
-        sock_handle_notify(pkt, rr, engine, zone, sendfunc, userdata);
-    } else if (ldns_pkt_get_opcode(pkt) == LDNS_PACKET_QUERY) {
-        sock_handle_transfer(pkt, rr, engine, zone, sendfunc, is_tcp,
-            userdata);
-    } else if (ldns_pkt_get_opcode(pkt) == LDNS_PACKET_UPDATE) {
-        ods_log_verbose("[%s] received update", sock_str);
-    } else {
-        ods_log_verbose("[%s] received bogus packet", sock_str);
-    }
-    return;
-}
-*/
-
-/**
- * Check address against ACL.
- *
- */
-static ldns_pkt_rcode
-sock_acl_matches(struct sockaddr_storage* addr, ldns_pkt* pkt,
-    zone_type* zone)
-{
-    dnsin_type* dnsin = NULL;
-    dnsout_type* dnsout = NULL;
-
-    if (!addr || !pkt) {
-        return LDNS_RCODE_FORMERR;
-    }
-    if (!zone) {
-        return LDNS_RCODE_NXDOMAIN;
-    }
-    ods_log_assert(zone);
-    ods_log_assert(zone->name);
-    if (ldns_pkt_get_opcode(pkt) == LDNS_PACKET_NOTIFY) {
-        if (!zone->adinbound || zone->adinbound->type != ADAPTER_DNS) {
-            return LDNS_RCODE_SERVFAIL;
-        }
-        ods_log_assert(zone->adinbound->config);
-        dnsin = (dnsin_type*) zone->adinbound->config;
-        if (acl_find(dnsin->allow_notify, addr, NULL)) {
-            return LDNS_RCODE_NOERROR;
-        } else {
-            return LDNS_RCODE_REFUSED;
-        }
-    } else if (ldns_pkt_get_opcode(pkt) == LDNS_PACKET_QUERY) {
-        if (!zone->adoutbound || zone->adoutbound->type != ADAPTER_DNS) {
-            return LDNS_RCODE_SERVFAIL;
-        }
-        ods_log_assert(zone->adoutbound->config);
-        dnsout = (dnsout_type*) zone->adoutbound->config;
-        if (acl_find(dnsout->provide_xfr, addr, NULL)) {
-            return LDNS_RCODE_NOERROR;
-        } else {
-            return LDNS_RCODE_REFUSED;
-        }
-    } else if (ldns_pkt_get_opcode(pkt) == LDNS_PACKET_UPDATE) {
-        return LDNS_RCODE_NOTIMPL;
-    } else {
-        ods_log_verbose("[%s] received bogus packet", sock_str);
-        return LDNS_RCODE_FORMERR;
-    }
-    return LDNS_RCODE_SERVFAIL;
-}
-
-
-/**
- * Parse incoming DNS packet.
- *
- */
-static ods_status
-sock_parse_packet(uint8_t* inbuf, ssize_t inlen, engine_type* e,
-    ldns_pkt** pkt, ldns_rr** rr, zone_type** zone)
-{
-    ldns_status status = LDNS_STATUS_OK;
-    /* packet parsing */
-    status = ldns_wire2pkt(pkt, inbuf, (size_t)inlen);
-    if (status != LDNS_STATUS_OK) {
-        ods_log_error("[%s] got bad packet: %s", sock_str,
-            ldns_get_errorstr_by_id(status));
-        return ODS_STATUS_ERR;
-    }
-    *rr = ldns_rr_list_rr(ldns_pkt_question(*pkt), 0);
-    /* lookup zone */
-    ods_log_assert(e);
-    lock_basic_lock(&e->zonelist->zl_lock);
-    *zone = zonelist_lookup_zone_by_dname(e->zonelist, ldns_rr_owner(*rr),
-        ldns_rr_get_class(*rr));
-    if (*zone && (*zone)->zl_status == ZONE_ZL_ADDED) {
-        *zone = NULL;
-    }
-    lock_basic_unlock(&e->zonelist->zl_lock);
-    return ODS_STATUS_OK;
-}
-
-
-/**
  * Handle incoming udp queries.
  *
  */
@@ -673,6 +568,7 @@ sock_handle_udp(netio_type* ATTR_UNUSED(netio), netio_handler_type* handler,
     if (!(event_types & NETIO_EVENT_READ)) {
         return;
     }
+    ods_log_debug("[%s] incoming udp message", sock_str);
     query_reset(q, UDP_MAX_MESSAGE_LEN, 0);
     received = recvfrom(handler->fd, buffer_begin(q->buffer),
         buffer_remaining(q->buffer), 0, (struct sockaddr*) &q->addr,
@@ -686,15 +582,13 @@ sock_handle_udp(netio_type* ATTR_UNUSED(netio), netio_handler_type* handler,
     }
     buffer_skip(q->buffer, received);
     buffer_flip(q->buffer);
-    buffer_pkt_print(stdout, q->buffer);
     /* acl */
-    qstate = query_process(q, data->engine);
 
-    /* edns */
-    /* tsig */
+    qstate = query_process(q, data->engine);
     if (qstate != QUERY_DISCARDED) {
+        buffer_flip(q->buffer);
         buffer_pkt_print(stdout, q->buffer);
-        send_udp(data);
+        send_udp(data, q);
     }
     return;
 }
@@ -846,6 +740,7 @@ sock_handle_tcp_read(netio_type* netio, netio_handler_type* handler,
         return;
     }
     ods_log_assert(event_types & NETIO_EVENT_READ);
+    ods_log_debug("[%s] incoming tcp message", sock_str);
     if (data->bytes_transmitted == 0) {
         query_reset(data->query, TCP_MAX_MESSAGE_LEN, 1);
     }

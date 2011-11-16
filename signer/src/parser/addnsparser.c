@@ -116,7 +116,7 @@ parse_addns_acl(allocator_type* allocator, const char* filename, char* expr)
                 } else {
                    new_acl->next = acl;
                    acl = new_acl;
-                   ods_log_error("[%s] added %s%s:%s interface to list %s",
+                   ods_log_debug("[%s] added %s%s:%s interface to list %s",
                        parser_str, ipv4?ipv4:"", ipv6?ipv6:"", port?port:"",
                        (char*) expr);
                 }

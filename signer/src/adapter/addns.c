@@ -640,6 +640,10 @@ addns_read(void* zone)
     ods_log_assert(z->adinbound);
     ods_log_assert(z->adinbound->type == ADAPTER_DNS);
 
+    if (!z->xfrd->serial_disk_acquired) {
+        return ODS_STATUS_UNCHANGED;
+    }
+
     lock_basic_lock(&z->xfrd->rw_lock);
     xfrfile = ods_build_path(z->name, ".xfrd", 0);
     fd = ods_fopen(xfrfile, NULL, "r");

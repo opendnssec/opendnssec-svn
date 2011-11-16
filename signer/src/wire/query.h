@@ -41,6 +41,7 @@
 
 #define UDP_MAX_MESSAGE_LEN 512
 #define TCP_MAX_MESSAGE_LEN 65535
+#define QUERY_RESPONSE_MAX_RRSET 10 /* should be enough */
 
 enum query_enum {
         QUERY_PROCESSED = 0,
@@ -76,6 +77,17 @@ struct query_struct {
     /* AXFR */
     int axfr_is_done;
     FILE* axfr_fd;
+};
+
+/**
+ * Response.
+ *
+ */
+typedef struct response_struct response_type;
+struct response_struct {
+    size_t rrset_count;
+    ldns_pkt_section sections[QUERY_RESPONSE_MAX_RRSET];
+    rrset_type* rrsets[QUERY_RESPONSE_MAX_RRSET];
 };
 
 /**

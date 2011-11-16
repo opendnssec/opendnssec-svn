@@ -1109,6 +1109,8 @@ xfrd_udp_send(xfrd_type* xfrd, buffer_type* buffer)
     /* bind it */
 
     /* send it (udp) */
+    ods_log_deeebug("[%s] send %d bytes over udp to %s", xfrd_str,
+        buffer_remaining(buffer), xfrd->master->address);
     nb = sendto(fd, buffer_current(buffer), buffer_remaining(buffer), 0,
         (struct sockaddr*)&to, to_len);
     if (nb == -1) {

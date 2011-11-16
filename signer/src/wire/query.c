@@ -101,17 +101,18 @@ query_reset(query_type* q, size_t maxlen, int is_tcp)
 static query_state
 query_error(query_type* q, ldns_pkt_rcode rcode)
 {
+    size_t limit = 0;
     if (!q) {
         return QUERY_DISCARDED;
     }
+    limit = buffer_limit(q->buffer);
     buffer_clear(q->buffer);
     buffer_pkt_set_qr(q->buffer);
     buffer_pkt_set_rcode(q->buffer, rcode);
-    buffer_pkt_set_qdcount(q->buffer, 0);
     buffer_pkt_set_ancount(q->buffer, 0);
     buffer_pkt_set_nscount(q->buffer, 0);
     buffer_pkt_set_arcount(q->buffer, 0);
-    buffer_set_position(q->buffer, BUFFER_PKT_HEADER_SIZE);
+    buffer_set_position(q->buffer, limit);
     return QUERY_PROCESSED;
 }
 
@@ -131,6 +132,7 @@ query_formerr(query_type* q)
     /* preserve the RD flag, clear the rest */
     buffer_pkt_set_flags(q->buffer, buffer_pkt_flags(q->buffer) & 0x0100U);
     buffer_pkt_set_opcode(q->buffer, opcode);
+    buffer_pkt_set_qdcount(q->buffer, 0);
     ods_log_debug("[%s] formerr", query_str);
     return query_error(q, LDNS_RCODE_FORMERR);
 }
@@ -147,6 +149,9 @@ query_servfail(query_type* q)
         return QUERY_DISCARDED;
     }
     ods_log_debug("[%s] servfail", query_str);
+    buffer_set_position(q->buffer, 0);
+    buffer_set_limit(q->buffer, BUFFER_PKT_HEADER_SIZE);
+    buffer_pkt_set_qdcount(q->buffer, 0);
     return query_error(q, LDNS_RCODE_SERVFAIL);
 }
 
@@ -189,9 +194,13 @@ static query_state
 query_process_notify(query_type* q, ldns_rr_type qtype)
 {
     dnsin_type* dnsin = NULL;
+    size_t limit = 0;
     if (!q || !q->zone) {
         return QUERY_DISCARDED;
     }
+    ods_log_assert(q->zone->name);
+    ods_log_debug("[%s] incoming notify for zone %s", query_str,
+        q->zone->name);
     if (buffer_pkt_rcode(q->buffer) != LDNS_RCODE_NOERROR ||
         buffer_pkt_qr(q->buffer) ||
         !buffer_pkt_aa(q->buffer) ||
@@ -207,9 +216,6 @@ query_process_notify(query_type* q, ldns_rr_type qtype)
         qtype != LDNS_RR_TYPE_SOA) {
         return query_formerr(q);
     }
-    ods_log_assert(q->zone->name);
-    ods_log_debug("[%s] incoming notify for zone %s", query_str,
-        q->zone->name);
     if (!q->zone->adinbound || q->zone->adinbound->type != ADAPTER_DNS) {
         ods_log_error("[%s] zone %s is not configured to have input dns "
             "adapter", query_str, q->zone->name);
@@ -220,9 +226,172 @@ query_process_notify(query_type* q, ldns_rr_type qtype)
     if (!acl_find(dnsin->allow_notify, &q->addr, NULL)) {
         return query_refused(q);
     }
+    limit = buffer_limit(q->buffer);
     /* get answer section and check inbound serial */
     /* forward notify to xfrd */
     buffer_pkt_set_qr(q->buffer);
+    buffer_pkt_set_aa(q->buffer);
+    buffer_pkt_set_ancount(q->buffer, 0);
+    buffer_clear(q->buffer);
+    buffer_set_position(q->buffer, limit);
+    return QUERY_PROCESSED;
+}
+
+
+/**
+ * Add RRset to response.
+ *
+ */
+static int
+response_add_rrset(response_type* r, rrset_type* rrset,
+    ldns_pkt_section section)
+{
+    if (!r || !rrset || !section) {
+        return 0;
+    }
+    /* duplicates? */
+    r->sections[r->rrset_count] = section;
+    r->rrsets[r->rrset_count] = rrset;
+    ++r->rrset_count;
+    return 1;
+}
+
+
+/**
+ * Encode RR.
+ *
+ */
+static int
+response_encode_rr(query_type* q, ldns_rr* rr, ldns_pkt_section section)
+{
+    uint8_t *data = NULL;
+    size_t size = 0;
+    ldns_status status = LDNS_STATUS_OK;
+    ods_log_assert(q);
+    ods_log_assert(rr);
+    ods_log_assert(section);
+    status = ldns_rr2wire(&data, rr, section, &size);
+    if (status != LDNS_STATUS_OK) {
+        ods_log_error("[%s] unable to send good response: ldns_rr2wire() "
+            "failed (%s)", query_str, ldns_get_errorstr_by_id(status));
+        return 0;
+    }
+    buffer_write(q->buffer, (const void*) data, size);
+    LDNS_FREE(data);
+    return 1;
+}
+
+
+/**
+ * Encode RRset.
+ *
+ */
+static uint16_t
+response_encode_rrset(query_type* q, rrset_type* rrset,
+    ldns_pkt_section section)
+{
+    uint16_t i = 0;
+    uint16_t added = 0;
+    ods_log_assert(q);
+    ods_log_assert(rrset);
+    ods_log_assert(section);
+
+    for (i = 0; i < rrset->rr_count; i++) {
+        added += response_encode_rr(q, rrset->rrs[i].rr, section);
+    }
+    ods_log_debug("ENCODE: RRset[%u] RRcount=%u", (unsigned)section, added);
+    for (i = 0; i < rrset->rrsig_count; i++) {
+        added += response_encode_rr(q, rrset->rrsigs[i].rr, section);
+    }
+    ods_log_debug("ENCODE: RRset[%u] RR+RRSIGcount=%u", (unsigned)section, added);
+    /* truncation? */
+    return added;
+}
+
+
+/**
+ * Encode response.
+ *
+ */
+static void
+response_encode(query_type* q, response_type* r)
+{
+    uint16_t counts[LDNS_SECTION_ANY];
+    ldns_pkt_section s = LDNS_SECTION_QUESTION;
+    size_t i = 0;
+    ods_log_assert(q);
+    ods_log_assert(r);
+    for (s = LDNS_SECTION_ANSWER; s < LDNS_SECTION_ANY; s++) {
+        counts[s] = 0;
+    }
+    for (s = LDNS_SECTION_ANSWER; s < LDNS_SECTION_ANY; s++) {
+        for (i = 0; i < r->rrset_count; i++) {
+            if (r->sections[i] == s) {
+		ods_log_debug("ENCODE: SECTION[%u] RRset[%u]", (unsigned)s,
+                    r->rrsets[i]->rrtype);
+                counts[s] += response_encode_rrset(q, r->rrsets[i], s);
+		ods_log_debug("ENCODE: SECTION[%u] count=%u", (unsigned)s,
+                    counts[s]);
+            }
+        }
+    }
+    ods_log_debug("ENCODE: ANCOUNT SECTION[%u] count=%u", LDNS_SECTION_ANSWER,
+                    counts[LDNS_SECTION_ANSWER]);
+    buffer_pkt_set_ancount(q->buffer, counts[LDNS_SECTION_ANSWER]);
+    ods_log_debug("ENCODE: NSCOUNT SECTION[%u] count=%u", LDNS_SECTION_AUTHORITY,
+                    counts[LDNS_SECTION_AUTHORITY]);
+    buffer_pkt_set_nscount(q->buffer, counts[LDNS_SECTION_AUTHORITY]);
+    ods_log_debug("ENCODE: ARCOUNT SECTION[%u] count=%u", LDNS_SECTION_ADDITIONAL,
+                    counts[LDNS_SECTION_ADDITIONAL]);
+    buffer_pkt_set_arcount(q->buffer, counts[LDNS_SECTION_ADDITIONAL]);
+    return;
+}
+
+
+/**
+ * Query response.
+ *
+ */
+static query_state
+query_response(query_type* q, ldns_rr_type qtype)
+{
+    rrset_type* rrset = NULL;
+    response_type r;
+    if (!q || !q->zone) {
+        return QUERY_DISCARDED;
+    }
+    r.rrset_count = 0;
+    lock_basic_lock(&q->zone->zone_lock);
+    rrset = zone_lookup_rrset(q->zone, q->zone->apex, qtype);
+    if (rrset) {
+        if (!response_add_rrset(&r, rrset, LDNS_SECTION_ANSWER)) {
+            lock_basic_unlock(&q->zone->zone_lock);
+            return query_servfail(q);
+        }
+        /* NS RRset goes into Authority Section */
+        rrset = zone_lookup_rrset(q->zone, q->zone->apex, LDNS_RR_TYPE_NS);
+        if (rrset) {
+            if (!response_add_rrset(&r, rrset, LDNS_SECTION_AUTHORITY)) {
+                lock_basic_unlock(&q->zone->zone_lock);
+                return query_servfail(q);
+            }
+        }
+    } else if (qtype != LDNS_RR_TYPE_SOA) {
+        rrset = zone_lookup_rrset(q->zone, q->zone->apex, LDNS_RR_TYPE_SOA);
+        if (rrset) {
+            if (!response_add_rrset(&r, rrset, LDNS_SECTION_AUTHORITY)) {
+                lock_basic_unlock(&q->zone->zone_lock);
+                return query_servfail(q);
+            }
+        }
+    } else {
+        lock_basic_unlock(&q->zone->zone_lock);
+        return query_servfail(q);
+    }
+    lock_basic_unlock(&q->zone->zone_lock);
+
+    response_encode(q, &r);
+    /* compression */
     return QUERY_PROCESSED;
 }
 
@@ -235,16 +404,20 @@ static query_state
 query_process_query(query_type* q, ldns_rr_type qtype)
 {
     dnsout_type* dnsout = NULL;
+    uint16_t limit = 0;
+    uint16_t flags = 0;
     if (!q || !q->zone) {
         return QUERY_DISCARDED;
     }
+    ods_log_assert(q->zone->name);
+    ods_log_debug("[%s] incoming query for zone %s", query_str,
+        q->zone->name);
     /* sanity checks */
     if (buffer_pkt_qdcount(q->buffer) != 1 || buffer_pkt_tc(q->buffer)) {
         buffer_pkt_set_flags(q->buffer, 0);
         return query_formerr(q);
     }
     /* acl */
-    ods_log_assert(q->zone->name);
     if (!q->zone->adoutbound || q->zone->adoutbound->type != ADAPTER_DNS) {
         ods_log_error("[%s] zone %s is not configured to have output dns "
             "adapter", query_str, q->zone->name);
@@ -253,16 +426,25 @@ query_process_query(query_type* q, ldns_rr_type qtype)
     ods_log_assert(q->zone->adoutbound->config);
     dnsout = (dnsout_type*) q->zone->adoutbound->config;
     if (!acl_find(dnsout->provide_xfr, &q->addr, NULL)) {
-        buffer_pkt_set_qr(q->buffer);
         return query_refused(q);
     }
     /* zone transfer? */
     if (qtype == LDNS_RR_TYPE_AXFR || qtype == LDNS_RR_TYPE_IXFR) {
+        ods_log_assert(q->zone->name);
+        ods_log_debug("[%s] incoming transfer request for zone %s",
+            query_str, q->zone->name);
         return query_notimpl(q);
     }
+    /* prepare */
+    limit = buffer_limit(q->buffer);
+    flags = buffer_pkt_flags(q->buffer);
+    flags &= 0x0100U; /* preserve the rd flag */
+    flags |= 0x8000U; /* set the qr flag */
+    buffer_pkt_set_flags(q->buffer, flags);
+    buffer_clear(q->buffer);
+    buffer_set_position(q->buffer, limit);
     /* (soa) query */
-    buffer_pkt_set_qr(q->buffer);
-    return QUERY_PROCESSED;
+    return query_response(q, qtype);
 }
 
 
