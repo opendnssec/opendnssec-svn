@@ -33,6 +33,7 @@
 
 #include "config.h"
 #include "daemon/engine.h"
+#include "shared/util.h"
 #include "wire/query.h"
 
 const char* query_str = "query";
@@ -187,17 +188,70 @@ query_refused(query_type* q)
 
 
 /**
+ * Parse SOA RR in packet.
+ * (kind of similar to xfrd_parse_soa)
+ *
+ */
+static int
+query_parse_soa(buffer_type* buffer, uint32_t* serial)
+{
+    ldns_rr_type type = 0;
+    ldns_rr_class klass = 0;
+    uint32_t tmp = 0;
+    ods_log_assert(buffer);
+
+    if (!buffer_available(buffer, 10)) {
+        ods_log_error("[%s] bad notify: packet too short", query_str);
+        return 0;
+    }
+    type = (ldns_rr_type) buffer_read_u16(buffer);
+    if (type != LDNS_RR_TYPE_SOA) {
+        ods_log_error("[%s] bad notify: rr in answer section is not soa (%d)",
+            query_str, type);
+        return 0;
+    }
+    klass = (ldns_rr_class) buffer_read_u16(buffer);
+    tmp = buffer_read_u32(buffer);
+    /* rdata length */
+    if (!buffer_available(buffer, buffer_read_u16(buffer))) {
+        ods_log_error("[%s] bad notify: soa missing rdlength", query_str);
+        return 0;
+    }
+    /* MNAME */
+    if (!buffer_skip_dname(buffer)) {
+        ods_log_error("[%s] bad notify: soa missing mname", query_str);
+        return 0;
+    }
+    /* RNAME */
+    if (!buffer_skip_dname(buffer)) {
+        ods_log_error("[%s] bad notify: soa missing rname", query_str);
+        return 0;
+    }
+    if (serial) {
+        *serial = buffer_read_u32(buffer);
+    }
+    return 1;
+}
+
+
+/**
  * NOTIFY.
  *
  */
 static query_state
-query_process_notify(query_type* q, ldns_rr_type qtype)
+query_process_notify(query_type* q, ldns_rr_type qtype, void* engine)
 {
+    engine_type* e = (engine_type*) engine;
     dnsin_type* dnsin = NULL;
+    uint16_t count = 0;
+    uint16_t rrcount = 0;
+    uint32_t serial = 0;
     size_t limit = 0;
-    if (!q || !q->zone) {
+    size_t curpos = 0;
+    if (!e || !q || !q->zone) {
         return QUERY_DISCARDED;
     }
+    ods_log_assert(e->dnshandler);
     ods_log_assert(q->zone->name);
     ods_log_debug("[%s] incoming notify for zone %s", query_str,
         q->zone->name);
@@ -211,8 +265,6 @@ query_process_notify(query_type* q, ldns_rr_type qtype)
         buffer_pkt_cd(q->buffer) ||
         buffer_pkt_qdcount(q->buffer) != 1 ||
         buffer_pkt_ancount(q->buffer) > 1 ||
-        buffer_pkt_nscount(q->buffer) != 0 ||
-        buffer_pkt_arcount(q->buffer) != 0 ||
         qtype != LDNS_RR_TYPE_SOA) {
         return query_formerr(q);
     }
@@ -227,8 +279,52 @@ query_process_notify(query_type* q, ldns_rr_type qtype)
         return query_refused(q);
     }
     limit = buffer_limit(q->buffer);
-    /* get answer section and check inbound serial */
+    curpos = buffer_position(q->buffer);
+    ods_log_assert(q->zone->xfrd);
+    /* skip header and question section */
+    buffer_skip(q->buffer, BUFFER_PKT_HEADER_SIZE);
+    count = buffer_pkt_qdcount(q->buffer);
+    for (rrcount = 0; rrcount < count; rrcount++) {
+        if (!buffer_skip_rr(q->buffer, 1)) {
+            ods_log_error("[%s] dropped packet: zone %s received bad notify "
+                "(bad question section)", query_str, q->zone->name);
+            return QUERY_DISCARDED;
+        }
+    }
+    /* examine answer section */
+    count = buffer_pkt_ancount(q->buffer);
+    if (count) {
+        if (!buffer_skip_dname(q->buffer) ||
+            !query_parse_soa(q->buffer, &serial)) {
+            ods_log_error("[%s] dropped packet: zone %s received bad notify "
+                "(bad soa in answer section)", query_str, q->zone->name);
+            return QUERY_DISCARDED;
+        }
+        lock_basic_lock(&q->zone->xfrd->serial_lock);
+        q->zone->xfrd->serial_notify = serial;
+        q->zone->xfrd->serial_notify_acquired = time_now();
+        if (!util_serial_gt(q->zone->xfrd->serial_notify,
+            q->zone->xfrd->serial_disk)) {
+            ods_log_debug("[%s] ignore notify: already got zone %s serial "
+                "%u on disk", query_str, q->zone->name,
+                q->zone->xfrd->serial_notify);
+            lock_basic_unlock(&q->zone->xfrd->serial_lock);
+            goto send_notify_ok;
+        }
+        lock_basic_unlock(&q->zone->xfrd->serial_lock);
+    } else {
+        lock_basic_lock(&q->zone->xfrd->serial_lock);
+        q->zone->xfrd->serial_notify = 0;
+        q->zone->xfrd->serial_notify_acquired = 0;
+        lock_basic_unlock(&q->zone->xfrd->serial_lock);
+    }
     /* forward notify to xfrd */
+    xfrd_set_timer_now(q->zone->xfrd);
+    dnshandler_fwd_notify(e->dnshandler, buffer_begin(q->buffer),
+        buffer_remaining(q->buffer));
+
+send_notify_ok:
+    /* send notify ok */
     buffer_pkt_set_qr(q->buffer);
     buffer_pkt_set_aa(q->buffer);
     buffer_pkt_set_ancount(q->buffer, 0);
@@ -506,7 +602,7 @@ query_process(query_type* q, void* engine)
     }
     switch(opcode) {
         case LDNS_PACKET_NOTIFY:
-            return query_process_notify(q, qtype);
+            return query_process_notify(q, qtype, engine);
         case LDNS_PACKET_QUERY:
             return query_process_query(q, qtype);
         case LDNS_PACKET_UPDATE:
