@@ -33,16 +33,16 @@ start = element Adapter {
 
 	# inbound zone transfer settings
 	element Inbound {
-		# what TSIG secret to use
-		tsig?,
+		# what TSIG credentials to use (zero or more)
+		tsig*,
 		element RequestTransfer { remoteAddress }*,
 		element AllowNotify { remoteAddress }*
 	},
 
 	# outbound zone transfer settings
 	element Outbound {
-		# what TSIG secret to use
-		tsig?,
+		# what TSIG credentials to use (zero or more)
+		tsig*,
 		element ProvideTransfer { remoteAddress }*,
 		element Notify { remoteAddress }*
 	}
@@ -61,5 +61,6 @@ tsig =
 ipv4 = element IPv4 { xsd:string }
 ipv6 = element IPv6 { xsd:string }
 port = element Port { xsd:positiveInteger { maxInclusive = "65535" } }
+key = element Key { xsd:string }
 
-remoteAddress = (ipv4 | ipv6), port?
+remoteAddress = (ipv4 | ipv6), port?, key?
