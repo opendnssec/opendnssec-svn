@@ -299,11 +299,9 @@ response_encode_rrset(query_type* q, rrset_type* rrset,
     for (i = 0; i < rrset->rr_count; i++) {
         added += response_encode_rr(q, rrset->rrs[i].rr, section);
     }
-    ods_log_debug("ENCODE: RRset[%u] RRcount=%u", (unsigned)section, added);
     for (i = 0; i < rrset->rrsig_count; i++) {
         added += response_encode_rr(q, rrset->rrsigs[i].rr, section);
     }
-    ods_log_debug("ENCODE: RRset[%u] RR+RRSIGcount=%u", (unsigned)section, added);
     /* truncation? */
     return added;
 }
@@ -327,22 +325,12 @@ response_encode(query_type* q, response_type* r)
     for (s = LDNS_SECTION_ANSWER; s < LDNS_SECTION_ANY; s++) {
         for (i = 0; i < r->rrset_count; i++) {
             if (r->sections[i] == s) {
-		ods_log_debug("ENCODE: SECTION[%u] RRset[%u]", (unsigned)s,
-                    r->rrsets[i]->rrtype);
                 counts[s] += response_encode_rrset(q, r->rrsets[i], s);
-		ods_log_debug("ENCODE: SECTION[%u] count=%u", (unsigned)s,
-                    counts[s]);
             }
         }
     }
-    ods_log_debug("ENCODE: ANCOUNT SECTION[%u] count=%u", LDNS_SECTION_ANSWER,
-                    counts[LDNS_SECTION_ANSWER]);
     buffer_pkt_set_ancount(q->buffer, counts[LDNS_SECTION_ANSWER]);
-    ods_log_debug("ENCODE: NSCOUNT SECTION[%u] count=%u", LDNS_SECTION_AUTHORITY,
-                    counts[LDNS_SECTION_AUTHORITY]);
     buffer_pkt_set_nscount(q->buffer, counts[LDNS_SECTION_AUTHORITY]);
-    ods_log_debug("ENCODE: ARCOUNT SECTION[%u] count=%u", LDNS_SECTION_ADDITIONAL,
-                    counts[LDNS_SECTION_ADDITIONAL]);
     buffer_pkt_set_arcount(q->buffer, counts[LDNS_SECTION_ADDITIONAL]);
     return;
 }
