@@ -101,11 +101,14 @@ parse_addns_acl(allocator_type* allocator, const char* filename, char* expr)
             while (curNode) {
                 if (xmlStrEqual(curNode->name, (const xmlChar *)"IPv4")) {
                     ipv4 = (char *) xmlNodeGetContent(curNode);
-                } else if (xmlStrEqual(curNode->name, (const xmlChar *)"IPv6")) {
+                } else if (xmlStrEqual(curNode->name,
+                    (const xmlChar *)"IPv6")) {
                     ipv6 = (char *) xmlNodeGetContent(curNode);
-                } else if (xmlStrEqual(curNode->name, (const xmlChar *)"Port")) {
+                } else if (xmlStrEqual(curNode->name,
+                    (const xmlChar *)"Port")) {
                     port = (char *) xmlNodeGetContent(curNode);
-                } else if (xmlStrEqual(curNode->name, (const xmlChar *)"Key")) {
+                } else if (xmlStrEqual(curNode->name,
+                    (const xmlChar *)"Key")) {
                     key = (char *) xmlNodeGetContent(curNode);
                 }
                 curNode = curNode->next;
