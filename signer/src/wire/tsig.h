@@ -43,6 +43,7 @@
  */
 typedef struct tsig_struct tsig_type;
 struct tsig_struct {
+    tsig_type* next;
     const char* name;
     const char* algorithm;
     const char* secret;

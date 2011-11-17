@@ -199,13 +199,13 @@ parse_addns_tsig(allocator_type* allocator, const char* filename, char* expr)
             curNode = xpathObj->nodesetval->nodeTab[i]->xmlChildrenNode;
             while (curNode) {
                 if (xmlStrEqual(curNode->name, (const xmlChar *)"Name")) {
-                    ipv4 = (char *) xmlNodeGetContent(curNode);
+                    name = (char *) xmlNodeGetContent(curNode);
                 } else if (xmlStrEqual(curNode->name,
                     (const xmlChar *)"Algorithm")) {
-                    ipv6 = (char *) xmlNodeGetContent(curNode);
+                    algo = (char *) xmlNodeGetContent(curNode);
                 } else if (xmlStrEqual(curNode->name,
                     (const xmlChar *)"Secret")) {
-                    port = (char *) xmlNodeGetContent(curNode);
+                    secret = (char *) xmlNodeGetContent(curNode);
                 }
                 curNode = curNode->next;
             }
@@ -231,7 +231,7 @@ parse_addns_tsig(allocator_type* allocator, const char* filename, char* expr)
     if (doc) {
         xmlFreeDoc(doc);
     }
-    return acl;
+    return tsig;
 }
 
 

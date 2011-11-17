@@ -32,6 +32,7 @@
  */
 
 #include "config.h"
+#include "shared/log.h"
 #include "wire/tsig.h"
 
 const char* tsig_str = "tsig";
