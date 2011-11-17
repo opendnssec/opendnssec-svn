@@ -38,6 +38,7 @@
 #include "shared/allocator.h"
 #include "shared/status.h"
 #include "wire/acl.h"
+#include "wire/tsig.h"
 
 #include <ldns/ldns.h>
 #include <stdio.h>
@@ -52,6 +53,7 @@ struct dnsin_struct {
     allocator_type* allocator;
     acl_type* request_xfr;
     acl_type* allow_notify;
+    tsig_type* tsig;
     time_t last_modified;
 };
 
@@ -64,6 +66,7 @@ struct dnsout_struct {
     allocator_type* allocator;
     acl_type* provide_xfr;
     acl_type* do_notify;
+    tsig_type* tsig;
     time_t last_modified;
 };
 

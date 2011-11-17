@@ -97,7 +97,7 @@ tsig_type* parse_addns_inbound_tsig(allocator_type* allocator,
  * \return tsig_type* TSIG
  *
  */
-tsig_type* parse_addns_inbound_tsig(allocator_type* allocator,
+tsig_type* parse_addns_outbound_tsig(allocator_type* allocator,
     const char* filename);
 
 #endif /* PARSER_ADDNSPARSER_H */
