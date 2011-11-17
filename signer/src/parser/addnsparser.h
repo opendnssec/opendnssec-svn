@@ -35,6 +35,7 @@
 #define PARSER_ADDNSPARSER_H
 
 #include "wire/acl.h"
+#include "wire/tsig.h"
 
 #include <libxml/xpath.h>
 #include <libxml/xmlreader.h>
@@ -70,13 +71,33 @@ acl_type* parse_addns_provide_xfr(allocator_type* allocator,
     const char* filename);
 
 /**
- * Parse <DoNotify/>.
+ * Parse <Notify/>.
  * \param[in] allocator memory allocator
  * \param[in] filename filename
  * \return acl_type* ACL
  *
  */
 acl_type* parse_addns_do_notify(allocator_type* allocator,
+    const char* filename);
+
+/**
+ * Parse Inbound <TSIG/>.
+ * \param[in] allocator memory allocator
+ * \param[in] filename filename
+ * \return tsig_type* TSIG
+ *
+ */
+tsig_type* parse_addns_inbound_tsig(allocator_type* allocator,
+    const char* filename);
+
+/**
+ * Parse Outbound <TSIG/>.
+ * \param[in] allocator memory allocator
+ * \param[in] filename filename
+ * \return tsig_type* TSIG
+ *
+ */
+tsig_type* parse_addns_inbound_tsig(allocator_type* allocator,
     const char* filename);
 
 #endif /* PARSER_ADDNSPARSER_H */

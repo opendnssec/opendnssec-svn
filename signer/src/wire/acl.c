@@ -432,6 +432,7 @@ acl_cleanup(acl_type* acl, allocator_type* allocator)
     }
     acl_cleanup(acl->next, allocator);
     allocator_deallocate(allocator, (void*) acl->address);
+    allocator_deallocate(allocator, (void*) acl->tsig_name);
     allocator_deallocate(allocator, (void*) acl);
     return;
 }

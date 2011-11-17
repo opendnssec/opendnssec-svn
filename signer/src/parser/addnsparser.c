@@ -42,7 +42,7 @@
 static const char* parser_str = "parser";
 
 /**
- * Parse the interfaaces.
+ * Parse the ACL interfaces.
  *
  */
 static acl_type*
@@ -117,7 +117,7 @@ parse_addns_acl(allocator_type* allocator, const char* filename, char* expr)
                 new_acl = acl_create(allocator, ipv4, ipv6, port, key);
                 if (!new_acl) {
                    ods_log_error("[%s] unable to add %s%s:%s interface: "
-                       "acl_push() failed", parser_str, ipv4?ipv4:"",
+                       "acl_create() failed", parser_str, ipv4?ipv4:"",
                        ipv6?ipv6:"", port?port:"");
                 } else {
                    new_acl->next = acl;
@@ -131,6 +131,99 @@ parse_addns_acl(allocator_type* allocator, const char* filename, char* expr)
             free((void*)ipv6);
             free((void*)port);
             free((void*)key);
+        }
+    }
+    xmlXPathFreeObject(xpathObj);
+    xmlXPathFreeContext(xpathCtx);
+    if (doc) {
+        xmlFreeDoc(doc);
+    }
+    return acl;
+}
+
+
+/**
+ * Parse the TSIG credentials.
+ *
+ */
+static tsig_type*
+parse_addns_tsig(allocator_type* allocator, const char* filename, char* expr)
+{
+    tsig_type* tsig = NULL;
+    tsig_type* new_tsig = NULL;
+    int i = 0;
+    char* name = NULL;
+    char* algo = NULL;
+    char* secret = NULL;
+    xmlDocPtr doc = NULL;
+    xmlXPathContextPtr xpathCtx = NULL;
+    xmlXPathObjectPtr xpathObj = NULL;
+    xmlNode* curNode = NULL;
+    xmlChar* xexpr = NULL;
+
+    if (!allocator || !filename || !expr) {
+        return NULL;
+    }
+    /* Load XML document */
+    doc = xmlParseFile(filename);
+    if (doc == NULL) {
+        ods_log_error("[%s] could not parse %s: xmlParseFile() failed",
+            parser_str, expr);
+        return NULL;
+    }
+    /* Create xpath evaluation context */
+    xpathCtx = xmlXPathNewContext(doc);
+    if(xpathCtx == NULL) {
+        xmlFreeDoc(doc);
+        ods_log_error("[%s] could not parse %s: xmlXPathNewContext() failed",
+            parser_str, expr);
+        return NULL;
+    }
+    /* Evaluate xpath expression */
+    xexpr = (xmlChar*) expr;
+    xpathObj = xmlXPathEvalExpression(xexpr, xpathCtx);
+    if(xpathObj == NULL) {
+        xmlXPathFreeContext(xpathCtx);
+        xmlFreeDoc(doc);
+        ods_log_error("[%s] could not parse %s: xmlXPathEvalExpression() "
+            "failed", parser_str, expr);
+        return NULL;
+    }
+    /* Parse interfaces */
+    if (xpathObj->nodesetval && xpathObj->nodesetval->nodeNr > 0) {
+        for (i = 0; i < xpathObj->nodesetval->nodeNr; i++) {
+            name = NULL;
+            algo = NULL;
+            secret = NULL;
+
+            curNode = xpathObj->nodesetval->nodeTab[i]->xmlChildrenNode;
+            while (curNode) {
+                if (xmlStrEqual(curNode->name, (const xmlChar *)"Name")) {
+                    ipv4 = (char *) xmlNodeGetContent(curNode);
+                } else if (xmlStrEqual(curNode->name,
+                    (const xmlChar *)"Algorithm")) {
+                    ipv6 = (char *) xmlNodeGetContent(curNode);
+                } else if (xmlStrEqual(curNode->name,
+                    (const xmlChar *)"Secret")) {
+                    port = (char *) xmlNodeGetContent(curNode);
+                }
+                curNode = curNode->next;
+            }
+            if (name && algo && secret) {
+                new_tsig = tsig_create(allocator, name, algo, secret);
+                if (!new_tsig) {
+                   ods_log_error("[%s] unable to add tsig %s: "
+                       "tsig_create() failed", parser_str, name?name:"");
+                } else {
+                   new_tsig->next = tsig;
+                   tsig = new_tsig;
+                   ods_log_debug("[%s] added %s tsig to list %s",
+                       parser_str, name?name:"", (char*) expr);
+                }
+            }
+            free((void*)name);
+            free((void*)algo);
+            free((void*)secret);
         }
     }
     xmlXPathFreeObject(xpathObj);
@@ -182,7 +275,7 @@ parse_addns_provide_xfr(allocator_type* allocator, const char* filename)
 
 
 /**
- * Parse <DoNotify/>.
+ * Parse <Notify/>.
  *
  */
 acl_type*
@@ -190,6 +283,32 @@ parse_addns_do_notify(allocator_type* allocator, const char* filename)
 {
     return parse_addns_acl(allocator, filename,
         "//Adapter/Outbound/Notify"
+        );
+}
+
+
+/**
+ * Parse Inbound <TSIG/>.
+ *
+ */
+tsig_type*
+parse_addns_inbound_tsig(allocator_type* allocator, const char* filename)
+{
+    return parse_addns_tsig(allocator, filename,
+        "//Adapter/Inbound/TSIG"
+        );
+}
+
+
+/**
+ * Parse Outbound <TSIG/>.
+ *
+ */
+tsig_type*
+parse_addns_outbound_tsig(allocator_type* allocator, const char* filename)
+{
+    return parse_addns_tsig(allocator, filename,
+        "//Adapter/Outbound/TSIG"
         );
 }
 
