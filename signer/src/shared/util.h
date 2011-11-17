@@ -105,4 +105,13 @@ ldns_status util_dnssec_rrs_add_rr(ldns_dnssec_rrs *rrs, ldns_rr *rr);
  */
 int util_write_pidfile(const char* pidfile, pid_t pid);
 
+/**
+ * Calculates the size needed to store the result of b64_pton.
+ * \param[in] len strlen
+ * \return size of b64_pton
+ *
+ */
+size_t util_b64_pton_calculate_size(size_t srcsize);
+
+
 #endif /* UTIL_UTIL_H */

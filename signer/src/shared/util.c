@@ -279,3 +279,16 @@ util_write_pidfile(const char* pidfile, pid_t pid)
     }
     return 0;
 }
+
+
+/**
+ * Calculates the size needed to store the result of b64_pton.
+ *
+ */
+size_t
+util_b64_pton_calculate_size(size_t srcsize)
+{
+    return (((((srcsize + 3) / 4) * 3)) + 1);
+}
+
+

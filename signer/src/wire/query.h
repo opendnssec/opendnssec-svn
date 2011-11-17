@@ -38,6 +38,7 @@
 #include "shared/allocator.h"
 #include "signer/zone.h"
 #include "wire/buffer.h"
+#include "wire/tsig.h"
 
 #define UDP_MAX_MESSAGE_LEN 512
 #define TCP_MAX_MESSAGE_LEN 65535
@@ -114,6 +115,13 @@ query_state query_process(query_type* q, void* engine);
  *
  */
 void query_reset(query_type* q, size_t maxlen, int is_tcp);
+
+/**
+ * Add TSIG to query.
+ * \param[in] q query
+ *
+ */
+void query_add_tsig(query_type* q);
 
 /**
  * Cleanup query.

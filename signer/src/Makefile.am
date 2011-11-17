@@ -3,6 +3,7 @@
 MAINTAINERCLEANFILES = $(srcdir)/Makefile.in
 
 LIBHSM = ${top_builddir}/libhsm/src/libhsm.a
+LIBCOMPAT = ${top_builddir}/common/libcompat.a
 
 AM_CPPFLAGS = \
 	-I$(top_srcdir)/common \
@@ -71,6 +72,7 @@ ods_signerd_SOURCES=		ods-signerd.c \
 				wire/xfrd.c wire/xfrd.h
 
 ods_signerd_LDADD=		$(LIBHSM)
+ods_signerd_LDADD+=		$(LIBCOMPAT)
 ods_signerd_LDADD+=		@LDNS_LIBS@ @XML2_LIBS@ @PTHREAD_LIBS@ @RT_LIBS@
 
 ods_signer_SOURCES=		ods-signer.c \

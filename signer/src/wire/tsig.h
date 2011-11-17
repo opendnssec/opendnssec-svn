@@ -37,8 +37,31 @@
 #include "config.h"
 #include "shared/allocator.h"
 
+#include <ldns/ldns.h>
+
+#define TSIG_ERROR_NOERROR 0
+#define TSIG_ERROR_BADSIG   16
+#define TSIG_ERROR_BADKEY   17
+#define TSIG_ERROR_BADTIME  18
+
+#define TSIG_HMAC_MD5       157
+#define TSIG_HMAC_SHA1      158
+#define TSIG_HMAC_SHA256    159
+
 /**
- * TSIG.
+ * TSIG key.
+ *
+ */
+typedef struct tsig_key_struct tsig_key_type;
+struct tsig_key_struct {
+    ldns_rdf* dname;
+    size_t size;
+    const uint8_t* data;
+};
+
+
+/**
+ * TSIG configuration.
  *
  */
 typedef struct tsig_struct tsig_type;

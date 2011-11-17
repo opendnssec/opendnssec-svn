@@ -594,12 +594,16 @@ query_process(query_type* q, void* engine)
         q->zone = NULL;
     }
     lock_basic_unlock(&e->zonelist->zl_lock);
-    opcode = ldns_pkt_get_opcode(pkt);
-    qtype = ldns_rr_get_type(rr);
-    ldns_pkt_free(pkt);
     if (!q->zone) {
         return query_servfail(q);
     }
+    /* see if it is tsig signed */
+
+        /* process tsig */
+
+    opcode = ldns_pkt_get_opcode(pkt);
+    qtype = ldns_rr_get_type(rr);
+    ldns_pkt_free(pkt);
     switch(opcode) {
         case LDNS_PACKET_NOTIFY:
             return query_process_notify(q, qtype, engine);
@@ -611,6 +615,20 @@ query_process(query_type* q, void* engine)
             return query_notimpl(q);
     }
     return query_notimpl(q);
+}
+
+
+/**
+ * Add TSIG to query.
+ *
+ */
+void
+query_add_tsig(query_type* q)
+{
+    if (!q) {
+        return;
+    }
+    return;
 }
 
 
