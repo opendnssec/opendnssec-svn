@@ -46,7 +46,7 @@ dns = element DNS {
 		element Notify { remote* },
 	}
 }
-a
+
 # TSIG secret
 tsig =
 	element TSIG {
