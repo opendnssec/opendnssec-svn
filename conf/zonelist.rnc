@@ -62,4 +62,4 @@ adother = element Adapter {
 
         # Configuration file
         xsd:string
-	}
+}
