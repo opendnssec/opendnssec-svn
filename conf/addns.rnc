@@ -27,27 +27,26 @@
 
 datatypes xsd = "http://www.w3.org/2001/XMLSchema-datatypes"
 
-start = element Adapter {
-	# Type of adapter
-	attribute type { xsd:string },
+start = element Adapter { dns }
+	
+dns = element DNS {
+
+	# TSIG secrets
+	tsig*,
 
 	# inbound zone transfer settings
 	element Inbound {
-		# what TSIG credentials to use (zero or more)
-		tsig*,
-		element RequestTransfer { remoteAddress }*,
-		element AllowNotify { remoteAddress }*
+		element RequestTransfer { remote* },
+		element AllowNotify { peer* },
 	},
 
 	# outbound zone transfer settings
 	element Outbound {
-		# what TSIG credentials to use (zero or more)
-		tsig*,
-		element ProvideTransfer { remoteAddress }*,
-		element Notify { remoteAddress }*
+		element ProvideTransfer { peer* },
+		element Notify { remote* },
 	}
 }
-
+a
 # TSIG secret
 tsig =
 	element TSIG {
@@ -58,9 +57,11 @@ tsig =
 		element Secret { xsd:base64Binary }
 	}
 
-ipv4 = element IPv4 { xsd:string }
-ipv6 = element IPv6 { xsd:string }
-port = element Port { xsd:positiveInteger { maxInclusive = "65535" } }
+remote = element Remote { address, port?, key? }
+peer   = element Peer { prefix?, key? }
 key = element Key { xsd:string }
 
-remoteAddress = (ipv4 | ipv6), port?, key?
+address = element Address { xsd:string } # e.g., 192.0.2.1 or 2001:DB8::1
+port    = element Port { xsd:positiveInteger { maxInclusive = "65535" } }
+prefix  = element Prefix { xsd:string } # e.g., 192.0.2.0/24 or 2001:DB8::/32
+key     = element Key { xsd:string }
