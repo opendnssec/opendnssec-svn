@@ -57,10 +57,10 @@ tsig = element TSIG {
 }
 
 remote = element Remote { address, port?, key? }
-peer   = element Peer { prefix?, key? }
+peer   = element Peer { prefix, key? }
 key = element Key { xsd:string }
 
 address = element Address { xsd:string } # e.g., 192.0.2.1 or 2001:DB8::1
+prefix  = element Prefix { xsd:string }  # e.g., 192.0.2.0/24 or 2001:DB8::/32
 port    = element Port { xsd:positiveInteger { maxInclusive = "65535" } }
-prefix  = element Prefix { xsd:string } # e.g., 192.0.2.0/24 or 2001:DB8::/32
 key     = element Key { xsd:string }
