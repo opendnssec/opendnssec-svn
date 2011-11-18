@@ -48,14 +48,13 @@ dns = element DNS {
 }
 
 # TSIG secret
-tsig =
-	element TSIG {
-		element Name { xsd:string },
-		# http://www.iana.org/assignments/tsig-algorithm-names
-		element Algorithm { xsd:string },
-		# base64 encoded secret
-		element Secret { xsd:base64Binary }
-	}
+tsig = element TSIG {
+	element Name { xsd:string },
+	# http://www.iana.org/assignments/tsig-algorithm-names
+	element Algorithm { xsd:string },
+	# base64 encoded secret
+	element Secret { xsd:base64Binary }
+}
 
 remote = element Remote { address, port?, key? }
 peer   = element Peer { prefix?, key? }
