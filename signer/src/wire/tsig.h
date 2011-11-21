@@ -36,10 +36,11 @@
 
 #include "config.h"
 #include "shared/allocator.h"
+#include "shared/status.h"
+#include "wire/buffer.h"
 
 #include <ldns/ldns.h>
 
-#define TSIG_ERROR_NOERROR 0
 #define TSIG_ERROR_BADSIG   16
 #define TSIG_ERROR_BADKEY   17
 #define TSIG_ERROR_BADTIME  18
@@ -47,6 +48,28 @@
 #define TSIG_HMAC_MD5       157
 #define TSIG_HMAC_SHA1      158
 #define TSIG_HMAC_SHA256    159
+
+/**
+ * TSIG status.
+ *
+ */
+enum tsig_status_enum {
+        TSIG_NOT_PRESENT,
+        TSIG_OK,
+        TSIG_ERROR
+};
+typedef enum tsig_status_enum tsig_status;
+
+/**
+ * TSIG lookup table.
+ *
+ */
+typedef struct tsig_lookup_table_struct tsig_lookup_table;
+struct tsig_lookup_table_struct
+{
+        uint8_t id;
+        const char* short_name;
+};
 
 /**
  * TSIG key.
@@ -59,6 +82,26 @@ struct tsig_key_struct {
     const uint8_t* data;
 };
 
+/**
+ * TSIG algorithm.
+ *
+ */
+typedef struct tsig_algo_struct tsig_algo_type;
+struct tsig_algo_struct {
+    const char* txt_name;
+    ldns_rdf* wf_name;
+    size_t max_digest_size;
+    const void* data;
+    /* create a new HMAC context */
+    void*(*hmac_create)(allocator_type* allocator);
+    /* initialize an HMAC context */
+    void(*hmac_init)(void* context, tsig_algo_type* algo,
+        tsig_key_type* key);
+    /* update the HMAC context */
+    void(*hmac_update)(void* context, const void* data, size_t size);
+    /* finalize digest */
+    void(*hmac_final)(void* context, uint8_t* digest, size_t* size);
+};
 
 /**
  * TSIG configuration.
@@ -74,6 +117,58 @@ struct tsig_struct {
 };
 
 /**
+ * TSIG RR.
+ *
+ */
+typedef struct tsig_rr_struct tsig_rr_type;
+struct tsig_rr_struct {
+    allocator_type* allocator;
+    tsig_status status;
+    size_t position;
+    size_t response_count;
+    size_t update_since_last_prepare;
+    void* context;
+    tsig_algo_type* algo;
+    tsig_key_type* key;
+    size_t prior_mac_size;
+    uint8_t* prior_mac_data;
+
+    ldns_rdf* key_name;
+    ldns_rdf* algo_name;
+    uint16_t signed_time_high;
+    uint32_t signed_time_low;
+    uint16_t signed_time_fudge;
+    uint16_t mac_size;
+    uint8_t* mac_data;
+    uint16_t original_query_id;
+    uint16_t error_code;
+    uint16_t other_size;
+    uint8_t* other_data;
+};
+
+/**
+ * Initialize TSIG handler.
+ * \param[in] allocator memory allocator
+ * \return ods_status status
+ *
+ */
+ods_status tsig_handler_init(allocator_type* allocator);
+
+/**
+ * Add key to TSIG handler.
+ * \param[in] key tsig key
+ *
+ */
+void tsig_handler_add_key(tsig_key_type* key);
+
+/**
+ * Add algorithm to TSIG handler.
+ * \param[in] algo tsig algorithm
+ *
+ */
+void tsig_handler_add_algo(tsig_algo_type* algo);
+
+/**
  * Create new TSIG.
  * \param[in] allocator memory allocator
  * \param[in] name tsig name
@@ -84,6 +179,111 @@ struct tsig_struct {
  */
 tsig_type* tsig_create(allocator_type* allocator, char* name, char* algo,
     char* secret);
+
+/**
+ * Create new TSIG RR.
+ * \param[in] allocator memory allocator
+ * \return tsig_rr_type* TSIG RR
+ *
+ */
+tsig_rr_type* tsig_rr_create(allocator_type* allocator);
+
+/**
+ * Reset TSIG RR.
+ * \param[in] trr tsig rr
+ * \param[in] algo tsig algorithm
+ * \param[in] key tsig key
+ *
+ */
+void tsig_rr_reset(tsig_rr_type* trr, tsig_algo_type* algo, tsig_key_type* key);
+
+/**
+ * Find TSIG RR.
+ * \param[in] trr tsig rr
+ * \param[in] buffer packet buffer
+ * \return int 1 if not present or present and valid, 0 otherwise.
+ *
+ */
+int tsig_rr_find(tsig_rr_type* trr, buffer_type* buffer);
+
+/**
+ * Lookup TSIG RR.
+ * \param[in] trr tsig rr
+ * \return int 1 if succeeded, 0 if unknown
+ *
+ */
+int tsig_rr_lookup(tsig_rr_type* trr);
+
+/**
+ * Prepare TSIG RR.
+ * \param[in] trr tsig rr
+ *
+ */
+void tsig_rr_prepare(tsig_rr_type* trr);
+
+/**
+ * Update TSIG RR.
+ * \param[in] trr tsig rr
+ * \param[in] buffer packet buffer
+ * \param[in] length number of octets of buffer to add to the TSIG hash,
+ *                   replacing the buffer's id with the original
+ *                   query idfrom TSIG.
+ *
+ */
+void tsig_rr_update(tsig_rr_type* trr, buffer_type* buffer, size_t length);
+
+/**
+ * Sing TSIG RR.
+ * \param[in] trr tsig rr
+ *
+ */
+void tsig_rr_sign(tsig_rr_type* trr);
+
+/**
+ * Verify TSIG RR.
+ * \param[in] trr tsig rr
+ * \return int 1 if verified, 0 on error
+ *
+ */
+int tsig_rr_verify(tsig_rr_type* trr);
+
+/**
+ * Append TSIG RR.
+ * \param[in] trr tsig rr
+ * \param[in] buffer packet buffer
+ *
+ */
+void tsig_rr_append(tsig_rr_type* trr, buffer_type* buffer);
+
+/*
+ * The amount of space to reserve in the response for the TSIG data.
+ * \param[in] trr tsig rr
+ * \return size_t reserved space size
+ *
+ */
+size_t tsig_rr_reserved_space(tsig_rr_type *trr);
+
+/**
+ * Reply with error TSIG RR.
+ * \param[in] trr tsig rr
+ *
+ */
+void tsig_rr_error(tsig_rr_type* trr);
+
+/**
+ * Get human readable TSIG error code.
+ * \param[in] status tsig status
+ * \return const char* readable error code
+ *
+ */
+const char* tsig_strerror(tsig_status status);
+
+/**
+ * Free TSIG RR.
+ * \param[in] trr tsig rr
+ *
+ */
+void tsig_rr_free(tsig_rr_type* trr);
 
 /**
  * Clean up TSIG.
