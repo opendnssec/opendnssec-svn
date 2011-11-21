@@ -300,6 +300,7 @@ buffer_at(buffer_type* buffer, size_t at)
 uint8_t*
 buffer_begin(buffer_type* buffer)
 {
+    ods_log_assert(buffer);
     return buffer_at(buffer, 0);
 }
 
@@ -340,6 +341,7 @@ buffer_remaining_at(buffer_type* buffer, size_t at)
     return buffer->limit - at;
 }
 
+
 /**
  * The number of bytes remaining between the buffer's position and limit.
  *
@@ -353,14 +355,26 @@ buffer_remaining(buffer_type* buffer)
 
 
 /**
+ * Check if the buffer has enough bytes available at indicated position.
+ *
+ */
+static int
+buffer_available_at(buffer_type *buffer, size_t at, size_t count)
+{
+    ods_log_assert(buffer);
+    return count <= buffer_remaining_at(buffer, at);
+}
+
+
+/**
  * Check if the buffer has enough bytes available.
  *
  */
 int
-buffer_available(buffer_type* buffer, size_t count)
+buffer_available(buffer_type *buffer, size_t count)
 {
     ods_log_assert(buffer);
-    return count <= buffer_remaining_at(buffer, buffer->position);
+    return buffer_available_at(buffer, buffer->position, count);
 }
 
 
@@ -369,10 +383,39 @@ buffer_available(buffer_type* buffer, size_t count)
  *
  */
 static void
+buffer_write_u8_at(buffer_type* buffer, size_t at, uint8_t data)
+{
+    ods_log_assert(buffer);
+    ods_log_assert(buffer_available_at(buffer, at, sizeof(data)));
+    buffer->data[at] = data;
+    return;
+}
+
+
+/**
+ * Write to buffer at indicated position.
+ *
+ */
+void
 buffer_write_u16_at(buffer_type* buffer, size_t at, uint16_t data)
 {
     ods_log_assert(buffer);
+    ods_log_assert(buffer_available_at(buffer, at, sizeof(data)));
     write_uint16(buffer->data + at, data);
+    return;
+}
+
+
+/**
+ * Write to buffer at indicated position.
+ *
+ */
+static void
+buffer_write_u32_at(buffer_type* buffer, size_t at, uint32_t data)
+{
+    ods_log_assert(buffer);
+    ods_log_assert(buffer_available_at(buffer, at, sizeof(data)));
+    write_uint32(buffer->data + at, data);
     return;
 }
 
@@ -393,6 +436,20 @@ buffer_write(buffer_type* buffer, const void* data, size_t count)
 
 
 /**
+ * Write uint8_t to buffer.
+ *
+ */
+void
+buffer_write_u8(buffer_type* buffer, uint8_t data)
+{
+    ods_log_assert(buffer);
+    buffer_write_u8_at(buffer, buffer->position, data);
+    buffer->position += sizeof(data);
+    return;
+}
+
+
+/**
  * Write uint16_t to buffer.
  *
  */
@@ -401,6 +458,20 @@ buffer_write_u16(buffer_type* buffer, uint16_t data)
 {
     ods_log_assert(buffer);
     buffer_write_u16_at(buffer, buffer->position, data);
+    buffer->position += sizeof(data);
+    return;
+}
+
+
+/**
+ * Write uint32_t to buffer.
+ *
+ */
+void
+buffer_write_u32(buffer_type* buffer, uint32_t data)
+{
+    ods_log_assert(buffer);
+    buffer_write_u32_at(buffer, buffer->position, data);
     buffer->position += sizeof(data);
     return;
 }

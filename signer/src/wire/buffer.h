@@ -286,12 +286,37 @@ int buffer_available(buffer_type* buffer, size_t count);
 void buffer_write(buffer_type* buffer, const void* data, size_t count);
 
 /**
+ * Write uint8_t to buffer.
+ * \param[in] buffer buffer
+ * \param[in] data data to write
+ *
+ */
+void buffer_write_u8(buffer_type* buffer, uint8_t data);
+
+/**
  * Write uint16_t to buffer.
  * \param[in] buffer buffer
  * \param[in] data data to write
  *
  */
 void buffer_write_u16(buffer_type* buffer, uint16_t data);
+
+/**
+ * Write uint16_t to buffer at indicated position.
+ * \param[in] buffer buffer
+ * \param[in] at indicated position
+ * \param[in] data data to write
+ *
+ */
+void buffer_write_u16_at(buffer_type* buffer, size_t at, uint16_t data);
+
+/**
+ * Write uint32_t to buffer.
+ * \param[in] buffer buffer
+ * \param[in] data data to write
+ *
+ */
+void buffer_write_u32(buffer_type* buffer, uint32_t data);
 
 /**
  * Write rdf to buffer.
@@ -627,11 +652,25 @@ static inline void
 write_uint16(void *dst, uint16_t data)
 {
 #ifdef ALLOW_UNALIGNED_ACCESSES
-        * (uint16_t *) dst = htons(data);
+    * (uint16_t *) dst = htons(data);
 #else
-        uint8_t *p = (uint8_t *) dst;
-        p[0] = (uint8_t) ((data >> 8) & 0xff);
-        p[1] = (uint8_t) (data & 0xff);
+    uint8_t *p = (uint8_t *) dst;
+    p[0] = (uint8_t) ((data >> 8) & 0xff);
+    p[1] = (uint8_t) (data & 0xff);
+#endif
+}
+
+static inline void
+write_uint32(void *dst, uint16_t data)
+{
+#ifdef ALLOW_UNALIGNED_ACCESSES
+    * (uint32_t *) dst = htonl(data);
+#else
+    uint8_t *p = (uint8_t *) dst;
+    p[0] = (uint8_t) ((data >> 24) & 0xff);
+    p[1] = (uint8_t) ((data >> 16) & 0xff);
+    p[2] = (uint8_t) ((data >> 8) & 0xff);
+    p[3] = (uint8_t) (data & 0xff);
 #endif
 }
 
