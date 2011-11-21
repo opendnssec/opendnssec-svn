@@ -69,6 +69,7 @@ ods_signerd_SOURCES=		ods-signerd.c \
 				wire/sock.c wire/sock.h \
 				wire/tcpset.c wire/tcpset.h \
 				wire/tsig.c wire/tsig.h \
+				wire/tsig-openssl.c wire/tsig-openssl.h \
 				wire/xfrd.c wire/xfrd.h
 
 ods_signerd_LDADD=		$(LIBHSM)
