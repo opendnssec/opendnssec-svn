@@ -81,23 +81,12 @@ acl_type* parse_addns_do_notify(allocator_type* allocator,
     const char* filename);
 
 /**
- * Parse Inbound <TSIG/>.
+ * Parse <TSIG/>.
  * \param[in] allocator memory allocator
  * \param[in] filename filename
  * \return tsig_type* TSIG
  *
  */
-tsig_type* parse_addns_inbound_tsig(allocator_type* allocator,
-    const char* filename);
-
-/**
- * Parse Outbound <TSIG/>.
- * \param[in] allocator memory allocator
- * \param[in] filename filename
- * \return tsig_type* TSIG
- *
- */
-tsig_type* parse_addns_outbound_tsig(allocator_type* allocator,
-    const char* filename);
+tsig_type* parse_addns_tsig(allocator_type* allocator, const char* filename);
 
 #endif /* PARSER_ADDNSPARSER_H */

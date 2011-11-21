@@ -75,14 +75,13 @@ struct acl_struct {
 /**
  * Create ACL.
  * \param[in] allocator memory allocator
- * \param[in] ipv4 IPv4 address
- * \param[in] ipv6 IPv6 address
+ * \param[in] address IP address
  * \param[in] port port
  * \param[in] tsig_name TSIG name
  * \return acl_type* ACL
  *
  */
-acl_type* acl_create(allocator_type* allocator, char* ipv4, char* ipv6,
+acl_type* acl_create(allocator_type* allocator, char* address,
     char* port, char* tsig_name);
 
 /**

@@ -98,11 +98,33 @@ acl_parse_range_subnet(char* p, void* addr, int maxbits)
 
 
 /**
+ * Parse family from address.
+ *
+ */
+static int
+acl_parse_family(const char* a)
+{
+   /* see if addr is ipv6 or ipv4 -- by : and . */
+   while (*a) {
+       if (*a == '.') {
+           return AF_INET;
+       }
+       if (*a == ':') {
+           return AF_INET6;
+       }
+       ++a;
+   }
+   /* default to v4 */
+   return AF_INET;
+}
+
+
+/**
  * Create ACL.
  *
  */
 acl_type*
-acl_create(allocator_type* allocator, char* ipv4, char* ipv6, char* port,
+acl_create(allocator_type* allocator, char* address, char* port,
     char* tsig_name)
 {
     ods_status status = ODS_STATUS_OK;
@@ -112,7 +134,7 @@ acl_create(allocator_type* allocator, char* ipv4, char* ipv6, char* port,
     if (!allocator) {
         return NULL;
     }
-    if (!ipv4 && !ipv6) {
+    if (address) {
         return NULL;
     }
     acl = (acl_type*) allocator_alloc(allocator, sizeof(acl_type));
@@ -123,23 +145,17 @@ acl_create(allocator_type* allocator, char* ipv4, char* ipv6, char* port,
     }
     acl->next = NULL;
     acl->tsig = NULL;
-    acl->tsig_name = tsig_name;
+    acl->tsig_name = allocator_strdup(allocator, tsig_name);
     acl->port = 0;
     if (port) {
         acl->port = atoi((const char*) port);
     }
-    if (ipv4) {
-        a = ipv4;
-        acl->family = AF_INET;
-    } else if (ipv6) {
-        a = ipv6;
-        acl->family = AF_INET6;
-    }
+    acl->family = acl_parse_family(address);
     memset(&acl->addr, 0, sizeof(union acl_addr_storage));
     memset(&acl->range_mask, 0, sizeof(union acl_addr_storage));
 
     acl->range_type = acl_parse_range_type(a, &p);
-    acl->address = allocator_strdup(allocator, a);
+    acl->address = allocator_strdup(allocator, address);
     if (!acl->address) {
         ods_log_error("[%s] unable to create acl: allocator_strdup() failed",
             acl_str);

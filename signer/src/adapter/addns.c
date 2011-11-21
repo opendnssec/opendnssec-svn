@@ -364,6 +364,7 @@ dnsin_create(void)
     addns->allocator = allocator;
     addns->request_xfr = NULL;
     addns->allow_notify = NULL;
+    addns->tsig = NULL;
     return addns;
 }
 
@@ -392,6 +393,7 @@ dnsout_create(void)
     addns->allocator = allocator;
     addns->provide_xfr = NULL;
     addns->do_notify = NULL;
+    addns->tsig = NULL;
     return addns;
 }
 
@@ -422,7 +424,7 @@ dnsin_read(dnsin_type* addns, const char* filename)
             filename);
         addns->allow_notify = parse_addns_allow_notify(addns->allocator,
             filename);
-        addns->tsig = parse_addns_inbound_tsig(addns->allocator, filename);
+        addns->tsig = parse_addns_tsig(addns->allocator, filename);
         ods_fclose(fd);
         return ODS_STATUS_OK;
     }
@@ -496,7 +498,7 @@ dnsout_read(dnsout_type* addns, const char* filename)
         addns->provide_xfr = parse_addns_provide_xfr(addns->allocator,
             filename);
         addns->do_notify = parse_addns_do_notify(addns->allocator, filename);
-        addns->tsig = parse_addns_outbound_tsig(addns->allocator, filename);
+        addns->tsig = parse_addns_tsig(addns->allocator, filename);
         ods_fclose(fd);
         return ODS_STATUS_OK;
     }
