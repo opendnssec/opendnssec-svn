@@ -16,37 +16,43 @@
 			<!-- Address of host to request XFR from -->
 			<RequestTransfer>
 				<!-- EXAMPLE: send request to 1.2.3.4 on the default port 53 -->
-				<Remote><Address>1.2.3.4</Address>/Remote>
-				<!-- EXAMPLE: send request to dead:beef::1 on port 5353 -->
-				<Remote><Address>dead:beef::1</Address><Port>5353</Port></Remote>
+				<Remote>
+					<Address>1.2.3.4</Address>
+				</Remote>
+				<!-- EXAMPLE: send request to dead:beef::1 on port 5353, TSIG signed with secret.example.com -->
+				<Remote>
+					<Address>dead:beef::1</Address>
+					<Port>5353</Port>
+					<Key>secret.example.com</Key>
+				</Remote>
 			</RequestTransfer>
 
 			<!-- Allow NOTIFY messages from host -->
 			<AllowNotify>
 				<!-- EXAMPLE: allow notifies from 1.2.3.4 -->
-				<Peer><Address>1.2.3.4</Address></Peer>
+				<ACL>
+					<Prefix>1.2.3.4</Prefix>
+				</ACL>
 			</AllowNotify>
-			<!-- DEFAULT: none -->
-	
-			<!-- Configuration knobs ideas -->
-			<!-- <AllowUDP/> -->
-			<!-- <DisableIXFR/> -->
-			<!-- <DisableAXFR/> -->
 		</Inbound>
 
 		<Outbound>
 			<!-- Provide XFR to host -->
 			<ProvideTransfer>
 				<!-- EXAMPLE: provide XFR to 1.2.3.5 with key secret.example.com -->
-				<Peer><Address>1.2.3.5</Address><Key>secret.example.com</Key></Peer>
+				<ACL>
+					<Address>1.2.3.5</Address>
+					<Key>secret.example.com</Key>
+				</ACL>
 			</ProvideTransfer>
-			<!-- DEFAULT: none -->
 	
-			<!-- EXAMPLE: send NOTIFY to 1.2.3.5 on the default port 53 -->
+			<-- Send NOTIFY messages to host -->
 			<Notify>
-				<Remote><Address>1.2.3.5</Address></Remote>
+				<!-- EXAMPLE: send NOTIFY to 1.2.3.5 on the default port 53 -->
+				<Remote>
+					<Address>1.2.3.5</Address>
+				</Remote>
 			</Notify>
-			<!-- DEFAULT: don't send notifies -->
 		</Outbound>
 	</DNS>
 </Adapter>

@@ -30,19 +30,18 @@ datatypes xsd = "http://www.w3.org/2001/XMLSchema-datatypes"
 start = element Adapter { dns }
 	
 dns = element DNS {
-
 	# TSIG secrets
 	tsig*,
 
 	# inbound zone transfer settings
 	element Inbound {
 		element RequestTransfer { remote* },
-		element AllowNotify { peer* }
+		element AllowNotify { acl* }
 	},
 
 	# outbound zone transfer settings
 	element Outbound {
-		element ProvideTransfer { peer* },
+		element ProvideTransfer { acl* },
 		element Notify { remote* }
 	}
 }
@@ -57,8 +56,7 @@ tsig = element TSIG {
 }
 
 remote = element Remote { address, port?, key? }
-peer   = element Peer { prefix, key? }
-key = element Key { xsd:string }
+acl   = element ACL { prefix, key? }
 
 address = element Address { xsd:string } # e.g., 192.0.2.1 or 2001:DB8::1
 prefix  = element Prefix { xsd:string }  # e.g., 192.0.2.0/24 or 2001:DB8::/32

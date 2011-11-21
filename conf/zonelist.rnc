@@ -57,9 +57,9 @@ adfile = element File { xsd:string }
 
 # other adapters
 adother = element Adapter {
-		# Adapter type
-		attribute type { xsd:string },
+	# Adapter type
+	attribute type { xsd:string },
 
-        # Configuration file
-        xsd:string
+	# Configuration file
+	xsd:string
 }
