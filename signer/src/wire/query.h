@@ -66,11 +66,16 @@ struct query_struct {
     size_t maxlen;
     size_t reserved_space;
     /* TSIG */
+    tsig_rr_type* tsig_rr;
+    int tsig_prepare_it;
+    int tsig_update_it;
+    int tsig_sign_it;
     /* TCP */
     int tcp;
     uint16_t tcplen;
     buffer_type* buffer;
     /* QNAME, QTYPE, QCLASS */
+
     /* Zone */
     zone_type* zone;
     /* Compression */

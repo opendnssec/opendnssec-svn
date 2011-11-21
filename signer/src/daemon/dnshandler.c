@@ -250,8 +250,6 @@ dnshandler_fwd_notify(dnshandler_type* dnshandler, uint8_t* pkt, size_t len)
     if (nb < 0) {
         ods_log_error("[%s] unable to forward notify: send() failed (%s)",
             dnsh_str, strerror(errno));
-    } else if (nb == 0) {
-        ods_log_error("[%s] unable to forward notify: no data sent", dnsh_str);
     } else {
         ods_log_debug("[%s] forwarded notify: %u bytes sent", dnsh_str, nb);
     }

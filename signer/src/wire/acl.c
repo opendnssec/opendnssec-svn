@@ -129,12 +129,11 @@ acl_create(allocator_type* allocator, char* address, char* port,
 {
     ods_status status = ODS_STATUS_OK;
     acl_type* acl = NULL;
-    char* a = NULL;
     char* p = NULL;
     if (!allocator) {
         return NULL;
     }
-    if (address) {
+    if (!address) {
         return NULL;
     }
     acl = (acl_type*) allocator_alloc(allocator, sizeof(acl_type));
@@ -153,8 +152,7 @@ acl_create(allocator_type* allocator, char* address, char* port,
     acl->family = acl_parse_family(address);
     memset(&acl->addr, 0, sizeof(union acl_addr_storage));
     memset(&acl->range_mask, 0, sizeof(union acl_addr_storage));
-
-    acl->range_type = acl_parse_range_type(a, &p);
+    acl->range_type = acl_parse_range_type(address, &p);
     acl->address = allocator_strdup(allocator, address);
     if (!acl->address) {
         ods_log_error("[%s] unable to create acl: allocator_strdup() failed",
@@ -212,8 +210,6 @@ acl_create(allocator_type* allocator, char* address, char* port,
         }
     }
     acl->ixfr_disabled = 0;
-    /* tsig */
-    /* TODO */
     return acl;
 }
 

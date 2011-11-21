@@ -112,9 +112,9 @@ parse_addns_remote(allocator_type* allocator, const char* filename, char* expr)
             if (address) {
                 new_acl = acl_create(allocator, address, port, key);
                 if (!new_acl) {
-                   ods_log_error("[%s] unable to add server s:%s %s to list "
+                   ods_log_error("[%s] unable to add server %s:%s %s to list "
                        "%s: acl_create() failed", parser_str, address,
-                       port?port:"", (char*) expr);
+                       port?port:"", key?key:"", (char*) expr);
                 } else {
                    new_acl->next = acl;
                    acl = new_acl;

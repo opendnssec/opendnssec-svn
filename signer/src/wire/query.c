@@ -58,8 +58,15 @@ query_create(void)
         return NULL;
     }
     q->allocator = allocator;
+    q->buffer = NULL;
+    q->tsig_rr = NULL;
     q->buffer = buffer_create(allocator, PACKET_BUFFER_SIZE);
     if (!q->buffer) {
+        query_cleanup(q);
+        return NULL;
+    }
+    q->tsig_rr = tsig_rr_create(allocator);
+    if (!q->tsig_rr) {
         query_cleanup(q);
         return NULL;
     }
@@ -82,8 +89,10 @@ query_reset(query_type* q, size_t maxlen, int is_tcp)
     q->maxlen = maxlen;
     q->reserved_space = 0;
     buffer_clear(q->buffer);
-    /* edns */
-    /* tsig */
+    tsig_rr_reset(q->tsig_rr, NULL, NULL);
+    q->tsig_prepare_it = 1;
+    q->tsig_update_it = 1;
+    q->tsig_sign_it = 1;
     q->tcp = is_tcp;
     q->tcplen = 0;
     /* qname, qtype, qclass */
@@ -548,6 +557,37 @@ query_process_update(query_type* q)
 
 
 /**
+ * Process TSIG RR.
+ *
+ */
+static ldns_pkt_rcode
+query_process_tsig(query_type* q)
+{
+    if (!q || !q->tsig_rr) {
+        return LDNS_RCODE_SERVFAIL;
+    }
+    if (q->tsig_rr->status == TSIG_ERROR) {
+        return LDNS_RCODE_FORMERR;
+    }
+    if (q->tsig_rr->status == TSIG_OK) {
+        if (!tsig_rr_lookup(q->tsig_rr)) {
+            ods_log_error("[%s] tsig unknown key/algorithm", query_str);
+            return LDNS_RCODE_REFUSED;
+        }
+        buffer_set_limit(q->buffer, q->tsig_rr->position);
+        buffer_pkt_set_arcount(q->buffer, buffer_pkt_arcount(q->buffer)-1);
+        tsig_rr_prepare(q->tsig_rr);
+        tsig_rr_update(q->tsig_rr, q->buffer, buffer_limit(q->buffer));
+        if (!tsig_rr_verify(q->tsig_rr)) {
+            ods_log_error("[%s] bad tsig signature", query_str);
+            return LDNS_RCODE_REFUSED;
+        }
+    }
+    return LDNS_RCODE_NOERROR;
+}
+
+
+/**
  * Process query.
  *
  */
@@ -557,6 +597,7 @@ query_process(query_type* q, void* engine)
     ldns_status status = LDNS_STATUS_OK;
     ldns_pkt* pkt = NULL;
     ldns_rr* rr = NULL;
+    ldns_pkt_rcode rcode = LDNS_RCODE_NOERROR;
     ldns_pkt_opcode opcode = LDNS_PACKET_QUERY;
     ldns_rr_type qtype = LDNS_RR_TYPE_SOA;
     engine_type* e = (engine_type*) engine;
@@ -568,18 +609,18 @@ query_process(query_type* q, void* engine)
         return QUERY_DISCARDED; /* should not happen */
     }
     if (buffer_limit(q->buffer) < BUFFER_PKT_HEADER_SIZE) {
-        ods_log_error("[%s] drop query: packet too small", query_str);
+        ods_log_debug("[%s] drop query: packet too small", query_str);
         return QUERY_DISCARDED; /* too small */
     }
     if (buffer_pkt_qr(q->buffer)) {
-        ods_log_error("[%s] drop query: qr bit set", query_str);
+        ods_log_debug("[%s] drop query: qr bit set", query_str);
         return QUERY_DISCARDED; /* not a query */
     }
     /* parse packet */
     status = ldns_wire2pkt(&pkt, buffer_current(q->buffer),
         buffer_remaining(q->buffer));
     if (status != LDNS_STATUS_OK) {
-        ods_log_error("[%s] got bad packet: %s", query_str,
+        ods_log_debug("[%s] got bad packet: %s", query_str,
             ldns_get_errorstr_by_id(status));
         return query_formerr(q);
     }
@@ -595,12 +636,21 @@ query_process(query_type* q, void* engine)
     }
     lock_basic_unlock(&e->zonelist->zl_lock);
     if (!q->zone) {
+        ods_log_debug("[%s] zone not found", query_str);
         return query_servfail(q);
     }
     /* see if it is tsig signed */
-
-        /* process tsig */
-
+    if (!tsig_rr_find(q->tsig_rr, q->buffer)) {
+        ods_log_debug("[%s] got bad tsig", query_str);
+        return query_formerr(q);
+    }
+    /* process tsig */
+    ods_log_debug("[%s] tsig %s", query_str, tsig_strerror(q->tsig_rr->status));
+    rcode = query_process_tsig(q);
+    if (rcode != LDNS_RCODE_NOERROR) {
+        return query_error(q, rcode);
+    }
+    /* handle incoming request */
     opcode = ldns_pkt_get_opcode(pkt);
     qtype = ldns_rr_get_type(rr);
     ldns_pkt_free(pkt);
@@ -625,8 +675,30 @@ query_process(query_type* q, void* engine)
 void
 query_add_tsig(query_type* q)
 {
-    if (!q) {
+    if (!q || !q->tsig_rr) {
         return;
+    }
+    if (q->tsig_rr->status != TSIG_NOT_PRESENT) {
+         if (q->tsig_rr->status == TSIG_ERROR ||
+             q->tsig_rr->error_code != LDNS_RCODE_NOERROR) {
+             tsig_rr_error(q->tsig_rr);
+             tsig_rr_append(q->tsig_rr, q->buffer);
+             buffer_pkt_set_arcount(q->buffer,
+                 buffer_pkt_arcount(q->buffer)+1);
+         } else if (q->tsig_rr->status == TSIG_OK &&
+             q->tsig_rr->error_code == LDNS_RCODE_NOERROR) {
+             if (q->tsig_prepare_it)
+                 tsig_rr_prepare(q->tsig_rr);
+             if (q->tsig_update_it)
+                 tsig_rr_update(q->tsig_rr, q->buffer,
+                     buffer_position(q->buffer));
+             if (q->tsig_sign_it) {
+                 tsig_rr_sign(q->tsig_rr);
+                 tsig_rr_append(q->tsig_rr, q->buffer);
+                 buffer_pkt_set_arcount(q->buffer,
+                     buffer_pkt_arcount(q->buffer)+1);
+             }
+        }
     }
     return;
 }
