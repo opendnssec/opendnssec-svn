@@ -34,13 +34,14 @@
 #include "config.h"
 
 #ifdef HAVE_SSL
-#include "wire/tsig-openssl.h"
+#include "shared/log.h"
 #include "wire/tsig.h"
+#include "wire/tsig-openssl.h"
 
 static const char* tsig_str = "tsig-ssl";
 static void *create_context(allocator_type* allocator);
 static void init_context(void *context,
-                         tsig_algorithm_type *algorithm,
+                         tsig_algo_type *algorithm,
                          tsig_key_type *key);
 static void update(void *context, const void *data, size_t size);
 static void final(void *context, uint8_t *digest, size_t *size);
@@ -54,7 +55,7 @@ static int
 tsig_openssl_init_algorithm(allocator_type* allocator,
         const char* digest, const char* name, const char* wireformat)
 {
-    tsig_algorithm_type* algorithm = NULL;
+    tsig_algo_type* algorithm = NULL;
     const EVP_MD *hmac_algorithm = NULL;
     ods_log_assert(allocator);
     ods_log_assert(digest);
@@ -65,8 +66,8 @@ tsig_openssl_init_algorithm(allocator_type* allocator,
         ods_log_error("[%s] %s digest not available", tsig_str, digest);
         return 0;
     }
-    algorithm = (tsig_algorithm_type *) allocator_alloc(allocator,
-        sizeof(tsig_algorithm_type));
+    algorithm = (tsig_algo_type *) allocator_alloc(allocator,
+        sizeof(tsig_algo_type));
     algorithm->txt_name = name;
     algorithm->wf_name = ldns_dname_new_frm_str(wireformat);
     if (!algorithm->wf_name) {
@@ -74,13 +75,13 @@ tsig_openssl_init_algorithm(allocator_type* allocator,
             wireformat);
         return 0;
     }
-    algorithm->maximum_digest_size = EVP_MAX_MD_SIZE;
+    algorithm->max_digest_size = EVP_MAX_MD_SIZE;
     algorithm->data = hmac_algorithm;
-    algorithm->hmac_create_context = create_context;
-    algorithm->hmac_init_context = init_context;
+    algorithm->hmac_create = create_context;
+    algorithm->hmac_init = init_context;
     algorithm->hmac_update = update;
     algorithm->hmac_final = final;
-    tsig_add_algorithm(algorithm);
+    tsig_handler_add_algo(algorithm);
     return 1;
 }
 
@@ -93,20 +94,20 @@ ods_status
 tsig_handler_openssl_init(allocator_type* allocator)
 {
     OpenSSL_add_all_digests();
-    if (!tsig_openssl_init_algorithm(region, "md5", "hmac-md5",
+    if (!tsig_openssl_init_algorithm(allocator, "md5", "hmac-md5",
         "hmac-md5.sig-alg.reg.int.")) {
         return ODS_STATUS_ERR;
     }
 #ifdef HAVE_EVP_SHA1
-    if (!tsig_openssl_init_algorithm(region, "sha1", "hmac-sha1",
-        "hmac-sha1."))
+    if (!tsig_openssl_init_algorithm(allocator, "sha1", "hmac-sha1",
+        "hmac-sha1.")) {
         return ODS_STATUS_ERR;
     }
 #endif /* HAVE_EVP_SHA1 */
 
 #ifdef HAVE_EVP_SHA256
-    if (!tsig_openssl_init_algorithm(region, "sha256", "hmac-sha256",
-        "hmac-sha256."))
+    if (!tsig_openssl_init_algorithm(allocator, "sha256", "hmac-sha256",
+        "hmac-sha256.")) {
         return ODS_STATUS_ERR;
     }
 #endif /* HAVE_EVP_SHA256 */

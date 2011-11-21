@@ -10,6 +10,7 @@ AM_CPPFLAGS = \
 	-I$(top_builddir)/common \
 	-I$(srcdir)/../../libhsm/src \
 	-I$(builddir)/../../libhsm/src \
+	@SSL_INCLUDES@ \
 	@XML2_INCLUDES@ \
 	@LDNS_INCLUDES@
 
@@ -74,7 +75,7 @@ ods_signerd_SOURCES=		ods-signerd.c \
 
 ods_signerd_LDADD=		$(LIBHSM)
 ods_signerd_LDADD+=		$(LIBCOMPAT)
-ods_signerd_LDADD+=		@LDNS_LIBS@ @XML2_LIBS@ @PTHREAD_LIBS@ @RT_LIBS@
+ods_signerd_LDADD+=		@LDNS_LIBS@ @XML2_LIBS@ @PTHREAD_LIBS@ @RT_LIBS@ @SSL_LIBS@
 
 ods_signer_SOURCES=		ods-signer.c \
 				shared/allocator.c shared/allocator.h \
