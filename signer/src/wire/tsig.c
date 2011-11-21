@@ -138,8 +138,10 @@ tsig_handler_init(allocator_type* allocator)
     tsig_key_table = NULL;
     tsig_algo_table = NULL;
 #ifdef HAVE_SSL
+    ods_log_debug("[%s] init openssl", tsig_str);
     return tsig_handler_openssl_init(allocator);
 #endif
+    ods_log_debug("[%s] openssl disabled", tsig_str);
     return ODS_STATUS_OK;
 }
 
@@ -299,7 +301,7 @@ tsig_rr_parse(tsig_rr_type* trr, buffer_type* buffer)
     curpos = trr->position;
     if (!buffer_skip_dname(buffer)) {
         buffer_set_position(buffer, trr->position);
-        ods_log_debug("[%s] parse TSIG RR: skip key name failed", tsig_str);
+        ods_log_debug("[%s] parse: skip key name failed", tsig_str);
         return 0;
     }
     dname_len = buffer_position(buffer) - curpos;
@@ -308,12 +310,12 @@ tsig_rr_parse(tsig_rr_type* trr, buffer_type* buffer)
         (const void*) buffer_current(buffer));
     if (!trr->key_name) {
         buffer_set_position(buffer, trr->position);
-        ods_log_debug("[%s] parse TSIG RR: read key name failed", tsig_str);
+        ods_log_debug("[%s] parse: read key name failed", tsig_str);
         return 0;
     }
     buffer_set_position(buffer, curpos + dname_len);
     if (!buffer_available(buffer, 10)) {
-        ods_log_debug("[%s] parse TSIG RR: not enough available #1", tsig_str);
+        ods_log_debug("[%s] parse: not enough available", tsig_str);
         buffer_set_position(buffer, trr->position);
         return 0;
     }
@@ -321,8 +323,8 @@ tsig_rr_parse(tsig_rr_type* trr, buffer_type* buffer)
     klass = (ldns_rr_class) buffer_read_u16(buffer);
     if (type != LDNS_RR_TYPE_TSIG || klass != LDNS_RR_CLASS_ANY) {
         /* not present */
-        ods_log_debug("[%s] parse TSIG RR: not TSIG or not ANY, "
-            "but <%d, %d>", tsig_str, klass, type);
+        ods_log_debug("[%s] parse: not TSIG or not ANY", tsig_str,
+            klass, type);
         buffer_set_position(buffer, trr->position);
         return 1;
     }
@@ -332,13 +334,13 @@ tsig_rr_parse(tsig_rr_type* trr, buffer_type* buffer)
     trr->status = TSIG_ERROR;
     trr->error_code = LDNS_RCODE_FORMERR;
     if (ttl || !buffer_available(buffer, rdlen)) {
-        ods_log_debug("[%s] parse TSIG RR: TTL!=0 or RDLEN=0", tsig_str);
+        ods_log_debug("[%s] parse: TTL!=0 or RDLEN=0", tsig_str);
         buffer_set_position(buffer, trr->position);
         return 0;
     }
-    curpos = trr->position;
+    curpos = buffer_position(buffer);
     if (!buffer_skip_dname(buffer)) {
-        ods_log_debug("[%s] parse TSIG RR: skip algo name failed", tsig_str);
+        ods_log_debug("[%s] parse: skip algo name failed", tsig_str);
         buffer_set_position(buffer, trr->position);
         return 0;
     }
@@ -347,13 +349,13 @@ tsig_rr_parse(tsig_rr_type* trr, buffer_type* buffer)
     trr->algo_name = ldns_dname_new_frm_data(dname_len,
         (const void*) buffer_current(buffer));
     if (!trr->algo_name) {
-        ods_log_debug("[%s] parse TSIG RR: read algo name failed", tsig_str);
+        ods_log_debug("[%s] parse: read algo name failed", tsig_str);
         buffer_set_position(buffer, trr->position);
         return 0;
     }
     buffer_set_position(buffer, curpos + dname_len);
     if (!buffer_available(buffer, 10)) {
-        ods_log_debug("[%s] parse TSIG RR: not enough available #2", tsig_str);
+        ods_log_debug("[%s] parse: not enough available", tsig_str);
         buffer_set_position(buffer, trr->position);
         return 0;
     }
@@ -362,7 +364,7 @@ tsig_rr_parse(tsig_rr_type* trr, buffer_type* buffer)
     trr->signed_time_fudge = buffer_read_u16(buffer);
     trr->mac_size = buffer_read_u16(buffer);
     if (!buffer_available(buffer, trr->mac_size)) {
-        ods_log_debug("[%s] parse TSIG RR: wrong mac size", tsig_str);
+        ods_log_debug("[%s] parse: wrong mac size", tsig_str);
         buffer_set_position(buffer, trr->position);
         trr->mac_size = 0;
         return 0;
@@ -371,7 +373,7 @@ tsig_rr_parse(tsig_rr_type* trr, buffer_type* buffer)
         trr->mac_size, (const void*) buffer_current(buffer));
     buffer_skip(buffer, trr->mac_size);
     if (!buffer_available(buffer, 6)) {
-        ods_log_debug("[%s] parse TSIG RR: not enough available #3", tsig_str);
+        ods_log_debug("[%s] parse: not enough available", tsig_str);
         buffer_set_position(buffer, trr->position);
         return 0;
     }
@@ -379,7 +381,7 @@ tsig_rr_parse(tsig_rr_type* trr, buffer_type* buffer)
     trr->error_code = buffer_read_u16(buffer);
     trr->other_size = buffer_read_u16(buffer);
     if (!buffer_available(buffer, trr->other_size) || trr->other_size > 16) {
-        ods_log_debug("[%s] parse TSIG RR: not enough available #4", tsig_str);
+        ods_log_debug("[%s] parse: not enough available", tsig_str);
         trr->other_size = 0;
         buffer_set_position(buffer, trr->position);
         return 0;
@@ -407,20 +409,16 @@ tsig_rr_find(tsig_rr_type* trr, buffer_type* buffer)
     ods_log_assert(trr);
     ods_log_assert(buffer);
     if (buffer_pkt_arcount(buffer) == 0) {
-        ods_log_debug("[%s] find TSIG RR: ARCOUNT = 0", tsig_str);
         trr->status = TSIG_NOT_PRESENT;
         return 1;
     }
     saved_pos = buffer_position(buffer);
     rrcount = buffer_pkt_qdcount(buffer) + buffer_pkt_ancount(buffer) +
         buffer_pkt_nscount(buffer) + buffer_pkt_arcount(buffer);
-    ods_log_debug("[%s] find TSIG RR: RRCOUNT = %u", tsig_str, rrcount);
     buffer_set_position(buffer, BUFFER_PKT_HEADER_SIZE);
     for (i=0; i < rrcount - 1; i++) {
-        ods_log_debug("[%s] find TSIG RR: skip RR %u", tsig_str, i);
         if (!buffer_skip_rr(buffer, i < buffer_pkt_qdcount(buffer))) {
              buffer_set_position(buffer, saved_pos);
-             ods_log_debug("[%s] find TSIG RR: skip RR failed", tsig_str);
              return 0;
         }
     }
@@ -460,14 +458,16 @@ tsig_rr_lookup(tsig_rr_type* trr)
             break;
         }
     }
-    if (!algorithm || !key) {
+    if (!key || !algorithm) {
         /* algorithm or key is unknown, cannot authenticate. */
+        ods_log_debug("[%s] algorithm or key missing", tsig_str);
         trr->error_code = TSIG_ERROR_BADKEY;
         return 0;
     }
     if ((trr->algo && algorithm != trr->algo) ||
         (trr->key && key != trr->key)) {
         /* algorithm or key changed during a single connection, error. */
+        ods_log_debug("[%s] algorithm or key has changed", tsig_str);
         trr->error_code = TSIG_ERROR_BADKEY;
         return 0;
     }
@@ -486,6 +486,7 @@ tsig_rr_lookup(tsig_rr_type* trr)
             sizeof(uint16_t) + sizeof(uint32_t));
         write_uint16(trr->other_data, current_time_high);
         write_uint32(trr->other_data + 2, current_time_low);
+        ods_log_debug("[%s] bad time", tsig_str);
         return 0;
     }
     trr->algo = algorithm;

@@ -571,7 +571,7 @@ query_process_tsig(query_type* q)
     }
     if (q->tsig_rr->status == TSIG_OK) {
         if (!tsig_rr_lookup(q->tsig_rr)) {
-            ods_log_error("[%s] tsig unknown key/algorithm", query_str);
+            ods_log_debug("[%s] tsig unknown key/algorithm", query_str);
             return LDNS_RCODE_REFUSED;
         }
         buffer_set_limit(q->buffer, q->tsig_rr->position);
@@ -579,7 +579,7 @@ query_process_tsig(query_type* q)
         tsig_rr_prepare(q->tsig_rr);
         tsig_rr_update(q->tsig_rr, q->buffer, buffer_limit(q->buffer));
         if (!tsig_rr_verify(q->tsig_rr)) {
-            ods_log_error("[%s] bad tsig signature", query_str);
+            ods_log_debug("[%s] bad tsig signature", query_str);
             return LDNS_RCODE_REFUSED;
         }
     }

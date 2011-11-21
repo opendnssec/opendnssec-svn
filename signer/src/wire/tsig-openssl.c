@@ -94,11 +94,13 @@ ods_status
 tsig_handler_openssl_init(allocator_type* allocator)
 {
     OpenSSL_add_all_digests();
+    ods_log_debug("[%s] add md5", tsig_str);
     if (!tsig_openssl_init_algorithm(allocator, "md5", "hmac-md5",
         "hmac-md5.sig-alg.reg.int.")) {
         return ODS_STATUS_ERR;
     }
 #ifdef HAVE_EVP_SHA1
+    ods_log_debug("[%s] add sha1", tsig_str);
     if (!tsig_openssl_init_algorithm(allocator, "sha1", "hmac-sha1",
         "hmac-sha1.")) {
         return ODS_STATUS_ERR;
@@ -106,6 +108,7 @@ tsig_handler_openssl_init(allocator_type* allocator)
 #endif /* HAVE_EVP_SHA1 */
 
 #ifdef HAVE_EVP_SHA256
+    ods_log_debug("[%s] add sha256", tsig_str);
     if (!tsig_openssl_init_algorithm(allocator, "sha256", "hmac-sha256",
         "hmac-sha256.")) {
         return ODS_STATUS_ERR;
