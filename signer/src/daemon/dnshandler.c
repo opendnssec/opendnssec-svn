@@ -125,6 +125,7 @@ dnshandler_start(dnshandler_type* dnshandler)
     if (status != ODS_STATUS_OK) {
         ods_log_error("[%s] unable to start: sock_listen() "
             "failed (%s)", dnsh_str, ods_status2str(status));
+        dnshandler->thread_id = 0;
         engine->need_to_exit = 1;
         return;
     }
@@ -137,6 +138,7 @@ dnshandler_start(dnshandler_type* dnshandler)
         if (!data) {
             ods_log_error("[%s] unable to start: allocator_alloc() "
                 "failed", dnsh_str);
+            dnshandler->thread_id = 0;
             engine->need_to_exit = 1;
             break;
         }
@@ -149,6 +151,7 @@ dnshandler_start(dnshandler_type* dnshandler)
             ods_log_error("[%s] unable to start: allocator_alloc() "
                 "failed", dnsh_str);
             allocator_deallocate(dnshandler->allocator, (void*)data);
+            dnshandler->thread_id = 0;
             engine->need_to_exit = 1;
             break;
         }
@@ -173,6 +176,7 @@ dnshandler_start(dnshandler_type* dnshandler)
         if (!data) {
             ods_log_error("[%s] unable to start: allocator_alloc() "
                 "failed", dnsh_str);
+            dnshandler->thread_id = 0;
             engine->need_to_exit = 1;
             return;
         }
@@ -225,7 +229,7 @@ dnshandler_start(dnshandler_type* dnshandler)
 void
 dnshandler_signal(dnshandler_type* dnshandler)
 {
-    if (dnshandler) {
+    if (dnshandler && dnshandler->thread_id) {
         ods_thread_kill(dnshandler->thread_id, SIGHUP);
     }
     return;

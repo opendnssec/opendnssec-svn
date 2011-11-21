@@ -44,6 +44,7 @@
 #include "shared/status.h"
 #include "shared/util.h"
 #include "signer/zonelist.h"
+#include "wire/tsig.h"
 
 #include <errno.h>
 #include <libhsm.h>
@@ -157,7 +158,7 @@ self_pipe_trick(engine_type* engine)
     ods_log_assert(engine);
     ods_log_assert(engine->cmdhandler);
     sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (sockfd <= 0) {
+    if (sockfd < 0) {
         ods_log_error("[%s] unable to connect to command handler: "
             "socket() failed (%s)", engine_str, strerror(errno));
         return 1;
@@ -234,7 +235,7 @@ engine_start_dnshandler(engine_type* engine)
 static void
 engine_stop_dnshandler(engine_type* engine)
 {
-    if (!engine || !engine->dnshandler) {
+    if (!engine || !engine->dnshandler || !engine->dnshandler->thread_id) {
         return;
     }
     ods_log_debug("[%s] stop dnshandler", engine_str);
@@ -558,6 +559,7 @@ engine_setup(engine_type* engine)
     engine_start_cmdhandler(engine);
     engine_start_dnshandler(engine);
     engine_start_xfrhandler(engine);
+    tsig_handler_init(engine->allocator);
     /* write pidfile */
     if (util_write_pidfile(engine->config->pid_filename, engine->pid) == -1) {
         hsm_close();
