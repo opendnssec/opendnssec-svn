@@ -47,7 +47,8 @@ static const char* parser_str = "parser";
  *
  */
 static acl_type*
-parse_addns_remote(allocator_type* allocator, const char* filename, char* expr)
+parse_addns_remote(allocator_type* allocator, const char* filename,
+    tsig_type* tsig, char* expr)
 {
     acl_type* acl = NULL;
     acl_type* new_acl = NULL;
@@ -110,7 +111,7 @@ parse_addns_remote(allocator_type* allocator, const char* filename, char* expr)
                 curNode = curNode->next;
             }
             if (address) {
-                new_acl = acl_create(allocator, address, port, key);
+                new_acl = acl_create(allocator, address, port, key, tsig);
                 if (!new_acl) {
                    ods_log_error("[%s] unable to add server %s:%s %s to list "
                        "%s: acl_create() failed", parser_str, address,
@@ -142,7 +143,8 @@ parse_addns_remote(allocator_type* allocator, const char* filename, char* expr)
  *
  */
 static acl_type*
-parse_addns_acl(allocator_type* allocator, const char* filename, char* expr)
+parse_addns_acl(allocator_type* allocator, const char* filename,
+    tsig_type* tsig, char* expr)
 {
     acl_type* acl = NULL;
     acl_type* new_acl = NULL;
@@ -200,7 +202,7 @@ parse_addns_acl(allocator_type* allocator, const char* filename, char* expr)
                 curNode = curNode->next;
             }
             if (prefix) {
-                new_acl = acl_create(allocator, prefix, NULL, key);
+                new_acl = acl_create(allocator, prefix, NULL, key, tsig);
                 if (!new_acl) {
                    ods_log_error("[%s] unable to add acl for %s %s to list "
                        "%s: acl_create() failed", parser_str, prefix,
@@ -324,9 +326,10 @@ parse_addns_tsig_static(allocator_type* allocator, const char* filename,
  *
  */
 acl_type*
-parse_addns_request_xfr(allocator_type* allocator, const char* filename)
+parse_addns_request_xfr(allocator_type* allocator, const char* filename,
+    tsig_type* tsig)
 {
-    return parse_addns_remote(allocator, filename,
+    return parse_addns_remote(allocator, filename, tsig,
         "//Adapter/DNS/Inbound/RequestTransfer/Remote"
         );
 }
@@ -337,9 +340,10 @@ parse_addns_request_xfr(allocator_type* allocator, const char* filename)
  *
  */
 acl_type*
-parse_addns_allow_notify(allocator_type* allocator, const char* filename)
+parse_addns_allow_notify(allocator_type* allocator, const char* filename,
+    tsig_type* tsig)
 {
-    return parse_addns_acl(allocator, filename,
+    return parse_addns_acl(allocator, filename, tsig,
         "//Adapter/DNS/Inbound/AllowNotify/ACL"
         );
 }
@@ -350,9 +354,10 @@ parse_addns_allow_notify(allocator_type* allocator, const char* filename)
  *
  */
 acl_type*
-parse_addns_provide_xfr(allocator_type* allocator, const char* filename)
+parse_addns_provide_xfr(allocator_type* allocator, const char* filename,
+    tsig_type* tsig)
 {
-    return parse_addns_acl(allocator, filename,
+    return parse_addns_acl(allocator, filename, tsig,
         "//Adapter/DNS/Outbound/ProvideTransfer/ACL"
         );
 }
@@ -363,9 +368,10 @@ parse_addns_provide_xfr(allocator_type* allocator, const char* filename)
  *
  */
 acl_type*
-parse_addns_do_notify(allocator_type* allocator, const char* filename)
+parse_addns_do_notify(allocator_type* allocator, const char* filename,
+    tsig_type* tsig)
 {
-    return parse_addns_remote(allocator, filename,
+    return parse_addns_remote(allocator, filename, tsig,
         "//Adapter/DNS/Outbound/Notify"
         );
 }

@@ -33,6 +33,7 @@
 
 #include "config.h"
 #include "shared/log.h"
+#include "shared/file.h"
 #include "shared/status.h"
 #include "wire/acl.h"
 
@@ -125,7 +126,7 @@ acl_parse_family(const char* a)
  */
 acl_type*
 acl_create(allocator_type* allocator, char* address, char* port,
-    char* tsig_name)
+    char* tsig_name, tsig_type* tsig)
 {
     ods_status status = ODS_STATUS_OK;
     acl_type* acl = NULL;
@@ -142,9 +143,18 @@ acl_create(allocator_type* allocator, char* address, char* port,
             "failed", acl_str);
         return NULL;
     }
+    acl->address = NULL;
     acl->next = NULL;
     acl->tsig = NULL;
-    acl->tsig_name = allocator_strdup(allocator, tsig_name);
+    if (tsig_name) {
+        acl->tsig = tsig_lookup_by_name(tsig, tsig_name);
+        if (!acl->tsig) {
+            ods_log_error("[%s] unable to create acl: tsig %s not found",
+                acl_str, tsig_name);
+            acl_cleanup(acl, allocator);
+            return NULL;
+        }
+    }
     acl->port = 0;
     if (port) {
         acl->port = atoi((const char*) port);
@@ -361,14 +371,40 @@ acl_addr_matches(acl_type* acl, struct sockaddr_storage* addr)
  *
  */
 static int
-acl_tsig_matches(acl_type* acl, void* tsig)
+acl_tsig_matches(acl_type* acl, tsig_rr_type* tsig)
 {
-    if (!acl) {
-        return 0;
+    if (!acl || !tsig || !tsig->key_name || !tsig->algo) {
+        ods_log_debug("[%s] no match: no acl or tsig", acl_str);
+        return 0; /* missing required elements */
     }
-    if (!tsig) {
-        /* no tsig used */
-        return 1;
+    if (!acl->tsig) {
+        if (tsig->status == TSIG_NOT_PRESENT) {
+            return 1;
+        }
+        ods_log_debug("[%s] no match: tsig present but no config", acl_str);
+        return 0; /* TSIG present but no config */
+    }
+    if (tsig->status != TSIG_OK) {
+        ods_log_debug("[%s] no match: tsig %s", acl_str,
+            tsig_strerror(tsig->status));
+        return 0; /* query has no TSIG */
+    }
+    if (tsig->error_code != LDNS_RCODE_NOERROR) {
+        ods_log_debug("[%s] no match: tsig error %d", acl_str,
+            tsig->error_code);
+        return 0; /* query has bork TSIG */
+    }
+    if (!acl->tsig->key) {
+        ods_log_debug("[%s] no match: no config", acl_str);
+        return 0; /* missing TSIG config */
+    }
+    if (ldns_dname_compare(tsig->key_name, acl->tsig->key->dname) != 0) {
+        ods_log_debug("[%s] no match: key names not the same", acl_str);
+        return 0; /* wrong key name */
+    }
+    if (ods_strlowercmp(tsig->algo->txt_name, acl->tsig->algorithm) != 0) {
+        ods_log_debug("[%s] no match: algorithms not the same", acl_str);
+        return 0; /* wrong algorithm name */
     }
     /* tsig matches */
     return 1;
@@ -401,12 +437,11 @@ addr2ip(struct sockaddr_storage addr, char* ip, size_t len)
  *
  */
 acl_type*
-acl_find(acl_type* acl, struct sockaddr_storage* addr, void* tsig)
+acl_find(acl_type* acl, struct sockaddr_storage* addr, tsig_rr_type* trr)
 {
     acl_type* find = acl;
-
     while (find) {
-        if (acl_addr_matches(find, addr) && acl_tsig_matches(find, tsig)) {
+        if (acl_addr_matches(find, addr) && acl_tsig_matches(find, trr)) {
             ods_log_debug("[%s] match %s", acl_str, find->address);
             return find;
         }
@@ -444,7 +479,6 @@ acl_cleanup(acl_type* acl, allocator_type* allocator)
     }
     acl_cleanup(acl->next, allocator);
     allocator_deallocate(allocator, (void*) acl->address);
-    allocator_deallocate(allocator, (void*) acl->tsig_name);
     allocator_deallocate(allocator, (void*) acl);
     return;
 }

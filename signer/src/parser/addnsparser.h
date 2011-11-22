@@ -44,41 +44,45 @@
  * Parse <RequestTransfer/>.
  * \param[in] allocator memory allocator
  * \param[in] filename filename
+ * \param[in] tsig list of TSIGs
  * \return acl_type* ACL
  *
  */
 acl_type* parse_addns_request_xfr(allocator_type* allocator,
-    const char* filename);
+    const char* filename, tsig_type* tsig);
 
 /**
  * Parse <AllowNotify/>.
  * \param[in] allocator memory allocator
  * \param[in] filename filename
+ * \param[in] tsig list of TSIGs
  * \return acl_type* ACL
  *
  */
 acl_type* parse_addns_allow_notify(allocator_type* allocator,
-    const char* filename);
+    const char* filename, tsig_type* tsig);
 
 /**
  * Parse <ProvideTransfer/>.
  * \param[in] allocator memory allocator
  * \param[in] filename filename
+ * \param[in] tsig list of TSIGs
  * \return acl_type* ACL
  *
  */
 acl_type* parse_addns_provide_xfr(allocator_type* allocator,
-    const char* filename);
+    const char* filename, tsig_type* tsig);
 
 /**
  * Parse <Notify/>.
  * \param[in] allocator memory allocator
  * \param[in] filename filename
+ * \param[in] tsig list of TSIGs
  * \return acl_type* ACL
  *
  */
 acl_type* parse_addns_do_notify(allocator_type* allocator,
-    const char* filename);
+    const char* filename, tsig_type* tsig);
 
 /**
  * Parse <TSIG/>.

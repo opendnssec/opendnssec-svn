@@ -113,7 +113,7 @@ struct tsig_struct {
     const char* name;
     const char* algorithm;
     const char* secret;
-    void* key;
+    tsig_key_type* key;
 };
 
 /**
@@ -179,6 +179,15 @@ void tsig_handler_add_algo(tsig_algo_type* algo);
  */
 tsig_type* tsig_create(allocator_type* allocator, char* name, char* algo,
     char* secret);
+
+/**
+ * Lookup TSIG by key name.
+ * \param[in] tsig TSIG list
+ * \param[in] naem TSIG name
+ * \return tsig_type* TSIG
+ *
+ */
+tsig_type* tsig_lookup_by_name(tsig_type* tsig, const char* name);
 
 /**
  * Create new TSIG RR.

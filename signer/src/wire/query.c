@@ -284,7 +284,7 @@ query_process_notify(query_type* q, ldns_rr_type qtype, void* engine)
     }
     ods_log_assert(q->zone->adinbound->config);
     dnsin = (dnsin_type*) q->zone->adinbound->config;
-    if (!acl_find(dnsin->allow_notify, &q->addr, NULL)) {
+    if (!acl_find(dnsin->allow_notify, &q->addr, q->tsig_rr)) {
         return query_refused(q);
     }
     limit = buffer_limit(q->buffer);
@@ -518,7 +518,7 @@ query_process_query(query_type* q, ldns_rr_type qtype)
     }
     ods_log_assert(q->zone->adoutbound->config);
     dnsout = (dnsout_type*) q->zone->adoutbound->config;
-    if (!acl_find(dnsout->provide_xfr, &q->addr, NULL)) {
+    if (!acl_find(dnsout->provide_xfr, &q->addr, q->tsig_rr)) {
         return query_refused(q);
     }
     /* zone transfer? */

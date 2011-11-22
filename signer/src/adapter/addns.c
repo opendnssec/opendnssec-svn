@@ -420,11 +420,11 @@ dnsin_read(dnsin_type* addns, const char* filename)
     }
     fd = ods_fopen(filename, NULL, "r");
     if (fd) {
-        addns->request_xfr = parse_addns_request_xfr(addns->allocator,
-            filename);
-        addns->allow_notify = parse_addns_allow_notify(addns->allocator,
-            filename);
         addns->tsig = parse_addns_tsig(addns->allocator, filename);
+        addns->request_xfr = parse_addns_request_xfr(addns->allocator,
+            filename, addns->tsig);
+        addns->allow_notify = parse_addns_allow_notify(addns->allocator,
+            filename, addns->tsig);
         ods_fclose(fd);
         return ODS_STATUS_OK;
     }
@@ -495,10 +495,11 @@ dnsout_read(dnsout_type* addns, const char* filename)
     }
     fd = ods_fopen(filename, NULL, "r");
     if (fd) {
-        addns->provide_xfr = parse_addns_provide_xfr(addns->allocator,
-            filename);
-        addns->do_notify = parse_addns_do_notify(addns->allocator, filename);
         addns->tsig = parse_addns_tsig(addns->allocator, filename);
+        addns->provide_xfr = parse_addns_provide_xfr(addns->allocator,
+            filename, addns->tsig);
+        addns->do_notify = parse_addns_do_notify(addns->allocator, filename,
+            addns->tsig);
         ods_fclose(fd);
         return ODS_STATUS_OK;
     }

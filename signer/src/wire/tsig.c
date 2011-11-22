@@ -34,6 +34,7 @@
 #include "config.h"
 #include "compat.h"
 #include "shared/duration.h"
+#include "shared/file.h"
 #include "shared/log.h"
 #include "shared/status.h"
 #include "shared/util.h"
@@ -219,6 +220,28 @@ tsig_create(allocator_type* allocator, char* name, char* algo, char* secret)
         return NULL;
     }
     return tsig;
+}
+
+
+/**
+ * Lookup TSIG by key name.
+ *
+ */
+tsig_type*
+tsig_lookup_by_name(tsig_type* tsig, const char* name)
+{
+    tsig_type* find = NULL;
+    if (!tsig || !name) {
+        return NULL;
+    }
+    find = tsig;
+    while (find) {
+        if (ods_strlowercmp(find->name, name) == 0) {
+            return find;
+        }
+        find = find->next;
+    }
+    return NULL;
 }
 
 

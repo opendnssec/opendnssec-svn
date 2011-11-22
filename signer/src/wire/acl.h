@@ -37,6 +37,7 @@
 #include "config.h"
 #include "shared/allocator.h"
 #include "wire/listener.h"
+#include "wire/tsig.h"
 
 
 /**
@@ -67,7 +68,7 @@ struct acl_struct {
     acl_range_type range_type;
     /* tsig */
     const char* tsig_name;
-    void* tsig;
+    tsig_type* tsig;
     /* cache */
     time_t ixfr_disabled;
 };
@@ -78,11 +79,12 @@ struct acl_struct {
  * \param[in] address IP address
  * \param[in] port port
  * \param[in] tsig_name TSIG name
+ * \param[in] tsig list of TSIGs
  * \return acl_type* ACL
  *
  */
 acl_type* acl_create(allocator_type* allocator, char* address,
-    char* port, char* tsig_name);
+    char* port, char* tsig_name, tsig_type* tsig);
 
 /**
  * Find ACL.
@@ -92,7 +94,8 @@ acl_type* acl_create(allocator_type* allocator, char* address,
  * \return acl_type* ACL that matches
  *
  */
-acl_type* acl_find(acl_type* acl, struct sockaddr_storage* addr, void* tsig);
+acl_type* acl_find(acl_type* acl, struct sockaddr_storage* addr,
+    tsig_rr_type* tsig);
 
 /**
  * Log ACL.
