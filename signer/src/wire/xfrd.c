@@ -128,6 +128,7 @@ xfrd_create(void* xfrhandler, void* zone)
     xfrd->serial_notify_acquired = 0;
     xfrd->soa_retry = 300; /* use sane default values */
     xfrd->soa_refresh = 3600; /* use sane default values */
+    xfrd->query_id = 0;
     xfrd->msg_seq_nr = 0;
     xfrd->msg_rr_count = 0;
     xfrd->msg_old_serial = 0;
@@ -137,7 +138,11 @@ xfrd_create(void* xfrhandler, void* zone)
     xfrd->udp_waiting_next = NULL;
     xfrd->tcp_waiting = 0;
     xfrd->tcp_waiting_next = NULL;
-
+    xfrd->tsig_rr = tsig_rr_create(allocator);
+    if (!xfrd->tsig_rr) {
+        xfrd_cleanup(xfrd);
+        return NULL;
+    }
     xfrd->handler.fd = -1;
     xfrd->handler.user_data = (void*) xfrd;
     xfrd->handler.timeout = 0;
@@ -584,6 +589,7 @@ xfrd_parse_packet(xfrd_type* xfrd, buffer_type* buffer)
         }
     }
     /* check tsig */
+    
 
     /* skip header and question section */
     buffer_skip(buffer, BUFFER_PKT_HEADER_SIZE);
@@ -1513,6 +1519,7 @@ xfrd_cleanup(xfrd_type* xfrd)
     allocator = xfrd->allocator;
     serial_lock = xfrd->serial_lock;
     rw_lock = xfrd->rw_lock;
+    tsig_rr_cleanup(xfrd->tsig_rr);
     allocator_deallocate(allocator, (void*) xfrd);
     allocator_cleanup(allocator);
     lock_basic_destroy(&serial_lock);

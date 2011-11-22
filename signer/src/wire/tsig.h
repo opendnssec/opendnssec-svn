@@ -295,6 +295,13 @@ const char* tsig_strerror(tsig_status status);
 void tsig_rr_free(tsig_rr_type* trr);
 
 /**
+ * Cleanup TSIG RR
+ * \param[in] trr tsig rr
+ *
+ */
+void tsig_rr_cleanup(tsig_rr_type* trr);
+
+/**
  * Clean up TSIG.
  * \param[in] tsig TSIG
  * \param[in] allocator memory allocator

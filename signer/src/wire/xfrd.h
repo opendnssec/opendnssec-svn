@@ -40,6 +40,7 @@
 #include "shared/status.h"
 #include "wire/acl.h"
 #include "wire/netio.h"
+#include "wire/tsig.h"
 
 #include <stdint.h>
 #include <time.h>
@@ -105,6 +106,7 @@ struct xfrd_struct
     uint32_t msg_new_serial;
     size_t msg_rr_count;
     uint8_t msg_is_ixfr;
+    tsig_rr_type* tsig_rr;
 
     xfrd_type* tcp_waiting_next;
     xfrd_type* udp_waiting_next;

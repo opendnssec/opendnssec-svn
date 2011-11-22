@@ -717,6 +717,7 @@ query_cleanup(query_type* q)
     }
     allocator = q->allocator;
     buffer_cleanup(q->buffer, allocator);
+    tsig_rr_cleanup(q->tsig_rr);
     allocator_deallocate(allocator, (void*)q);
     allocator_cleanup(allocator);
     return;

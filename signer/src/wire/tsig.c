@@ -793,6 +793,24 @@ tsig_rr_free(tsig_rr_type* trr)
 
 
 /**
+ * Cleanup TSIG RR.
+ *
+ */
+void
+tsig_rr_cleanup(tsig_rr_type* trr)
+{
+    allocator_type* allocator = NULL;
+    if (!trr || !trr->allocator) {
+        return;
+    }
+    tsig_rr_free(trr);
+    allocator = trr->allocator;
+    allocator_deallocate(allocator, (void*) trr);
+    return;
+}
+
+
+/**
  * Clean up TSIG key.
  *
  */
