@@ -36,6 +36,7 @@
 
 #include "config.h"
 #include "shared/allocator.h"
+#include "shared/log.h"
 
 #include <ldns/ldns.h>
 #include <stdint.h>
@@ -661,7 +662,7 @@ write_uint16(void *dst, uint16_t data)
 }
 
 static inline void
-write_uint32(void *dst, uint16_t data)
+write_uint32(void *dst, uint32_t data)
 {
 #ifdef ALLOW_UNALIGNED_ACCESSES
     * (uint32_t *) dst = htonl(data);
