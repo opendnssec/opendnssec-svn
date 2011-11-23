@@ -45,6 +45,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#define XFRD_TSIG_MAX_UNSIGNED 100
+
 static const char* xfrd_str = "xfrd";
 
 static void xfrd_handle_zone(netio_type* netio,
@@ -323,6 +325,105 @@ xfrd_acl_sockaddr_to(acl_type* acl, struct sockaddr_storage *to)
 
 
 /**
+ * Sign transfer request.
+ *
+ */
+static void
+xfrd_tsig_sign(xfrd_type* xfrd, buffer_type* buffer)
+{
+    tsig_algo_type* algo = NULL;
+    if (!xfrd || !xfrd->tsig_rr || !xfrd->master || !xfrd->master->tsig ||
+        !xfrd->master->tsig->key || !buffer) {
+        return; /* no tsig configured */
+    }
+    algo = tsig_lookup_algo(xfrd->master->tsig->algorithm);
+    if (!algo) {
+        ods_log_error("[%s] unable to sign request: tsig unknown algorithm "
+            "%s", xfrd_str, xfrd->master->tsig->algorithm);
+        return;
+    }
+    ods_log_assert(algo);
+    tsig_rr_reset(xfrd->tsig_rr, algo, xfrd->master->tsig->key);
+    xfrd->tsig_rr->original_query_id = buffer_pkt_id(buffer);
+    xfrd->tsig_rr->algo_name = ldns_rdf_clone(xfrd->tsig_rr->algo->wf_name);
+    xfrd->tsig_rr->key_name = ldns_rdf_clone(xfrd->tsig_rr->key->dname);
+    ods_log_debug("[%s] tsig sign query with %s %s", xfrd_str,
+        ldns_rdf2str(xfrd->tsig_rr->key_name),
+        ldns_rdf2str(xfrd->tsig_rr->algo_name));
+    tsig_rr_prepare(xfrd->tsig_rr);
+    tsig_rr_update(xfrd->tsig_rr, buffer, buffer_position(buffer));
+    tsig_rr_sign(xfrd->tsig_rr);
+    ods_log_debug("[%s] tsig append rr to request id=%u", xfrd_str,
+        buffer_pkt_id(buffer));
+    tsig_rr_append(xfrd->tsig_rr, buffer);
+    buffer_pkt_set_arcount(buffer, buffer_pkt_arcount(buffer)+1);
+    tsig_rr_prepare(xfrd->tsig_rr);
+    return;
+}
+
+
+/**
+ * Process TSIG in transfer.
+ *
+ */
+static int
+xfrd_tsig_process(xfrd_type* xfrd, buffer_type* buffer)
+{
+    zone_type* zone = NULL;
+    int have_tsig = 0;
+    if (!xfrd || !xfrd->tsig_rr || !xfrd->master || !xfrd->master->tsig ||
+        !xfrd->master->tsig->key || !buffer) {
+        return 1; /* no tsig configured */
+    }
+    zone = (zone_type*) xfrd->zone;
+    ods_log_assert(zone);
+    ods_log_assert(zone->name);
+    ods_log_assert(xfrd->master->address);
+    if (!tsig_rr_find(xfrd->tsig_rr, buffer)) {
+        ods_log_error("[%s] unable to process tsig: xfr zone %s from %s "
+            "has malformed tsig rr", xfrd_str, zone->name,
+        xfrd->master->address);
+        return 0;
+    }
+    if (xfrd->tsig_rr->status == TSIG_OK) {
+       have_tsig = 1;
+    }
+    if (have_tsig) {
+        /* strip the TSIG resource record off... */
+        buffer_set_limit(buffer, xfrd->tsig_rr->position);
+        buffer_pkt_set_arcount(buffer, buffer_pkt_arcount(buffer)-1);
+    }
+    /* keep running the TSIG hash */
+    tsig_rr_update(xfrd->tsig_rr, buffer, buffer_limit(buffer));
+    if (have_tsig) {
+        if (!tsig_rr_verify(xfrd->tsig_rr)) {
+            ods_log_error("[%s] unable to process tsig: xfr zone %s from %s "
+                "has bad tsig signature", xfrd_str, zone->name,
+                xfrd->master->address);
+            return 0;
+        }
+        /* prepare for next tsigs */
+        tsig_rr_prepare(xfrd->tsig_rr);
+    } else if (xfrd->tsig_rr->update_since_last_prepare >
+          XFRD_TSIG_MAX_UNSIGNED) {
+          /* we allow a number of non-tsig signed packets */
+          ods_log_error("[%s] unable to process tsig: xfr zone %s, from %s "
+              "has too many consecutive packets without tsig", xfrd_str,
+              zone->name, xfrd->master->address);
+          return 0;
+    }
+    if (!have_tsig && xfrd->msg_seq_nr == 0) {
+            ods_log_error("[%s] unable to process tsig: xfr zone %s from %s "
+                "has no tsig in first packet of reply", xfrd_str,
+                zone->name, xfrd->master->address);
+          return 0;
+    }
+    /* process TSIG ok */
+    return 1;
+}
+
+
+/**
  * Commit answer on disk.
  *
  */
@@ -589,8 +690,11 @@ xfrd_parse_packet(xfrd_type* xfrd, buffer_type* buffer)
         }
     }
     /* check tsig */
-    
-
+    if (!xfrd_tsig_process(xfrd, buffer)) {
+        ods_log_error("[%s] dropped packet: zone %s received bad tsig "
+            "from %s", xfrd_str, zone->name, xfrd->master->address);
+        return XFRD_PKT_BAD;
+    }
     /* skip header and question section */
     buffer_skip(buffer, BUFFER_PKT_HEADER_SIZE);
     qdcount = buffer_pkt_qdcount(buffer);
@@ -695,7 +799,6 @@ xfrd_parse_packet(xfrd_type* xfrd, buffer_type* buffer)
     if (!done) {
         return XFRD_PKT_MORE;
     }
-    /* tsig */
     return XFRD_PKT_XFR;
 }
 
@@ -968,8 +1071,9 @@ xfrd_tcp_xfr(xfrd_type* xfrd, tcp_set_type* set)
     } else {
         ods_log_debug("[%s] zone %s request ixfr to %s", xfrd_str,
             zone->name, xfrd->master->address);
-        /* xfrd_setup_packet(tcp->packet, TYPE_IXFR, CLASS_IN, zone->apex); */
-        /* NSCOUNT_SET(tcp->packet, 1); */
+        buffer_pkt_query(tcp->packet, zone->apex, LDNS_RR_TYPE_IXFR,
+            zone->klass);
+        /* buffer_pkt_set_nscount(tcp->packet, 1); */
         /* xfrd_write_soa_buffer(tcp->packet, zone->apex, &zone->soa_disk); */
     }
     /* make packet */
@@ -979,8 +1083,9 @@ xfrd_tcp_xfr(xfrd_type* xfrd, tcp_set_type* set)
     xfrd->msg_old_serial = 0;
     xfrd->msg_new_serial = 0;
     xfrd->msg_is_ixfr = 0;
-    /* tsig sign */
+    xfrd_tsig_sign(xfrd, tcp->packet);
     buffer_flip(tcp->packet);
+    buffer_pkt_print(stdout, tcp->packet);
     tcp->msglen = buffer_limit(tcp->packet);
     ods_log_debug("[%s] zone %s sending tcp query id=%d", xfrd_str,
         zone->name, xfrd->query_id);
@@ -1165,8 +1270,9 @@ xfrd_udp_send_request_ixfr(xfrd_type* xfrd)
     xfrd->msg_is_ixfr = 0;
     /* NSCOUNT_SET(tcp->packet, 1); */
     /* xfrd_write_soa_buffer(tcp->packet, zone->apex, &zone->soa_disk); */
-    /* tsig sign */
+    xfrd_tsig_sign(xfrd, xfrhandler->packet);
     buffer_flip(xfrhandler->packet);
+    buffer_pkt_print(stdout, xfrhandler->packet);
     xfrd_set_timer(xfrd, xfrd_time(xfrd) + XFRD_UDP_TIMEOUT);
     ods_log_debug("[%s] zone %s sending udp query id=%d qtype=IXFR to %s",
         xfrd_str, zone->name, xfrd->query_id, xfrd->master->address);

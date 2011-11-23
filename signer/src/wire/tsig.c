@@ -246,6 +246,23 @@ tsig_lookup_by_name(tsig_type* tsig, const char* name)
 
 
 /**
+ * Lookup TSIG algorithm by name.
+ *
+ */
+tsig_algo_type*
+tsig_lookup_algo(const char* name)
+{
+    tsig_algo_table_type* entry = NULL;
+    for (entry = tsig_algo_table; entry; entry = entry->next) {
+        if (ods_strlowercmp(name, entry->algorithm->txt_name) == 0) {
+            return entry->algorithm;
+        }
+    }
+    return NULL;
+}
+
+
+/**
  * Create new TSIG RR.
  *
  */
@@ -588,6 +605,7 @@ tsig_rr_digest_variables(tsig_rr_type* trr, int tsig_timers_only)
     uint16_t other_size = htons(trr->other_size);
     ods_log_assert(trr->context);
     ods_log_assert(trr->algo);
+    ods_log_assert(trr->key_name);
     if (!tsig_timers_only) {
         ods_log_assert(trr->key_name);
         ods_log_assert(trr->algo_name);
@@ -623,7 +641,7 @@ tsig_rr_digest_variables(tsig_rr_type* trr, int tsig_timers_only)
 void
 tsig_rr_sign(tsig_rr_type* trr)
 {
-    uint64_t current_time = (uint64_t) time(NULL);
+    uint64_t current_time = (uint64_t) time_now();
     ods_log_assert(trr);
     ods_log_assert(trr->context);
     trr->signed_time_high = (uint16_t) (current_time >> 32);
@@ -683,7 +701,7 @@ tsig_rr_append(tsig_rr_type* trr, buffer_type* buffer)
     rdlength_pos = buffer_position(buffer);
     buffer_skip(buffer, sizeof(uint16_t));
     if (trr->algo_name) {
-        buffer_write_rdf(buffer, trr->key_name);
+        buffer_write_rdf(buffer, trr->algo_name);
     } else {
         buffer_write_u8(buffer, 0);
     }

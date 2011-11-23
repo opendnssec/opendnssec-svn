@@ -190,6 +190,14 @@ tsig_type* tsig_create(allocator_type* allocator, char* name, char* algo,
 tsig_type* tsig_lookup_by_name(tsig_type* tsig, const char* name);
 
 /**
+ * Lookup TSIG algorithm by name.
+ * \param[in] name algorithm name
+ * \return tsig_algo_type* TSIG algorithm
+ *
+ */
+tsig_algo_type* tsig_lookup_algo(const char* name);
+
+/**
  * Create new TSIG RR.
  * \param[in] allocator memory allocator
  * \return tsig_rr_type* TSIG RR
