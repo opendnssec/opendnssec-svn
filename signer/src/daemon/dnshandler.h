@@ -44,6 +44,7 @@
 
 #include <stdint.h>
 
+#define ODS_SE_NOTIFY_CMD "NOTIFY"
 #define ODS_SE_MAX_HANDLERS 5
 
 typedef struct dnshandler_struct dnshandler_type;

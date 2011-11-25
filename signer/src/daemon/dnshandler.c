@@ -273,7 +273,7 @@ dnshandler_handle_xfr(netio_type* ATTR_UNUSED(netio),
     }
     dnshandler = (dnshandler_type*) handler->user_data;
     ods_log_assert(event_types & NETIO_EVENT_READ);
-    ods_log_debug("[%s] read forwared xfr packet", dnsh_str);
+    ods_log_debug("[%s] read forwarded xfr packet", dnsh_str);
     received = read(dnshandler->xfrhandler.fd, &buf, MAX_PACKET_SIZE);
     return;
 }

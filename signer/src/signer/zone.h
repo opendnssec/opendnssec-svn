@@ -45,6 +45,7 @@
 #include "signer/signconf.h"
 #include "signer/stats.h"
 #include "wire/buffer.h"
+#include "wire/notify.h"
 #include "wire/xfrd.h"
 
 #include <ldns/ldns.h>
@@ -86,7 +87,7 @@ struct zone_struct {
     ixfr_type* ixfr;
     /* zone transfers */
     xfrd_type* xfrd;
-    buffer_type* packet;
+    notify_type* notify;
     /* worker variables */
     void* task; /* next assigned task */
     /* statistics */

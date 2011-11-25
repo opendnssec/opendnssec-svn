@@ -409,8 +409,7 @@ worker_perform_task(worker_type* worker)
             /* perform 'write to output adapter' task */
             worker_working_with(worker, TASK_WRITE, TASK_SIGN,
                 "write", task_who2str(task), &what, &when);
-            status = tools_output(zone, engine->config->working_dir,
-                engine->config->cfg_filename);
+            status = tools_output(zone, engine);
             if (status == ODS_STATUS_OK) {
                 if (task->interrupt > TASK_SIGNCONF) {
                     task->interrupt = TASK_NONE;

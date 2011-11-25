@@ -372,7 +372,7 @@ parse_addns_do_notify(allocator_type* allocator, const char* filename,
     tsig_type* tsig)
 {
     return parse_addns_remote(allocator, filename, tsig,
-        "//Adapter/DNS/Outbound/Notify"
+        "//Adapter/DNS/Outbound/Notify/Remote"
         );
 }
 

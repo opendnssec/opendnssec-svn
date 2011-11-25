@@ -76,6 +76,10 @@ xfrhandler_create(allocator_type* allocator)
     xfrh->current_time = 0;
     xfrh->got_time = 0;
     xfrh->need_to_exit = 0;
+    /* notify */
+    xfrh->notify_waiting_first = NULL;
+    xfrh->notify_waiting_last = NULL;
+    xfrh->notify_udp_num = 0;
     /* setup */
     xfrh->netio = netio_create(allocator);
     if (!xfrh->netio) {
@@ -131,7 +135,8 @@ xfrhandler_start(xfrhandler_type* xfrhandler)
     while (xfrhandler->need_to_exit == 0) {
         /* dispatch may block for a longer period, so current is gone */
         xfrhandler->got_time = 0;
-        if (netio_dispatch(xfrhandler->netio, NULL, 0) == -1) {
+        ods_log_debug("[%s] netio dispatch", xfrh_str);
+        if (netio_dispatch(xfrhandler->netio, NULL, NULL) == -1) {
             if (errno != EINTR) {
                 ods_log_error("[%s] netio_dispatch failed: %s", xfrh_str,
                     strerror(errno));

@@ -32,6 +32,7 @@
  */
 
 #include "config.h"
+#include "daemon/dnshandler.h"
 #include "adapter/adapter.h"
 #include "shared/file.h"
 #include "shared/log.h"
@@ -217,11 +218,13 @@ tools_audit(zone_type* zone, const char* working_dir, const char* cfg_filename)
  *
  */
 ods_status
-tools_output(zone_type* zone, const char* dir, const char* cfgfile)
+tools_output(zone_type* zone, engine_type* engine)
 {
     ods_status status = ODS_STATUS_OK;
     char str[SYSTEM_MAXLEN];
     int error = 0;
+    ods_log_assert(engine);
+    ods_log_assert(engine->config);
     ods_log_assert(zone);
     ods_log_assert(zone->db);
     ods_log_assert(zone->name);
@@ -237,7 +240,8 @@ tools_output(zone_type* zone, const char* dir, const char* cfgfile)
                 tools_str, zone->name);
             status = ODS_STATUS_OK;
         } else {
-            status = tools_audit(zone, dir, cfgfile);
+            status = tools_audit(zone, engine->config->working_dir,
+                engine->config->cfg_filename);
         }
     }
     if (status != ODS_STATUS_OK) {
@@ -245,7 +249,7 @@ tools_output(zone_type* zone, const char* dir, const char* cfgfile)
             tools_str, zone->name);
         return ODS_STATUS_CONFLICT_ERR;
     }
-
+    /* prepare */
     if (zone->stats) {
         lock_basic_lock(&zone->stats->stats_lock);
         if (zone->stats->sort_done == 0 &&
@@ -282,6 +286,10 @@ tools_output(zone_type* zone, const char* dir, const char* cfgfile)
            ods_log_error("[%s] failed to notify nameserver", tools_str);
            status = ODS_STATUS_ERR;
         }
+    }
+    if (engine->dnshandler) {
+        dnshandler_fwd_notify(engine->dnshandler, (uint8_t*) ODS_SE_NOTIFY_CMD,
+            strlen(ODS_SE_NOTIFY_CMD));
     }
     /* log stats */
     if (zone->stats) {

@@ -39,6 +39,7 @@
 #include "shared/locks.h"
 #include "wire/buffer.h"
 #include "wire/netio.h"
+#include "wire/notify.h"
 #include "wire/tcpset.h"
 #include "wire/xfrd.h"
 
@@ -62,6 +63,9 @@ struct xfrhandler_struct {
     xfrd_type* udp_waiting_first;
     xfrd_type* udp_waiting_last;
     size_t udp_use_num;
+    notify_type* notify_waiting_first;
+    notify_type* notify_waiting_last;
+    int notify_udp_num;
     netio_handler_type dnshandler;
     unsigned got_time : 1;
     unsigned need_to_exit : 1;

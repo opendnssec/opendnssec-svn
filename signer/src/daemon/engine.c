@@ -33,6 +33,7 @@
 
 #include "config.h"
 #include "daemon/cfg.h"
+#include "daemon/dnshandler.h"
 #include "daemon/engine.h"
 #include "daemon/signal.h"
 #include "shared/allocator.h"
@@ -555,7 +556,7 @@ engine_setup(engine_type* engine)
     /* create workers/drudgers */
     engine_create_workers(engine);
     engine_create_drudgers(engine);
-    /* start command/dns/xfr handlers */
+    /* start cmd/dns/xfr handlers */
     engine_start_cmdhandler(engine);
     engine_start_dnshandler(engine);
     engine_start_xfrhandler(engine);
@@ -712,17 +713,21 @@ dnsconfig_zone(engine_type* engine, zone_type* zone)
         zone->xfrd = NULL;
     }
     if (zone->adoutbound->type == ADAPTER_DNS) {
-        /* notify packet */
-        if (!zone->packet) {
-             ods_log_debug("[%s] add notify handler for zone %s",
+        /* notify handler */
+        if (!zone->notify) {
+            ods_log_debug("[%s] add notify handler for zone %s",
                 engine_str, zone->name);
-             zone->packet = buffer_create(zone->allocator,
-                 PACKET_BUFFER_SIZE);
-             ods_log_assert(zone->packet);
+            zone->notify = notify_create((void*) engine->xfrhandler,
+                (void*) zone);
+            ods_log_assert(zone->notify);
+            netio_add_handler(engine->xfrhandler->netio,
+                &zone->notify->handler);
         }
-    } else if (zone->packet) {
-        buffer_cleanup(zone->packet, zone->allocator);
-        zone->packet = NULL;
+    } else if (zone->notify) {
+        netio_remove_handler(engine->xfrhandler->netio,
+            &zone->notify->handler);
+        notify_cleanup(zone->notify);
+        zone->notify = NULL;
     }
     return;
 }
@@ -836,7 +841,8 @@ engine_update_zones(engine_type* engine)
     lock_basic_unlock(&engine->zonelist->zl_lock);
 
     if (engine->dnshandler) {
-        dnshandler_fwd_notify(engine->dnshandler, (uint8_t*) "NOTIFY", 10);
+        dnshandler_fwd_notify(engine->dnshandler,
+            (uint8_t*) ODS_SE_NOTIFY_CMD, strlen(ODS_SE_NOTIFY_CMD));
     }
     if (wake_up) {
         engine_wakeup_workers(engine);

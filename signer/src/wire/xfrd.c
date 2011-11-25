@@ -94,7 +94,6 @@ xfrd_create(void* xfrhandler, void* zone)
 {
     xfrd_type* xfrd = NULL;
     allocator_type* allocator = NULL;
-
     if (!xfrhandler || !zone) {
         return NULL;
     }
@@ -980,7 +979,7 @@ xfrd_tcp_open(xfrd_type* xfrd, tcp_set_type* set)
         return 0;
     }
     to_len = xfrd_acl_sockaddr_to(xfrd->master, &to);
-    /* bind it */
+    /* bind it? */
 
     conn = connect(fd, (struct sockaddr*)&to, to_len);
     if (conn == -1 && errno != EINPROGRESS) {
@@ -1085,7 +1084,6 @@ xfrd_tcp_xfr(xfrd_type* xfrd, tcp_set_type* set)
     xfrd->msg_is_ixfr = 0;
     xfrd_tsig_sign(xfrd, tcp->packet);
     buffer_flip(tcp->packet);
-    buffer_pkt_print(stdout, tcp->packet);
     tcp->msglen = buffer_limit(tcp->packet);
     ods_log_debug("[%s] zone %s sending tcp query id=%d", xfrd_str,
         zone->name, xfrd->query_id);
@@ -1217,7 +1215,7 @@ xfrd_udp_send(xfrd_type* xfrd, buffer_type* buffer)
             strerror(errno));
         return -1;
     }
-    /* bind it */
+    /* bind it? */
 
     /* send it (udp) */
     ods_log_deeebug("[%s] send %d bytes over udp to %s", xfrd_str,
@@ -1272,7 +1270,6 @@ xfrd_udp_send_request_ixfr(xfrd_type* xfrd)
     /* xfrd_write_soa_buffer(tcp->packet, zone->apex, &zone->soa_disk); */
     xfrd_tsig_sign(xfrd, xfrhandler->packet);
     buffer_flip(xfrhandler->packet);
-    buffer_pkt_print(stdout, xfrhandler->packet);
     xfrd_set_timer(xfrd, xfrd_time(xfrd) + XFRD_UDP_TIMEOUT);
     ods_log_debug("[%s] zone %s sending udp query id=%d qtype=IXFR to %s",
         xfrd_str, zone->name, xfrd->query_id, xfrd->master->address);
@@ -1631,6 +1628,5 @@ xfrd_cleanup(xfrd_type* xfrd)
     lock_basic_destroy(&serial_lock);
     lock_basic_destroy(&rw_lock);
     return;
-
 }
 

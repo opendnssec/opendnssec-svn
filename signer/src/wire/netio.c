@@ -74,6 +74,7 @@ netio_add_handler(netio_type* netio, netio_handler_type* handler)
     l->next = netio->handlers;
     l->handler = handler;
     netio->handlers = l;
+    ods_log_debug("[%s] handler added", netio_str);
     return;
 }
 
@@ -100,6 +101,7 @@ netio_remove_handler(netio_type* netio, netio_handler_type* handler)
                 break;
            }
     }
+    ods_log_debug("[%s] handler removed", netio_str);
     return;
 }
 
