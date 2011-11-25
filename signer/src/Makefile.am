@@ -66,6 +66,7 @@ ods_signerd_SOURCES=		ods-signerd.c \
 				wire/buffer.c wire/buffer.h \
 				wire/listener.c wire/listener.h \
 				wire/netio.c wire/netio.h \
+				wire/notify.c wire/notify.h \
 				wire/query.c wire/query.h \
 				wire/sock.c wire/sock.h \
 				wire/tcpset.c wire/tcpset.h \
