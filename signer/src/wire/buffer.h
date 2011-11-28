@@ -416,6 +416,13 @@ int buffer_pkt_qr(buffer_type* buffer);
 void buffer_pkt_set_qr(buffer_type* buffer);
 
 /**
+ * Clear QR bit in buffer.
+ * \param[in] buffer buffer
+ *
+ */
+void buffer_pkt_clear_qr(buffer_type* buffer);
+
+/**
  * Get AA bit from buffer.
  * \param[in] buffer buffer
  * \return int 0 if AA bit is clear

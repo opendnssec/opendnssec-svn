@@ -41,6 +41,8 @@
 #include "wire/netio.h"
 #include "wire/tsig.h"
 
+#include <ldns/ldns.h>
+
 #define NOTIFY_MAX_UDP 50
 #define NOTIFY_MAX_RETRY 5
 #define NOTIFY_RETRY_TIMEOUT 15
@@ -53,6 +55,7 @@ typedef struct notify_struct notify_type;
 struct notify_struct {
     notify_type* waiting_next;
     allocator_type* allocator;
+    ldns_rr* soa;
     tsig_rr_type* tsig_rr;
     acl_type* secondary;
     void* zone;
@@ -76,10 +79,10 @@ notify_type* notify_create(void* xfrhandler, void* zone);
 /**
  * Enable notify.
  * \param[in] notify notify structure
- * \param[in] serial new serial
+ * \param[in] soa current soa
  *
  */
-void notify_enable(notify_type* notify, uint32_t serial);
+void notify_enable(notify_type* notify, ldns_rr* soa);
 
 /**
  * Send notify.

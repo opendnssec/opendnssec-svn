@@ -484,6 +484,7 @@ buffer_write_u32(buffer_type* buffer, uint32_t data)
 void
 buffer_write_rdf(buffer_type* buffer, ldns_rdf* rdf)
 {
+    ods_log_assert(buffer);
     ods_log_assert(rdf);
     buffer_write(buffer, ldns_rdf_data(rdf), ldns_rdf_size(rdf));
     /* position updated by buffer_write() */
@@ -499,13 +500,25 @@ void
 buffer_write_rr(buffer_type* buffer, ldns_rr* rr)
 {
     size_t i = 0;
+    size_t rdlength_pos = 0;
+    uint16_t rdlength = 0;
+    ods_log_assert(buffer);
     ods_log_assert(rr);
+    /* owner type class ttl */
     buffer_write_rdf(buffer, ldns_rr_owner(rr));
     buffer_write_u16(buffer, (uint16_t) ldns_rr_get_type(rr));
     buffer_write_u16(buffer, (uint16_t) ldns_rr_get_class(rr));
+    buffer_write_u32(buffer, (uint32_t) ldns_rr_ttl(rr));
+    /* skip rdlength */
+    rdlength_pos = buffer_position(buffer);
+    buffer_skip(buffer, sizeof(rdlength));
+    /* write rdata */
     for (i=0; i < ldns_rr_rd_count(rr); i++) {
         buffer_write_rdf(buffer, ldns_rr_rdf(rr, i));
     }
+    /* write rdlength */
+    rdlength = buffer_position(buffer) - rdlength_pos - sizeof(rdlength);
+    buffer_write_u16_at(buffer, rdlength_pos, rdlength);
     /* position updated by buffer_write() */
     return;
 }
@@ -691,6 +704,19 @@ buffer_pkt_set_qr(buffer_type* buffer)
 {
     ods_log_assert(buffer);
     QR_SET(buffer);
+    return;
+}
+
+
+/**
+ * Clear QR bit in buffer.
+ *
+ */
+void
+buffer_pkt_clear_qr(buffer_type* buffer)
+{
+    ods_log_assert(buffer);
+    QR_CLR(buffer);
     return;
 }
 
@@ -946,6 +972,8 @@ buffer_pkt_new(buffer_type* buffer, ldns_rdf* qname, ldns_rr_type qtype,
     buffer_clear(buffer);
     buffer_pkt_set_random_id(buffer);
     buffer_pkt_set_opcode(buffer, opcode);
+    buffer_pkt_clear_qr(buffer);
+    buffer_pkt_set_rcode(buffer, LDNS_RCODE_NOERROR);
     buffer_pkt_set_qdcount(buffer, 1);
     buffer_pkt_set_ancount(buffer, 0);
     buffer_pkt_set_nscount(buffer, 0);

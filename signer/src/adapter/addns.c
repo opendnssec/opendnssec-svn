@@ -558,12 +558,13 @@ static void
 dnsout_send_notify(void* zone)
 {
     zone_type* z = (zone_type*) zone;
-    if (!z->notify) {
+    rrset_type* rrset = NULL;
+    ldns_rr* soa = NULL;
+    if (!z || !z->notify) {
         ods_log_error("[%s] unable to send notify for zone %s: no notify "
            "handler", adapter_str, z->name);
         return;
     }
-    ods_log_assert(z);
     ods_log_assert(z->adoutbound);
     ods_log_assert(z->adoutbound->config);
     ods_log_assert(z->adoutbound->type == ADAPTER_DNS);
@@ -571,7 +572,10 @@ dnsout_send_notify(void* zone)
     ods_log_assert(z->name);
     ods_log_debug("[%s] enable notify for zone %s serial %u", adapter_str,
         z->name, z->db->intserial);
-    notify_enable(z->notify, z->db->intserial);
+    rrset = zone_lookup_rrset(z, z->apex, LDNS_RR_TYPE_SOA);
+    ods_log_assert(rrset);
+    soa = ldns_rr_clone(rrset->rrs[0].rr);
+    notify_enable(z->notify, soa);
     return;
 }
 

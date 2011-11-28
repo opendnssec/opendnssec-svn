@@ -121,6 +121,7 @@ xfrd_create(void* xfrhandler, void* zone)
     xfrd->master_num = 0;
     xfrd->next_master = -1;
     xfrd->master = NULL;
+    xfrd->soa = NULL;
     xfrd->serial_xfr = 0;
     xfrd->serial_disk = 0;
     xfrd->serial_notify = 0;
@@ -517,16 +518,74 @@ xfrd_dump_packet(xfrd_type* xfrd, buffer_type* buffer)
 
 
 /**
+ * Update SOA.
+ *
+ */
+static void
+xfrd_update_soa(xfrd_type* xfrd, buffer_type* buffer, ldns_rr_type type,
+    ldns_rr_class klass, uint32_t ttl, uint16_t mname_pos, uint16_t mname_len,
+    uint16_t rname_pos, uint16_t rname_len, uint32_t serial, uint32_t refresh,
+    uint32_t retry, uint32_t expire, uint32_t minimum, uint16_t pos)
+{
+    zone_type* zone = NULL;
+    ods_log_assert(xfrd);
+    ods_log_assert(buffer);
+    ods_log_assert(type == LDNS_RR_TYPE_SOA);
+    if (xfrd->soa) {
+        ldns_rr_free(xfrd->soa);
+    }
+    xfrd->soa = ldns_rr_new_frm_type(type);
+    ods_log_assert(xfrd->soa);
+    zone = (zone_type*) xfrd->zone;
+    ods_log_assert(zone);
+    ods_log_assert(zone->apex);
+    ldns_rr_set_owner(xfrd->soa, ldns_rdf_clone(zone->apex));
+    ldns_rr_set_class(xfrd->soa, klass);
+    ldns_rr_set_ttl(xfrd->soa, ttl);
+    buffer_set_position(buffer, mname_pos);
+    (void)ldns_rr_set_rdf(xfrd->soa, ldns_dname_new_frm_data(mname_len,
+        (const void*) buffer_current(buffer)), 0);
+    buffer_set_position(buffer, rname_pos);
+    (void)ldns_rr_set_rdf(xfrd->soa, ldns_dname_new_frm_data(rname_len,
+        (const void*) buffer_current(buffer)), 1);
+    (void)ldns_rr_set_rdf(xfrd->soa, ldns_native2rdf_int32(
+        LDNS_RDF_TYPE_INT32, serial), 2);
+    (void)ldns_rr_set_rdf(xfrd->soa, ldns_native2rdf_int32(
+        LDNS_RDF_TYPE_INT32, refresh), 3);
+    (void)ldns_rr_set_rdf(xfrd->soa, ldns_native2rdf_int32(
+        LDNS_RDF_TYPE_INT32, retry), 4);
+    (void)ldns_rr_set_rdf(xfrd->soa, ldns_native2rdf_int32(
+        LDNS_RDF_TYPE_INT32, expire), 5);
+    (void)ldns_rr_set_rdf(xfrd->soa, ldns_native2rdf_int32(
+        LDNS_RDF_TYPE_INT32, minimum), 6);
+    xfrd->soa_refresh = refresh;
+    xfrd->soa_retry = retry;
+    buffer_set_position(buffer, pos);
+    return;
+}
+
+
+/**
  * Parse SOA RR in packet.
  *
  */
 static int
 xfrd_parse_soa(xfrd_type* xfrd, buffer_type* buffer, unsigned update,
-    uint32_t* serial)
+    uint32_t* soa_serial)
 {
     ldns_rr_type type = 0;
     ldns_rr_class klass = 0;
-    uint32_t tmp = 0;
+    uint16_t mname_pos = 0;
+    uint16_t rname_pos = 0;
+    uint16_t mname_len = 0;
+    uint16_t rname_len = 0;
+    uint16_t pos = 0;
+    uint32_t serial = 0;
+    uint32_t refresh = 0;
+    uint32_t retry = 0;
+    uint32_t expire = 0;
+    uint32_t minimum = 0;
+    uint32_t ttl = 0;
     ods_log_assert(xfrd);
     ods_log_assert(buffer);
 
@@ -544,7 +603,7 @@ xfrd_parse_soa(xfrd_type* xfrd, buffer_type* buffer, unsigned update,
             return 0;
         }
         klass = (ldns_rr_class) buffer_read_u16(buffer);
-        tmp = buffer_read_u32(buffer);
+        ttl = buffer_read_u32(buffer);
         /* rdata length */
         if (!buffer_available(buffer, buffer_read_u16(buffer))) {
             ods_log_debug("[%s] unable to parse soa: rdata too short",
@@ -553,26 +612,35 @@ xfrd_parse_soa(xfrd_type* xfrd, buffer_type* buffer, unsigned update,
         }
     }
     /* MNAME */
+    mname_pos = buffer_position(buffer);
     if (!buffer_skip_dname(buffer)) {
         ods_log_debug("[%s] unable to parse soa: bad mname",
             xfrd_str);
         return 0;
     }
+    mname_len = buffer_position(buffer) - mname_pos;
     /* RNAME */
+    rname_pos = buffer_position(buffer);
     if (!buffer_skip_dname(buffer)) {
         ods_log_debug("[%s] unable to parse soa: bad rname",
             xfrd_str);
         return 0;
     }
-    if (serial) {
-        *serial = buffer_read_u32(buffer);
+    rname_len = buffer_position(buffer) - rname_pos;
+    serial = buffer_read_u32(buffer);
+    refresh = buffer_read_u32(buffer);
+    retry = buffer_read_u32(buffer);
+    expire = buffer_read_u32(buffer);
+    minimum = buffer_read_u32(buffer);
+    pos = buffer_position(buffer);
+    if (soa_serial) {
+        *soa_serial = serial;
     }
     if (update) {
-        xfrd->soa_refresh = buffer_read_u32(buffer);
-        xfrd->soa_retry = buffer_read_u32(buffer);
+        xfrd_update_soa(xfrd, buffer, type, klass, ttl, mname_pos, mname_len,
+            rname_pos, rname_len, serial, refresh, retry, expire, minimum,
+            pos);
     }
-    tmp = buffer_read_u32(buffer);
-    tmp = buffer_read_u32(buffer);
     return 1;
 }
 
@@ -1072,8 +1140,8 @@ xfrd_tcp_xfr(xfrd_type* xfrd, tcp_set_type* set)
             zone->name, xfrd->master->address);
         buffer_pkt_query(tcp->packet, zone->apex, LDNS_RR_TYPE_IXFR,
             zone->klass);
-        /* buffer_pkt_set_nscount(tcp->packet, 1); */
-        /* xfrd_write_soa_buffer(tcp->packet, zone->apex, &zone->soa_disk); */
+        buffer_pkt_set_nscount(tcp->packet, 1);
+        buffer_write_rr(tcp->packet, xfrd->soa);
     }
     /* make packet */
     xfrd->query_id = buffer_pkt_id(tcp->packet);
@@ -1266,8 +1334,8 @@ xfrd_udp_send_request_ixfr(xfrd_type* xfrd)
     xfrd->msg_old_serial = 0;
     xfrd->msg_new_serial = 0;
     xfrd->msg_is_ixfr = 0;
-    /* NSCOUNT_SET(tcp->packet, 1); */
-    /* xfrd_write_soa_buffer(tcp->packet, zone->apex, &zone->soa_disk); */
+    buffer_pkt_set_nscount(xfrhandler->packet, 1);
+    buffer_write_rr(xfrhandler->packet, xfrd->soa);
     xfrd_tsig_sign(xfrd, xfrhandler->packet);
     buffer_flip(xfrhandler->packet);
     xfrd_set_timer(xfrd, xfrd_time(xfrd) + XFRD_UDP_TIMEOUT);
@@ -1622,6 +1690,9 @@ xfrd_cleanup(xfrd_type* xfrd)
     allocator = xfrd->allocator;
     serial_lock = xfrd->serial_lock;
     rw_lock = xfrd->rw_lock;
+    if (xfrd->soa) {
+        ldns_rr_free(xfrd->soa);
+    }
     tsig_rr_cleanup(xfrd->tsig_rr);
     allocator_deallocate(allocator, (void*) xfrd);
     allocator_cleanup(allocator);

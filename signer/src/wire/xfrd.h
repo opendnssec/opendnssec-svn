@@ -94,6 +94,7 @@ struct xfrd_struct
     time_t serial_disk_acquired;
     uint32_t soa_retry;
     uint32_t soa_refresh;
+    ldns_rr* soa;
 
     /* timeout and event handling */
     struct timespec timeout;

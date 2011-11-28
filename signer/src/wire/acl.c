@@ -373,7 +373,7 @@ acl_addr_matches(acl_type* acl, struct sockaddr_storage* addr)
 static int
 acl_tsig_matches(acl_type* acl, tsig_rr_type* tsig)
 {
-    if (!acl || !tsig || !tsig->key_name || !tsig->algo) {
+    if (!acl || !tsig) {
         ods_log_debug("[%s] no match: no acl or tsig", acl_str);
         return 0; /* missing required elements */
     }
@@ -393,6 +393,10 @@ acl_tsig_matches(acl_type* acl, tsig_rr_type* tsig)
         ods_log_debug("[%s] no match: tsig error %d", acl_str,
             tsig->error_code);
         return 0; /* query has bork TSIG */
+    }
+    if (!tsig->key_name || !tsig->algo) {
+        ods_log_debug("[%s] no match: missing key/algo", acl_str);
+        return 0;
     }
     if (!acl->tsig->key) {
         ods_log_debug("[%s] no match: no config", acl_str);

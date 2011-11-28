@@ -114,6 +114,7 @@ notify_create(void* xfrhandler, void* zone)
     notify->xfrhandler = xfrhandler;
     notify->waiting_next = NULL;
     notify->secondary = NULL;
+    notify->soa = NULL;
     notify->tsig_rr = tsig_rr_create(allocator);
     if (!notify->tsig_rr) {
         notify_cleanup(notify);
@@ -405,7 +406,6 @@ notify_send(notify_type* notify)
     ods_log_assert(xfrhandler);
     ods_log_assert(zone);
     ods_log_assert(zone->name);
-
     if (notify->handler.fd != -1) {
         close(notify->handler.fd);
     }
@@ -415,12 +415,10 @@ notify_send(notify_type* notify)
     notify->query_id = buffer_pkt_id(xfrhandler->packet);
     buffer_pkt_set_aa(xfrhandler->packet);
     /* add current SOA to answer section */
-/*
-    if (serial) {
+    if (notify->soa) {
         buffer_pkt_set_ancount(xfrhandler->packet, 1);
-        xfrd_write_soa_buffer(packet, zone->apex, zone->current_soa);
+        buffer_write_rr(xfrhandler->packet, notify->soa);
     }
-*/
     if (notify->secondary->tsig) {
         notify_tsig_sign(notify, xfrhandler->packet);
     }
@@ -498,11 +496,29 @@ notify_handle_zone(netio_type* ATTR_UNUSED(netio),
 
 
 /**
+ * Update current SOA.
+ *
+ */
+static void
+notify_update_soa(notify_type* notify, ldns_rr* soa)
+{
+    if (!notify) {
+        return;
+    }
+    if (notify->soa) {
+        ldns_rr_free(notify->soa);
+    }
+    notify->soa = soa;
+    return;
+}
+
+
+/**
  * Enable notify.
  *
  */
 void
-notify_enable(notify_type* notify, uint32_t serial)
+notify_enable(notify_type* notify, ldns_rr* soa)
 {
     xfrhandler_type* xfrhandler = NULL;
     zone_type* zone = NULL;
@@ -524,7 +540,7 @@ notify_enable(notify_type* notify, uint32_t serial)
             zone->name);
         return; /* nothing to do */
     }
-    /* update serial */
+    notify_update_soa(notify, soa);
     if (notify->is_waiting) {
         ods_log_debug("[%s] zone %s already on waiting list", notify_str,
             zone->name);
@@ -569,6 +585,9 @@ notify_cleanup(notify_type* notify)
     if (notify->handler.fd != -1) {
         close(notify->handler.fd);
         notify->handler.fd = -1;
+    }
+    if (notify->soa) {
+        ldns_rr_free(notify->soa);
     }
     tsig_rr_cleanup(notify->tsig_rr);
     allocator_deallocate(allocator, (void*) notify);
