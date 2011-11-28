@@ -41,12 +41,12 @@
 			<ProvideTransfer>
 				<!-- EXAMPLE: provide XFR to 1.2.3.5 with key secret.example.com -->
 				<ACL>
-					<Address>1.2.3.5</Address>
+					<Prefix>1.2.3.5</Prefix>
 					<Key>secret.example.com</Key>
 				</ACL>
 			</ProvideTransfer>
 	
-			<-- Send NOTIFY messages to host -->
+			<!-- Send NOTIFY messages to host -->
 			<Notify>
 				<!-- EXAMPLE: send NOTIFY to 1.2.3.5 on the default port 53 -->
 				<Remote>
