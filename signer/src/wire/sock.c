@@ -518,12 +518,10 @@ sock_handle_tcp_accept(netio_type* netio, netio_handler_type* handler,
     netio_handler_type* tcp_handler = NULL;
     struct sockaddr_storage addr;
     socklen_t addrlen = 0;
-
-    ods_log_debug("[%s] handle incoming tcp connection", sock_str);
-
     if (!(event_types & NETIO_EVENT_READ)) {
         return;
     }
+    ods_log_debug("[%s] handle incoming tcp connection", sock_str);
     addrlen = sizeof(addr);
     s = accept(handler->fd, (struct sockaddr *) &addr, &addrlen);
     if (s == -1) {
