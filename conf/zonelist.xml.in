@@ -9,10 +9,10 @@
 		<SignerConfiguration>@OPENDNSSEC_STATE_DIR@/signconf/example.com.xml</SignerConfiguration>
 		<Adapters>
 			<Input>
-				<File>@OPENDNSSEC_STATE_DIR@/unsigned/example.com</File>
+				<Adapter type="File">@OPENDNSSEC_STATE_DIR@/unsigned/example.com</Adapter>
 			</Input>
 			<Output>
-				<File>@OPENDNSSEC_STATE_DIR@/signed/example.com</File>
+				<Adapter type="File">@OPENDNSSEC_STATE_DIR@/signed/example.com</Adapter>
 			</Output>
 		</Adapters>
 	</Zone>
@@ -20,13 +20,13 @@
 <!--
 	<Zone name="example.net">
 		<Policy>default</Policy>
-		<SignerConfiguration>@OPENDNSSEC_STATE_DIR@/signconf/example.com.xml</SignerConfiguration>
+		<SignerConfiguration>@OPENDNSSEC_STATE_DIR@/signconf/example.net.xml</SignerConfiguration>
 		<Adapters>
 			<Input>
-				<Adapter type="DNS">@OPENDNSSEC_STATE_DIR@/adapters/dummy/example.com.in</Adapter>
+				<Adapter type="DNS">@OPENDNSSEC_CONFIG_DIR@/addns.xml</Adapter>
 			</Input>
 			<Output>
-				<Adapter type="DNS">@OPENDNSSEC_STATE_DIR@/adapters/dummy/example.com.out</Adapter>
+				<Adapter type="DNS">@OPENDNSSEC_CONFIG_DIR@/addns.xml</Adapter>
 			</Output>
 		</Adapters>
 	</Zone>
