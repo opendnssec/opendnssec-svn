@@ -39,6 +39,7 @@
 #include "shared/locks.h"
 #include "shared/status.h"
 #include "wire/acl.h"
+#include "wire/buffer.h"
 #include "wire/netio.h"
 #include "wire/tsig.h"
 
@@ -64,6 +65,25 @@ enum xfrd_pkt_enum {
     XFRD_PKT_NEWLEASE /* no changes, soa OK */
 };
 typedef enum xfrd_pkt_enum xfrd_pkt_status;
+
+/*
+ * Zone transfer SOA information.
+ */
+typedef struct soa_struct soa_type;
+struct soa_struct {
+    /* owner equals zone apex */
+    /* class equals zone klass */
+    /* type is SOA */
+    uint32_t ttl;
+    /* rdata count = 7 */
+    uint8_t mname[MAXDOMAINLEN + 2];
+    uint8_t rname[MAXDOMAINLEN + 2];
+    uint32_t serial;
+    uint32_t refresh;
+    uint32_t retry;
+    uint32_t expire;
+    uint32_t minimum;
+};
 
 /**
  * Zone transfer state.
@@ -92,9 +112,7 @@ struct xfrd_struct
     time_t serial_xfr_acquired;
     time_t serial_notify_acquired;
     time_t serial_disk_acquired;
-    uint32_t soa_retry;
-    uint32_t soa_refresh;
-    ldns_rr* soa;
+    soa_type soa;
 
     /* timeout and event handling */
     struct timespec timeout;
