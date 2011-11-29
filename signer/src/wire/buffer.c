@@ -54,6 +54,8 @@
 
 #include <string.h>
 
+static const char* buffer_str = "buffer";
+
 /**
  * Create a new buffer with the specified capacity.
  *
@@ -173,6 +175,154 @@ buffer_skip(buffer_type* buffer, ssize_t count)
     ods_log_assert(buffer->position + count <= buffer->limit);
     buffer->position += count;
     return;
+}
+
+
+/**
+ * Get bit.
+ *
+ */
+static int
+get_bit(uint8_t bits[], size_t index)
+{
+    return bits[index / 8] & (1 << (7 - index % 8));
+}
+
+
+/**
+ * Set bit.
+ *
+ */
+static void
+set_bit(uint8_t bits[], size_t index)
+{
+    bits[index / 8] |= (1 << (7 - index % 8));
+    return;
+}
+
+
+/**
+ * Is pointer label>
+ *
+ */
+static int
+label_is_pointer(const uint8_t* label)
+{
+    ods_log_assert(label);
+    return (label[0] & 0xc0) == 0xc0;
+}
+
+
+/**
+ * Pointer label location.
+ *
+ */
+static uint16_t
+label_pointer_location(const uint8_t* label)
+{
+    ods_log_assert(label);
+    ods_log_assert(label_is_pointer(label));
+    return ((uint16_t) (label[0] & ~0xc0) << 8) | (uint16_t) label[1];
+}
+
+
+/**
+ * Is normal label?
+ *
+ */
+static int
+label_is_normal(const uint8_t* label)
+{
+    ods_log_assert(label);
+    return (label[0] & 0xc0) == 0;
+}
+
+/*
+ * Is root label?
+ *
+ */
+static inline int
+label_is_root(const uint8_t* label)
+{
+    ods_log_assert(label);
+    return label[0] == 0;
+}
+
+
+/*
+ * Label length.
+ *
+ */
+static uint8_t
+label_length(const uint8_t* label)
+{
+    ods_log_assert(label);
+    ods_log_assert(label_is_normal(label));
+    return label[0];
+}
+
+
+/**
+ * Read dname from buffer.
+ *
+ */
+size_t
+buffer_read_dname(buffer_type* buffer, uint8_t* dname, unsigned allow_pointers)
+{
+    int done = 0;
+    uint8_t visited[(MAX_PACKET_SIZE+7)/8];
+    size_t dname_length = 0;
+    const uint8_t *label = NULL;
+    ssize_t mark = -1;
+    ods_log_assert(buffer);
+    memset(visited, 0, (buffer_limit(buffer)+7)/8);
+
+    while (!done) {
+        if (!buffer_available(buffer, 1)) {
+            return 0;
+        }
+        if (get_bit(visited, buffer_position(buffer))) {
+            ods_log_error("[%s] dname loop!", buffer_str);
+            return 0;
+        }
+        set_bit(visited, buffer_position(buffer));
+        label = buffer_current(buffer);
+        if (label_is_pointer(label)) {
+            size_t pointer = 0;
+            if (!allow_pointers) {
+                return 0;
+            }
+            if (!buffer_available(buffer, 2)) {
+                return 0;
+            }
+            pointer = label_pointer_location(label);
+            if (pointer >= buffer_limit(buffer)) {
+                return 0;
+            }
+            buffer_skip(buffer, 2);
+            if (mark == -1) {
+                mark = buffer_position(buffer);
+            }
+            buffer_set_position(buffer, pointer);
+        } else if (label_is_normal(label)) {
+            size_t length = label_length(label) + 1;
+            done = label_is_root(label);
+            if (!buffer_available(buffer, length)) {
+                return 0;
+            }
+            if (dname_length + length >= MAXDOMAINLEN+1) {
+                return 0;
+            }
+            buffer_read(buffer, dname + dname_length, length);
+            dname_length += length;
+        } else {
+            return 0;
+        }
+     }
+     if (mark != -1) {
+        buffer_set_position(buffer, mark);
+     }
+     return dname_length;
 }
 
 

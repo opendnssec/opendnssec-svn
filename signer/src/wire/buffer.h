@@ -42,6 +42,12 @@
 #include <stdint.h>
 
 #define BUFFER_PKT_HEADER_SIZE 12
+#define MAXDOMAINLEN 255
+#define MAX_RDLENGTH    65535
+#define MAX_RR_SIZE \
+        (MAXDOMAINLEN + sizeof(uint32_t) + 4*sizeof(uint16_t) + MAX_RDLENGTH)
+#define MAX_PACKET_SIZE 65535
+#define PACKET_BUFFER_SIZE (MAX_PACKET_SIZE + MAX_RR_SIZE)
 
 #define QR_MASK         0x80U
 #define QR_SHIFT        7
@@ -367,6 +373,17 @@ uint16_t buffer_read_u16(buffer_type* buffer);
  *
  */
 uint32_t buffer_read_u32(buffer_type* buffer);
+
+/**
+ * Read dname from buffer.
+ * \param[in] buffer buffer
+ * \param[out] dname dname
+ * \param[in] allow_pointers allow pointer labels
+ * \return int dname length
+ *
+ */
+size_t buffer_read_dname(buffer_type* buffer, uint8_t* dname,
+    unsigned allow_pointers);
 
 /**
  * Get query id from buffer.
