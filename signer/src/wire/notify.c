@@ -156,9 +156,7 @@ notify_setup(notify_type* notify)
     notify->retry = 0;
     notify->secondary = dnsout->do_notify;
     ods_log_debug("[%s] setup notify for zone %s", notify_str, zone->name);
-    notify->handler.timeout = &notify->timeout;
-    notify->timeout.tv_sec = 0;
-    notify->timeout.tv_nsec = 0;
+    notify_set_timer(notify, notify_time(notify));
     return;
 }
 

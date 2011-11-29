@@ -70,27 +70,36 @@ axfr(query_type* q, engine_type* engine)
     }
 
     /* prepare tsig */
-
-    if (q->zone == NULL) {
+    q->tsig_prepare_it = 0;
+    q->tsig_update_it = 1;
+    if (q->tsig_sign_it) {
+        q->tsig_prepare_it = 1;
+        q->tsig_sign_it = 0;
+    }
+    ods_log_assert(q->tsig_rr);
+    ods_log_assert(q->zone);
+    ods_log_assert(q->zone->name);
+    if (q->axfr_fd == NULL) {
         /* start axfr */
-
-/*
-        q->zone = zone;
-        xfrfile = ods_build_path(zone->name, ".axfr", 0);
-        q->fd = ods_fopen(xfrfile, NULL, "r");
+        xfrfile = ods_build_path(q->zone->name, ".axfr", 0);
+        q->axfr_fd = ods_fopen(xfrfile, NULL, "r");
         free((void*)xfrfile);
-        if (!q->fd) {
+        if (!q->axfr_fd) {
+            ods_log_error("[%s] unable to open axfr file %s for zone %s",
+                axfr_str, xfrfile, q->zone->name);
             return QUERY_DISCARDED;
         }
-*/
-        /* tsig sign it */
-        /* add compression domain */
-        /* add soa rr */
+        if (q->tsig_rr->status == TSIG_OK) {
+            q->tsig_sign_it = 1; /* sign first packet in stream */
+        }
+        /* compression? */
 
-/*
-        rr = addns_read_rr(q->fd, line, &orig, &prev, &ttl, &status,
+        /* add soa rr */
+        rr = addns_read_rr(q->axfr_fd, line, &orig, &prev, &ttl, &status,
             &l);
         if (!rr) {
+            ods_log_error("[%s] bad axfr zone %s, corrupted file",
+                axfr_str, q->zone->name);
             return QUERY_DISCARDED;
         }
         if (ldns_rr_get_type(rr) != LDNS_RR_TYPE_SOA) {
@@ -99,8 +108,9 @@ axfr(query_type* q, engine_type* engine)
             ldns_rr_free(rr);
             return QUERY_DISCARDED;
         }
+        /* does it fit? */
         buffer_write_rr(q->buffer, rr);
-
+/*
         ldns_rr_free(rr);
         rr = NULL;
 */
@@ -109,8 +119,14 @@ axfr(query_type* q, engine_type* engine)
     }
 
     /* add as many records as fit */
+    buffer_write_rr(q->buffer, rr);
 /*
-    while ((rr = addns_read_rr(q->fd, line, &orig, &prev, &ttl,
+        ldns_rr_free(rr);
+        rr = NULL;
+*/
+
+/*
+    while ((rr = addns_read_rr(q->axfr_fd, line, &orig, &prev, &ttl,
         &status, &l)) != NULL) {
         if (status != LDNS_STATUS_OK) {
             ods_log_error("[%s] error reading rr at line %i (%s): %s",
@@ -123,5 +139,5 @@ axfr(query_type* q, engine_type* engine)
         rr = NULL;
     }
 */
-    return QUERY_AXFR;
+    return QUERY_PROCESSED;
 }

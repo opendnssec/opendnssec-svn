@@ -43,13 +43,6 @@
 
 #define TCPSET_MAX 50
 
-#define MAXDOMAINLEN    255
-#define MAX_RDLENGTH    65535
-#define MAX_RR_SIZE \
-        (MAXDOMAINLEN + sizeof(uint32_t) + 4*sizeof(uint16_t) + MAX_RDLENGTH)
-#define MAX_PACKET_SIZE 65535
-#define PACKET_BUFFER_SIZE (MAX_PACKET_SIZE + MAX_RR_SIZE)
-
 /**
  * tcp connection.
  *

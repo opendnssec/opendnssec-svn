@@ -67,9 +67,6 @@ struct query_struct {
     size_t reserved_space;
     /* TSIG */
     tsig_rr_type* tsig_rr;
-    int tsig_prepare_it;
-    int tsig_update_it;
-    int tsig_sign_it;
     /* TCP */
     int tcp;
     uint16_t tcplen;
@@ -81,8 +78,12 @@ struct query_struct {
     /* Compression */
 
     /* AXFR */
-    int axfr_is_done;
     FILE* axfr_fd;
+    /* Bits */
+    unsigned axfr_is_done : 1;
+    unsigned tsig_prepare_it : 1;
+    unsigned tsig_update_it : 1;
+    unsigned tsig_sign_it : 1;
 };
 
 /**

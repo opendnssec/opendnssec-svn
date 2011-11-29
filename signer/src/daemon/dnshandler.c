@@ -35,6 +35,7 @@
 #include "daemon/dnshandler.h"
 #include "daemon/engine.h"
 #include "shared/status.h"
+#include "wire/buffer.h"
 
 #include <errno.h>
 #include <string.h>

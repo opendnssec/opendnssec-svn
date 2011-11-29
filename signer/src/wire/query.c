@@ -35,6 +35,7 @@
 #include "daemon/dnshandler.h"
 #include "daemon/engine.h"
 #include "shared/util.h"
+#include "wire/axfr.h"
 #include "wire/query.h"
 
 const char* query_str = "query";
@@ -495,7 +496,7 @@ query_response(query_type* q, ldns_rr_type qtype)
  *
  */
 static query_state
-query_process_query(query_type* q, ldns_rr_type qtype)
+query_process_query(query_type* q, ldns_rr_type qtype, engine_type* engine)
 {
     dnsout_type* dnsout = NULL;
     uint16_t limit = 0;
@@ -519,13 +520,14 @@ query_process_query(query_type* q, ldns_rr_type qtype)
     }
     ods_log_assert(q->zone->adoutbound->config);
     dnsout = (dnsout_type*) q->zone->adoutbound->config;
+    /* acl also in use for soa and other queries */
     if (!acl_find(dnsout->provide_xfr, &q->addr, q->tsig_rr)) {
         return query_refused(q);
     }
-    /* zone transfer? */
-    if (qtype == LDNS_RR_TYPE_AXFR || qtype == LDNS_RR_TYPE_IXFR) {
+    /* ixfr? */
+    if (qtype == LDNS_RR_TYPE_IXFR || qtype == LDNS_RR_TYPE_AXFR) {
         ods_log_assert(q->zone->name);
-        ods_log_debug("[%s] incoming transfer request for zone %s",
+        ods_log_debug("[%s] incoming ixfr request for zone %s",
             query_str, q->zone->name);
         return query_notimpl(q);
     }
@@ -537,6 +539,13 @@ query_process_query(query_type* q, ldns_rr_type qtype)
     buffer_pkt_set_flags(q->buffer, flags);
     buffer_clear(q->buffer);
     buffer_set_position(q->buffer, limit);
+    /* axfr? */
+    if (qtype == LDNS_RR_TYPE_AXFR) {
+        ods_log_assert(q->zone->name);
+        ods_log_debug("[%s] incoming axfr request for zone %s",
+            query_str, q->zone->name);
+        return query_notimpl(q);
+    }
     /* (soa) query */
     return query_response(q, qtype);
 }
@@ -659,7 +668,7 @@ query_process(query_type* q, void* engine)
         case LDNS_PACKET_NOTIFY:
             return query_process_notify(q, qtype, engine);
         case LDNS_PACKET_QUERY:
-            return query_process_query(q, qtype);
+            return query_process_query(q, qtype, engine);
         case LDNS_PACKET_UPDATE:
             return query_process_update(q);
         default:
