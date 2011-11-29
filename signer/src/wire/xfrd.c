@@ -760,31 +760,37 @@ xfrd_parse_packet(xfrd_type* xfrd, buffer_type* buffer)
     ods_log_assert(zone->name);
     /* check packet size */
     if (!buffer_available(buffer, BUFFER_PKT_HEADER_SIZE)) {
-        ods_log_error("[%s] dropped packet: zone %s received bad packet from "
-            "%s (too small)", xfrd_str, zone->name, xfrd->master->address);
+        ods_log_error("[%s] unable to parse packet: zone %s received bad "
+            "packet from %s (too small)", xfrd_str, zone->name,
+            xfrd->master->address);
         return XFRD_PKT_BAD;
     }
     /* check query id */
     if (buffer_pkt_id(buffer) != xfrd->query_id) {
-        ods_log_error("[%s] dropped packet: zone %s received bad query id "
+        ods_log_error("[%s] bad packet: zone %s received bad query id "
             "%u from %s (expected %u)", xfrd_str, zone->name,
             buffer_pkt_id(buffer), xfrd->master->address, xfrd->query_id);
         return XFRD_PKT_BAD;
     }
     /* check rcode */
     if (buffer_pkt_rcode(buffer) != LDNS_RCODE_NOERROR) {
-        ods_log_error("[%s] dropped packet: zone %s received error code %u "
-            "from %s", xfrd_str, zone->name, buffer_pkt_rcode(buffer),
-            xfrd->master->address);
         if (buffer_pkt_rcode(buffer) == LDNS_RCODE_NOTIMPL) {
+            ods_log_error("[%s] zone %s received error code %s from %s",
+                xfrd_str, zone->name,
+                ldns_pkt_rcode2str(buffer_pkt_rcode(buffer)),
+                xfrd->master->address);
             return XFRD_PKT_NOTIMPL;
         } else {
+            ods_log_error("[%s] bad packet: zone %s received error code %s "
+                "from %s", xfrd_str, zone->name,
+                ldns_pkt_rcode2str(buffer_pkt_rcode(buffer)),
+                xfrd->master->address);
             return XFRD_PKT_BAD;
         }
     }
     /* check tsig */
     if (!xfrd_tsig_process(xfrd, buffer)) {
-        ods_log_error("[%s] dropped packet: zone %s received bad tsig "
+        ods_log_error("[%s] bad packet: zone %s received bad tsig "
             "from %s", xfrd_str, zone->name, xfrd->master->address);
         return XFRD_PKT_BAD;
     }
@@ -793,7 +799,7 @@ xfrd_parse_packet(xfrd_type* xfrd, buffer_type* buffer)
     qdcount = buffer_pkt_qdcount(buffer);
     for (rrcount = 0; rrcount < qdcount; rrcount++) {
         if (!buffer_skip_rr(buffer, 1)) {
-            ods_log_error("[%s] dropped packet: zone %s received bad "
+            ods_log_error("[%s] bad packet: zone %s received bad "
                 "question section from %s (bad rr)", xfrd_str, zone->name,
                 xfrd->master->address);
             return XFRD_PKT_BAD;
@@ -807,7 +813,7 @@ xfrd_parse_packet(xfrd_type* xfrd, buffer_type* buffer)
                 xfrd_str, zone->name, xfrd->master->address);
             return XFRD_PKT_TC;
         }
-        ods_log_error("[%s] dropped packet: zone %s received bad xfr packet "
+        ods_log_error("[%s] bad packet: zone %s received bad xfr packet "
             "from %s (nodata)", xfrd_str, zone->name, xfrd->master->address);
         return XFRD_PKT_BAD;
     }
@@ -817,7 +823,7 @@ xfrd_parse_packet(xfrd_type* xfrd, buffer_type* buffer)
         /* parse the first RR, see if it is a SOA */
         if (!buffer_skip_dname(buffer) ||
             !xfrd_parse_soa(xfrd, buffer, 0, 1, 0, 0, &serial)) {
-            ods_log_error("[%s] dropped packet: zone %s received bad xfr "
+            ods_log_error("[%s] bad packet: zone %s received bad xfr "
                 "packet from %s (bad soa)", xfrd_str, zone->name,
                 xfrd->master->address);
             return XFRD_PKT_BAD;
@@ -849,9 +855,8 @@ xfrd_parse_packet(xfrd_type* xfrd, buffer_type* buffer)
         }
         if (xfrd->serial_disk_acquired &&
             !util_serial_gt(serial, xfrd->serial_disk)) {
-            ods_log_debug("[%s] dropped packet: zone %s ignoring old serial "
-                "%u from %s", xfrd_str, zone->name, serial,
-                xfrd->master->address);
+            ods_log_debug("[%s] zone %s ignoring old serial %u from %s",
+                xfrd_str, zone->name, serial, xfrd->master->address);
             lock_basic_unlock(&xfrd->serial_lock);
             return XFRD_PKT_BAD;
         }
@@ -885,12 +890,12 @@ xfrd_parse_packet(xfrd_type* xfrd, buffer_type* buffer)
         return XFRD_PKT_TC;
     }
     if (!xfrd_parse_rrs(xfrd, buffer, ancount_todo, &done)) {
-        ods_log_error("[%s] dropped packet: zone %s received bad xfr packet "
+        ods_log_error("[%s] bad packet: zone %s received bad xfr packet "
             "(bad rr)", xfrd_str, zone->name, xfrd->master->address);
         return XFRD_PKT_BAD;
     }
     if (xfrd->tcp_conn == -1 && !done) {
-        ods_log_error("[%s] dropped packet: zone %s received bad xfr packet "
+        ods_log_error("[%s] bad packet: zone %s received bad xfr packet "
             "(bad rr)", xfrd_str, zone->name, xfrd->master->address);
         return XFRD_PKT_BAD;
     }
