@@ -449,13 +449,7 @@ dnsin_update(dnsin_type** addns, const char* filename, time_t* last_mod)
     if (!filename || !addns || !last_mod) {
         return ODS_STATUS_UNCHANGED;
     }
-    /* is the file updated? */
-    st_mtime = ods_file_lastmodified(filename);
-    if (st_mtime <= *last_mod) {
-        ods_log_debug("[%s] dnsin acl not modified", adapter_str);
-        return ODS_STATUS_UNCHANGED;
-    }
-    /* if so, read the new signer configuration */
+    /* read the new signer configuration */
     new_addns = dnsin_create();
     if (!new_addns) {
         ods_log_error("[%s] unable to update dnsin: dnsin_create() "
@@ -524,13 +518,7 @@ dnsout_update(dnsout_type** addns, const char* filename, time_t* last_mod)
     if (!filename || !addns || !last_mod) {
         return ODS_STATUS_UNCHANGED;
     }
-    /* is the file updated? */
-    st_mtime = ods_file_lastmodified(filename);
-    if (st_mtime <= *last_mod) {
-        ods_log_debug("[%s] dnsout acl not modified", adapter_str);
-        return ODS_STATUS_UNCHANGED;
-    }
-    /* if so, read the new signer configuration */
+    /* read the new signer configuration */
     new_addns = dnsout_create();
     if (!new_addns) {
         ods_log_error("[%s] unable to update dnsout: dnsout_create() "
