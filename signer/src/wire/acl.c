@@ -419,20 +419,20 @@ acl_tsig_matches(acl_type* acl, tsig_rr_type* tsig)
  * Address storage to IP string.
  *
  */
-static char*
+int
 addr2ip(struct sockaddr_storage addr, char* ip, size_t len)
 {
     if (addr.ss_family == AF_INET6) {
         if (!inet_ntop(AF_INET6, &((struct sockaddr_in6 *)&addr)->sin6_addr,
             ip, len)) {
-            return NULL;
+            return 0;
         }
     } else {
         if (!inet_ntop(AF_INET, &((struct sockaddr_in *)&addr)->sin_addr,
             ip, len))
-            return NULL;
+            return 0;
     }
-    return ip;
+    return 1;
 }
 
 
@@ -451,7 +451,6 @@ acl_find(acl_type* acl, struct sockaddr_storage* addr, tsig_rr_type* trr)
         }
         find = find->next;
     }
-    ods_log_debug("[%s] no match", acl_str);
     return NULL;
 }
 

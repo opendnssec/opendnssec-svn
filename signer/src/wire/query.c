@@ -259,6 +259,7 @@ query_process_notify(query_type* q, ldns_rr_type qtype, void* engine)
     uint32_t serial = 0;
     size_t limit = 0;
     size_t curpos = 0;
+    char address[128];
     if (!e || !q || !q->zone) {
         return QUERY_DISCARDED;
     }
@@ -287,6 +288,13 @@ query_process_notify(query_type* q, ldns_rr_type qtype, void* engine)
     ods_log_assert(q->zone->adinbound->config);
     dnsin = (dnsin_type*) q->zone->adinbound->config;
     if (!acl_find(dnsin->allow_notify, &q->addr, q->tsig_rr)) {
+        if (addr2ip(q->addr, address, sizeof(address))) {
+            ods_log_info("[%s] notify for zone %s from client %s refused: no "
+                "acl matches", query_str, q->zone->name, address);
+        } else {
+            ods_log_info("[%s] notify for zone %s from unknown client "
+                "refused: no acl matches", query_str, q->zone->name);
+        }
         return query_refused(q);
     }
     limit = buffer_limit(q->buffer);

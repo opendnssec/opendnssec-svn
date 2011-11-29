@@ -98,6 +98,16 @@ acl_type* acl_find(acl_type* acl, struct sockaddr_storage* addr,
     tsig_rr_type* tsig);
 
 /**
+ * Address storage to IP string.
+ * \param[in] addr socket address storage
+ * \param[out] ip ip address
+ * \param[in] len max strlen of ip address
+ * \return int 0 if failed, 1 otherwise
+ *
+ */
+int addr2ip(struct sockaddr_storage addr, char* ip, size_t len);
+
+/**
  * Log ACL.
  * \param[in] acl ACL
  *
