@@ -73,7 +73,7 @@ tools_signconf(zone_type* zone)
         zone->signconf = new_signconf;
         signconf_log(zone->signconf, zone->name);
         zone->default_ttl = (uint32_t) duration2time(zone->signconf->soa_min);
-    } else {
+    } else if (status != ODS_STATUS_UNCHANGED) {
         ods_log_error("[%s] unable to load signconf for zone %s: %s",
             tools_str, zone->name, ods_status2str(status));
     }
