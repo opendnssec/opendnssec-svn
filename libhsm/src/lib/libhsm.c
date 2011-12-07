@@ -496,6 +496,8 @@ hsm_session_init(hsm_ctx_t *ctx, hsm_session_t **session,
     CK_C_INITIALIZE_ARGS InitArgs = {NULL, NULL, NULL, NULL,
                                      CKF_OS_LOCKING_OK, NULL };
 
+    if (pin == NULL) return HSM_ERROR;
+
     module = hsm_module_new(repository, token_label, module_path, config);
     if (!module) return HSM_ERROR;
     rv = hsm_pkcs11_load_functions(module);
@@ -1938,7 +1940,7 @@ hsm_create_empty_rrsig(const ldns_rr_list *rrset,
 
 int
 hsm_open(const char *config,
-         char *(pin_callback)(const char *repository, void *),
+         char *(pin_callback)(unsigned int, const char *, void *, unsigned int),
          void *data)
 {
     xmlDocPtr doc;
@@ -2002,7 +2004,7 @@ hsm_open(const char *config,
             module_path = NULL;
             module_pin = NULL;
             hsm_config_default(&module_config);
-                 
+
             curNode = xpath_obj->nodesetval->nodeTab[i]->xmlChildrenNode;
             repository = (char *) xmlGetProp(xpath_obj->nodesetval->nodeTab[i],
                                              (const xmlChar *)"name");
@@ -2015,7 +2017,7 @@ hsm_open(const char *config,
                 if (xmlStrEqual(curNode->name, (const xmlChar *)"PIN"))
                     module_pin = (char *) xmlNodeGetContent(curNode);
                 if (xmlStrEqual(curNode->name, (const xmlChar *)"SkipPublicKey"))
-                    module_config.use_pubkey = 0;                
+                    module_config.use_pubkey = 0;
                 curNode = curNode->next;
             }
 
@@ -2033,20 +2035,38 @@ hsm_open(const char *config,
                         tries = 0;
                         while (result == HSM_PIN_INCORRECT &&
                                tries < 3) {
-                            module_pin = pin_callback(repository,
-                                                      data);
+                            if (tries == 0) {
+                                module_pin = pin_callback(_hsm_ctx->session_count,
+                                                          repository,
+                                                          data,
+                                                          HSM_PIN_FIRST);
+                            } else {
+                                module_pin = pin_callback(_hsm_ctx->session_count,
+                                                          repository,
+                                                          data,
+                                                          HSM_PIN_RETRY);
+                            }
                             result = hsm_attach(repository,
                                                 token_label,
                                                 module_path,
                                                 module_pin,
                                                 &module_config);
-                            memset(module_pin, 0, strlen(module_pin));
+                            if (result == HSM_OK) {
+                                module_pin = pin_callback(_hsm_ctx->session_count - 1,
+                                                          repository,
+                                                          data,
+                                                          HSM_PIN_SAVE);
+                            }
+                            if (module_pin != NULL) {
+                                memset(module_pin, 0, strlen(module_pin));
+                            }
                             tries++;
                         }
                     } else {
-                        /* no pin, no callback, ignore
-                         * module and token */
-                        result = HSM_OK;
+                        /* no pin, no callback */
+                        hsm_ctx_set_error(_hsm_ctx, HSM_ERROR, "hsm_open()",
+                            "No pin or callback function");
+                        result = HSM_ERROR;
                     }
                 }
                 free(repository);
@@ -2054,8 +2074,8 @@ hsm_open(const char *config,
                 free(module_path);
 
                 if (result != HSM_OK) {
-					break;
-				}
+                    break;
+                }
 
                 repositories++;
             }
@@ -2073,23 +2093,6 @@ hsm_open(const char *config,
     }
 
     return result;
-}
-
-char *
-hsm_prompt_pin(const char *repository, void *data)
-{
-    char *prompt;
-    char *r;
-    (void) data;
-    prompt = malloc(64);
-    snprintf(prompt, 64, "Enter PIN for token %s:", repository);
-#ifdef HAVE_GETPASSPHRASE
-    r = getpassphrase("Enter PIN:");
-#else
-    r = getpass("Enter PIN:");
-#endif
-    free(prompt);
-    return r;
 }
 
 int
