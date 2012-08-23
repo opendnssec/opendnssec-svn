@@ -129,13 +129,18 @@ hsm_prompt_pin(unsigned int id, const char *repository, void *data, unsigned int
 
     /* Get the PIN */
     if (mode != HSM_PIN_SAVE) {
-        /* Do we have a PIN in the cache? */
+        /* Do we have a PIN in the shared memory? */
         if (mode == HSM_PIN_FIRST && pins[index] != '\0') {
             size = strlen(&pins[index]);
             if (size > HSM_MAX_PIN_LENGTH) size = HSM_MAX_PIN_LENGTH;
             memcpy(pin, &pins[index], size);
             pin[size] = '\0';
         } else {
+            /* Zeroize bad PIN in shared memory */
+            if (mode == HSM_PIN_RETRY && pins[index] != '\0') {
+              memset(&pins[index], '\0', HSM_MAX_PIN_LENGTH+1);
+            }
+
             snprintf(prompt, 64, "Enter PIN for token %s: ", repository);
 #ifdef HAVE_GETPASSPHRASE
             prompt_pin = getpassphrase(prompt);
@@ -259,8 +264,19 @@ hsm_block_pin(unsigned int id, const char *repository, void *data, unsigned int 
         memset(pins, '\0', sizeof(char)*HSM_MAX_SESSIONS*(HSM_MAX_PIN_LENGTH+1));
     }
 
-    /* Zeroize any PIN */
+    /* Zeroize PIN buffer */
     memset(pin, '\0', HSM_MAX_PIN_LENGTH+1);
+
+    /* Zeroize bad PIN in shared memory */
+    /* This scenario will happen if the user stops the deamons, change pin,
+       and starts the daemons. Both daemons will run this code, but that
+       does no harm. There is a theoretical problem, the user might have
+       logged in with ods-hsmutil between the HSM_PIN_FIRST and HSM_PIN_RETRY.
+       Thus forcing the user to login again. This is not likely, but we also
+       like to minimize the number of failed login attempts. */
+    if (mode == HSM_PIN_RETRY && pins[index] != '\0') {
+        memset(&pins[index], '\0', HSM_MAX_PIN_LENGTH+1);
+    }
 
     /* Unlock the semaphore */
     if (sem_post(pin_semaphore) != 0) {
