@@ -194,6 +194,14 @@ hsm_block_pin(unsigned int id, const char *repository, void *data, unsigned int 
     if (id >= HSM_MAX_SESSIONS) return NULL;
     if (repository == NULL) return NULL;
     if (mode != HSM_PIN_FIRST && mode != HSM_PIN_RETRY && mode != HSM_PIN_SAVE) return NULL;
+    if (mode == HSM_PIN_SAVE) {
+        /* Nothing to save */
+
+        /* Zeroize the PIN */
+        memset(pin, '\0', HSM_MAX_PIN_LENGTH+1);
+
+        return pin;
+    }
 
     /* Create/get the semaphore */
     pin_semaphore = sem_open(SEM_NAME, O_CREAT, SHM_PERM, 1);
@@ -254,10 +262,24 @@ hsm_block_pin(unsigned int id, const char *repository, void *data, unsigned int 
     /* Zeroize any PIN */
     memset(pin, '\0', HSM_MAX_PIN_LENGTH+1);
 
-    /* Get the PIN */
-    if (mode != HSM_PIN_SAVE) {
-        /* Unlock the semaphore */
-        if (sem_post(pin_semaphore) != 0) {
+    /* Unlock the semaphore */
+    if (sem_post(pin_semaphore) != 0) {
+        shmdt(pins);
+        pins = NULL;
+        sem_close(pin_semaphore);
+        pin_semaphore = NULL;
+        return NULL;
+    }
+
+    /* Wait until we have a PIN. User must use "ods-hsmutil login" or similar */
+    while (pin[0] == '\0') {
+        sleep(1);
+
+        /* Check if we have no PIN in the cache */
+        if (pins[index] == '\0') continue;
+
+        /* Lock the semaphore */
+        if (sem_wait(pin_semaphore) != 0) {
             shmdt(pins);
             pins = NULL;
             sem_close(pin_semaphore);
@@ -265,32 +287,13 @@ hsm_block_pin(unsigned int id, const char *repository, void *data, unsigned int 
             return NULL;
         }
 
-        /* Wait until we have a PIN. User must use "ods-hsmutil login" or similar */
-        while (pin[0] == '\0') {
-            sleep(1);
-
-            /* Check if we have no PIN in the cache */
-            if (pins[index] == '\0') continue;
-
-            /* Lock the semaphore */
-            if (sem_wait(pin_semaphore) != 0) {
-                shmdt(pins);
-                pins = NULL;
-                sem_close(pin_semaphore);
-                pin_semaphore = NULL;
-                return NULL;
-            }
-
-            /* Check if the PIN is in the cache */
-            if (pins[index] != '\0') {
-                size = strlen(&pins[index]);
-                if (size > HSM_MAX_PIN_LENGTH) size = HSM_MAX_PIN_LENGTH;
-                memcpy(pin, &pins[index], size);
-                pin[size] = '\0';
-            }
+        /* Check if the PIN is in the cache */
+        if (pins[index] != '\0') {
+            size = strlen(&pins[index]);
+            if (size > HSM_MAX_PIN_LENGTH) size = HSM_MAX_PIN_LENGTH;
+            memcpy(pin, &pins[index], size);
+            pin[size] = '\0';
         }
-    } else {
-        /* Nothing to do */
     }
 
     /* Unlock the semaphore */

@@ -2052,10 +2052,10 @@ hsm_open(const char *config,
                                                 module_pin,
                                                 &module_config);
                             if (result == HSM_OK) {
-                                module_pin = pin_callback(_hsm_ctx->session_count - 1,
-                                                          repository,
-                                                          data,
-                                                          HSM_PIN_SAVE);
+                                pin_callback(_hsm_ctx->session_count - 1,
+                                             repository,
+                                             data,
+                                             HSM_PIN_SAVE);
                             }
                             if (module_pin != NULL) {
                                 memset(module_pin, 0, strlen(module_pin));
