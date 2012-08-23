@@ -59,7 +59,7 @@ hsm_prompt_pin(unsigned int id, const char *repository, void *data, unsigned int
     int index = id * (HSM_MAX_PIN_LENGTH + 1);
 
     /* PIN from getpass */
-    char *prompt = NULL;
+    char prompt[64];
     char *prompt_pin = NULL;
     unsigned int size = 0;
 
@@ -136,14 +136,12 @@ hsm_prompt_pin(unsigned int id, const char *repository, void *data, unsigned int
             memcpy(pin, &pins[index], size);
             pin[size] = '\0';
         } else {
-            prompt = malloc(64);
             snprintf(prompt, 64, "Enter PIN for token %s: ", repository);
 #ifdef HAVE_GETPASSPHRASE
             prompt_pin = getpassphrase(prompt);
 #else
             prompt_pin = getpass(prompt);
 #endif
-            free(prompt);
 
             /* Remember PIN */
             size = strlen(prompt_pin);
