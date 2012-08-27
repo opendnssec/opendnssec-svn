@@ -48,7 +48,7 @@
 static char pin[HSM_MAX_PIN_LENGTH+1];
 
 char *
-hsm_prompt_pin(unsigned int id, const char *repository, void *data, unsigned int mode)
+hsm_prompt_pin(unsigned int id, const char *repository, unsigned int mode)
 {
     /* Shared memory */
     int shmid;
@@ -62,9 +62,6 @@ hsm_prompt_pin(unsigned int id, const char *repository, void *data, unsigned int
     char prompt[64];
     char *prompt_pin = NULL;
     unsigned int size = 0;
-
-    /* Unused variable */
-    (void) data;
 
     /* Check input data */
     if (id >= HSM_MAX_SESSIONS) return NULL;
@@ -180,7 +177,7 @@ hsm_prompt_pin(unsigned int id, const char *repository, void *data, unsigned int
 }
 
 char *
-hsm_block_pin(unsigned int id, const char *repository, void *data, unsigned int mode)
+hsm_block_pin(unsigned int id, const char *repository, unsigned int mode)
 {
     /* Shared memory */
     int shmid;
@@ -191,9 +188,6 @@ hsm_block_pin(unsigned int id, const char *repository, void *data, unsigned int 
     int index = id * (HSM_MAX_PIN_LENGTH + 1);
 
     unsigned int size = 0;
-
-    /* Unused variable */
-    (void) data;
 
     /* Check input data */
     if (id >= HSM_MAX_SESSIONS) return NULL;

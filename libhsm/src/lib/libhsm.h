@@ -127,8 +127,6 @@ typedef struct {
                     no PIN configured. The default hsm_prompt_pin() can
                     be used. If this value is NULL, these tokens will
                     be skipped
-\param data optional data that will be directly passed to the callback
-            function
 \return 0 if successful, !0 if failed
 
 Attaches all configured HSMs, querying for PINs (using the given
@@ -139,8 +137,7 @@ global context will be used) and log into each HSM.
 */
 int
 hsm_open(const char *config,
-         char *(pin_callback)(unsigned int, const char *, void *, unsigned int),
-         void *data);
+         char *(pin_callback)(unsigned int, const char *, unsigned int));
 
 
 /*! Function that queries for a PIN, can be used as callback
@@ -149,12 +146,11 @@ hsm_open(const char *config,
 \param id Used for identifying the repository. Will have a value between zero and
           HSM_MAX_SESSIONS.
 \param repository The repository name will be included in the prompt
-\param data This value is unused
 \param mode The type of mode the function should run in.
 \return The string the user enters
 */
 char *
-hsm_prompt_pin(unsigned int id, const char *repository, void *data, unsigned int mode);
+hsm_prompt_pin(unsigned int id, const char *repository, unsigned int mode);
 
 
 /*! Function that waits until there is a PIN in the shared memory and returns it.
@@ -162,12 +158,11 @@ hsm_prompt_pin(unsigned int id, const char *repository, void *data, unsigned int
 \param id Used for identifying the repository. Will have a value between zero and
           HSM_MAX_SESSIONS.
 \param repository The repository name will be included in the prompt
-\param data This value is unused
 \param mode The type of mode the function should run in.
 \return The string the user enters
 */
 char *
-hsm_block_pin(unsigned int id, const char *repository, void *data, unsigned int mode);
+hsm_block_pin(unsigned int id, const char *repository, unsigned int mode);
 
 
 /*! Close HSM library

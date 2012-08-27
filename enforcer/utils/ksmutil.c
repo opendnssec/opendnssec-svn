@@ -1530,7 +1530,7 @@ cmd_exportkeys ()
 		}
     }
 
-    status = hsm_open(config, hsm_prompt_pin, NULL);
+    status = hsm_open(config, hsm_prompt_pin);
     if (status) {
         hsm_print_error(NULL);
         exit(-1);
@@ -6123,7 +6123,7 @@ int ListKeys(int zone_id)
 
     if (verbose_flag) {
         /* connect to the HSM */
-        status = hsm_open(config, hsm_prompt_pin, NULL);
+        status = hsm_open(config, hsm_prompt_pin);
         if (status) {
             hsm_print_error(NULL);
             return(-1);
@@ -6327,7 +6327,7 @@ int PurgeKeys(int zone_id, int policy_id)
     }
 
     /* connect to the HSM */
-    status = hsm_open(config, hsm_prompt_pin, NULL);
+    status = hsm_open(config, hsm_prompt_pin);
     if (status) {
         hsm_print_error(NULL);
         return(-1);
@@ -6567,7 +6567,7 @@ int cmd_genkeys()
     }
 
     /* Connect to the hsm */
-    status = hsm_open(config, hsm_prompt_pin, NULL);
+    status = hsm_open(config, hsm_prompt_pin);
     if (status) {
         hsm_error_message = hsm_get_error(ctx);
         if (hsm_error_message) {
@@ -7082,7 +7082,7 @@ int CountKeys(int *zone_id, int keytag, const char *cka_id, int *key_count, char
     hsm_sign_params_t *sign_params = NULL;
 
     /* connect to the HSM */
-    status = hsm_open(config, hsm_prompt_pin, NULL);
+    status = hsm_open(config, hsm_prompt_pin);
     if (status) {
         hsm_print_error(NULL);
         return(-1);

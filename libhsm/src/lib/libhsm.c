@@ -1940,8 +1940,7 @@ hsm_create_empty_rrsig(const ldns_rr_list *rrset,
 
 int
 hsm_open(const char *config,
-         char *(pin_callback)(unsigned int, const char *, void *, unsigned int),
-         void *data)
+         char *(pin_callback)(unsigned int, const char *, unsigned int))
 {
     xmlDocPtr doc;
     xmlXPathContextPtr xpath_ctx;
@@ -2038,12 +2037,10 @@ hsm_open(const char *config,
                             if (tries == 0) {
                                 module_pin = pin_callback(_hsm_ctx->session_count,
                                                           repository,
-                                                          data,
                                                           HSM_PIN_FIRST);
                             } else {
                                 module_pin = pin_callback(_hsm_ctx->session_count,
                                                           repository,
-                                                          data,
                                                           HSM_PIN_RETRY);
                             }
                             result = hsm_attach(repository,
@@ -2054,7 +2051,6 @@ hsm_open(const char *config,
                             if (result == HSM_OK) {
                                 pin_callback(_hsm_ctx->session_count - 1,
                                              repository,
-                                             data,
                                              HSM_PIN_SAVE);
                             }
                             if (module_pin != NULL) {

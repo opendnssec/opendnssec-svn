@@ -448,7 +448,7 @@ main (int argc, char *argv[])
         exit(1);
     }
 
-    result = hsm_open(config, hsm_prompt_pin, NULL);
+    result = hsm_open(config, hsm_prompt_pin);
     if (result) {
         hsm_print_error(NULL);
         exit(-1);
