@@ -133,6 +133,7 @@ message Ksk {
 	// Ksk specific
 	optional bool rfc5011 = 7 [(xml).path="RFC5011"]; // Use RFC 5011 for key rollover ?
 	optional KskRollType rollover_type = 8 [default = KskDoubleSignature, (xml).path="KskRollType"]; // user friendly way of configure minimize flags
+	optional bool cds = 9 [(xml).path="CDS"]; // Use CDS for key rollover ?
 }
 
 message Zsk {
@@ -159,6 +160,11 @@ message Csk {
 	// Ksk specific
 	optional bool rfc5011 = 7 [(xml).path="RFC5011"]; // Use RFC 5011 for key rollover ?
 	optional CskRollType rollover_type = 8 [default = CskPrePublication, (xml).path="CskRollType"]; // user friendly way of configure minimize flags
+	optional bool cds = 9 [(xml).path="CDS"]; // Use CDS for key rollover ?
+}
+
+message Cds {
+	repeated uint32 digest_type = 1 [(xml).path="DigestType"]; // Digest algorithm [0..255]
 }
 
 message Zone {
