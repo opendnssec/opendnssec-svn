@@ -85,6 +85,9 @@ start = element KASP {
 			# enforcer may purge keys after this amount of time
 			element Purge { xsd:duration }?,
 
+			# use CDS for key rollover?
+			cds?,
+
 			# Key Signing Keys (KSK) parameters
 			element KSK {
 				# generic key definition, see below
@@ -94,11 +97,7 @@ start = element KASP {
 
 				# use RFC 5011 for key rollover?
 				# Not implemented yet
-				element RFC5011 { empty }?,
-
-				# use CDS for key rollover?
-				# Not implemented yet
-				cds?
+				element RFC5011 { empty }?
 			}*,
 
 			# Zone Signing Keys (ZSK) parameters
@@ -118,10 +117,7 @@ start = element KASP {
 				
 				# use RFC 5011 for key rollover?
 				# Not implemented yet
-				element RFC5011 { empty }?,
-
-				# use CDS for key rollover?
-				cds?
+				element RFC5011 { empty }?
 			}*
 		},
 
@@ -225,6 +221,8 @@ partial = element Partial { empty }
 
 # CDS record
 cds = element CDS {
-	element DigestType { algorithm }+
+	element Digest {
+		element Type { xsd:nonNegativeInteger { maxInclusive = "255" } }
+	}+
 }
 

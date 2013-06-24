@@ -187,8 +187,9 @@ write_signer_configuration_to_file(int sockfd,
 				ods_log_info("Key cds is active..., #digests=%u", kp_cds.digest_size());
 				::ods::signconf::CDS *sc_cds = sc_key->mutable_cds();
 				for (int l=0; l < kp_cds.digest_size(); ++l) {
+					::ods::signconf::Digest *sc_digest = sc_cds->add_digest();
 					ods_log_info("Key cds add digest...");
-					sc_cds->add_digest_type(kp_cds.digest(l));
+					sc_digest->set_digest_type(kp_cds.digest(l).digest_type());
 				}
 			} else {
 				ods_log_info("Key cds is not active...");

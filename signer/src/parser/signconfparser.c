@@ -45,6 +45,12 @@
 
 static const char* parser_str = "parser";
 
+static void
+ods_setbit(int* m, int b)
+{
+    *m |= 1 << (b-1);
+}
+
 
 /**
  * Parse keys from the signer configuration file.
@@ -58,6 +64,7 @@ parse_sc_keys(void* sc, const char* cfgfile)
     xmlXPathObjectPtr xpathObj = NULL;
     xmlNode* curNode = NULL;
     xmlNode* childNode = NULL;
+    xmlNode* childNode2 = NULL;
     xmlChar* xexpr = NULL;
     key_type* new_key = NULL;
     keylist_type* kl = NULL;
@@ -123,8 +130,14 @@ parse_sc_keys(void* sc, const char* cfgfile)
                 } else if (xmlStrEqual(curNode->name, (const xmlChar *)"CDS")) {
                     childNode = curNode->children;
                     while (childNode) {
-                        if (xmlStrEqual(childNode->name, (const xmlChar *)"DigestType")) {
-                            cds_digest_types += (0x01 << (atoi((char *) xmlNodeGetContent(childNode))-1));
+                        if (xmlStrEqual(childNode->name, (const xmlChar *)"Digest")) {
+                            childNode2 = childNode->children;
+                            while (childNode2) {
+                                if (xmlStrEqual(childNode2->name, (const xmlChar *)"Type")) {
+                                    ods_setbit(&cds_digest_types, atoi((char *) xmlNodeGetContent(childNode2)));
+                                }
+                                childNode2 = childNode2->next;
+                            }
                         }
                         childNode = childNode->next;
                     }

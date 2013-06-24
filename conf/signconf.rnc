@@ -122,7 +122,9 @@ nsec3 = element NSEC3 {
 
 # CDS record
 cds = element CDS {
-		element	DigestType { algorithm }+
-	}
+	element	Digest {
+		element Type { xsd:nonNegativeInteger { maxInclusive = "255" } }
+	}+
+}
 
 maxzonettl = element MaxZoneTTL { xsd:duration }

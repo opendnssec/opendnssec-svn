@@ -99,7 +99,11 @@ message Key {
 }
 
 message CDS {
-    repeated uint32 digest_type = 1 [(xml).path="DigestType"]; // Digest algorithm [0..255]
+    repeated Digest digest = 1 [(xml).path="Digest"]; // Digest algorithm [0..255]
+}
+
+message Digest {
+    required uint32 digest_type = 1 [(xml).path="Type"]; // Digest algorithm [0..255]
 }
 
 enum serial {

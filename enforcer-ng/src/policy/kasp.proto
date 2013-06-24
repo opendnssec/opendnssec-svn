@@ -121,11 +121,6 @@ enum CskRollType {
 	CskDoubleSignature = 4;	//minimize DS
 	CskPrePublication = 5;	//minimize DS and RRSIG
 }
-enum CdsDigest {
-	CdsDigestSha1 = 1;
-	CdsDigestSha2 = 2;
-}
-
 message Ksk {
 	// anykey = generic key definition
 	required uint32 algorithm = 1 [(xml).path="Algorithm"]; // ksk algorithm (maxInclusive 255)
@@ -167,7 +162,7 @@ message Csk {
 }
 
 message Cds {
-	repeated CdsDigest digest = 1 [(xml).path="DigestType"]; // Digest algorithm [0..255]
+	repeated Digest digest = 1 [(xml).path="Digest"]; // Digest algorithm [0..255]
 }
 
 message Zone {
@@ -196,3 +191,6 @@ message Audit {
 	optional bool partial = 1 [(xml).path="Partial"]; // Do a partial audit ?
 }
 
+message Digest {
+	required uint32 digest_type = 1 [(xml).path="Type"]; // Digest algorithm [0..255]
+}
