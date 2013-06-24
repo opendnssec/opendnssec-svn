@@ -95,10 +95,10 @@ message Key {
 	optional bool zsk = 5  [(xml).path="ZSK"]; // sign all non-DNSKEY RRsets with this key ?
     optional bool publish = 6 [(xml).path="Publish"]; // include this key in the zonefile ?
     optional bool deactivate = 7 [(xml).path="Deactivate"]; // deactivate this key (i.e. do not recycle any signatures)
-    optional bool cds = 8 [(xml).path="CDS"]; // create CDS RR for this key ?
+    optional CDS cds = 8 [(xml).path="CDS"]; // create CDS RR for this key ?
 }
 
-message Cds {
+message CDS {
     repeated uint32 digest_type = 1 [(xml).path="DigestType"]; // Digest algorithm [0..255]
 }
 
