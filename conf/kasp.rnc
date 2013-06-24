@@ -98,7 +98,7 @@ start = element KASP {
 
 				# use CDS for key rollover?
 				# Not implemented yet
-				element CDS { empty }?
+				cds?
 			}*,
 
 			# Zone Signing Keys (ZSK) parameters
@@ -121,8 +121,7 @@ start = element KASP {
 				element RFC5011 { empty }?,
 
 				# use CDS for key rollover?
-				# Not implemented yet
-				element CDS { empty }?
+				cds?
 			}*
 		},
 
@@ -222,3 +221,10 @@ maxzonettl = element MaxZoneTTL { xsd:duration }
 propagationdelay = element PropagationDelay { xsd:duration }
 
 partial = element Partial { empty }
+
+
+# CDS record
+cds = element CDS {
+	element DigestType { algorithm }+
+}
+
