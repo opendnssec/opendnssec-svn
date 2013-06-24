@@ -102,6 +102,7 @@ public:
     virtual void setPublish(bool value);
     virtual void setActiveZSK(bool value);
     virtual void setActiveKSK(bool value);
+    virtual void setActiveCDS(bool value);
     
     /* Current state of the DS record at the parent */
     virtual DsAtParent dsAtParent();

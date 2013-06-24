@@ -1434,6 +1434,7 @@ update(EnforcerZone &zone, const time_t now, HsmKeyFactory &keyfactory)
 		k.setPublish(getState(k, DK, NULL) == OMN || getState(k, DK, NULL) == RUM);
 		k.setActiveKSK(getState(k, RD, NULL) == OMN || getState(k, RD, NULL) == RUM);
 		k.setActiveZSK(getState(k, RS, NULL) == OMN || getState(k, RS, NULL) == RUM);
+		k.setActiveCDS(getState(k, DS, NULL) == OMN || getState(k, DS, NULL) == RUM);
 	}
 
 	minTime(policy_return_time, zone_return_time);

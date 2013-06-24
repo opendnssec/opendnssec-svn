@@ -142,7 +142,7 @@ write_signer_configuration_to_file(int sockfd,
 	
 	for (int k=0; k<ks_zone->keys_size(); ++k) {
 		const ::ods::keystate::KeyData &ks_key = ks_zone->keys(k);
-		
+
 		// first check whether we actually should write this key into the
 		// signer configuration.
 		if (!ks_key.publish() && !ks_key.active_ksk() && !ks_key.active_zsk())
@@ -169,7 +169,7 @@ write_signer_configuration_to_file(int sockfd,
 						(ks_key.role() == ::ods::keystate::ZSK
 						 || ks_key.role() == ::ods::keystate::CSK) );
 		sc_key->set_publish( ks_key.publish() );
-		
+
 		// The deactivate flag was intended to allow smooth key rollover.
 		// With the deactivate flag present a normal rollover would be 
 		// performed where signatures would be replaced immmediately.
@@ -179,6 +179,26 @@ write_signer_configuration_to_file(int sockfd,
 		// new signatures.
 		// Currently this flag is not supported by the signer engine.
 		// sc_key->set_deactivate(  );
+
+		if (policy->keys().has_cds()) {
+			const ::ods::kasp::Cds &kp_cds = policy->keys().cds();
+			ods_log_info("Kasp has cds info...");
+			if (ks_key.active_cds()) {
+				ods_log_info("Key cds is active..., #digests=%u", kp_cds.digest_size());
+				::ods::signconf::CDS *sc_cds = sc_key->mutable_cds();
+				for (int l=0; l < kp_cds.digest_size(); ++l) {
+					ods_log_info("Key cds add digest...");
+					sc_cds->add_digest_type(kp_cds.digest(l));
+				}
+			} else {
+				ods_log_info("Key cds is not active...");
+				sc_key->clear_cds();
+			}
+		} else {
+			ods_log_info("Kasp has no cds info...");
+			sc_key->clear_cds();
+		}
+
 	}
 	
 	const ::ods::kasp::Zone &kp_zone = policy->zone();

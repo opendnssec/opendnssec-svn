@@ -208,6 +208,11 @@ void KeyDataPB::setActiveKSK(bool value)
     _keydata->set_active_ksk(value);
 }
 
+void KeyDataPB::setActiveCDS(bool value)
+{
+    _keydata->set_active_cds(value);
+}
+
 DsAtParent KeyDataPB::dsAtParent()
 {
     return (DsAtParent)_keydata->ds_at_parent();

@@ -37,6 +37,7 @@ const char *kasp_test_doc =
 				"<Algorithm length=\"2048\">8</Algorithm>\n"
 				"<Lifetime>P1Y</Lifetime>\n"
 				"<Repository>SoftHSM</Repository>\n"
+				"<CDS><DigestType>1</DigestType></CDS>\n"
 			"</KSK>\n"
 			"<ZSK>\n"
 				"<Algorithm length=\"1024\">8</Algorithm>\n"

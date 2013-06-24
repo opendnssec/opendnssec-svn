@@ -230,6 +230,7 @@ public:
     virtual void setPublish(bool value) = 0;
     virtual void setActiveZSK(bool value) = 0;
     virtual void setActiveKSK(bool value) = 0;
+    virtual void setActiveCDS(bool value) = 0;
     
     virtual void setDsAtParent(DsAtParent value) = 0;
     virtual DsAtParent dsAtParent() = 0;
