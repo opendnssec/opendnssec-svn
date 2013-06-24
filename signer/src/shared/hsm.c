@@ -94,9 +94,13 @@ lhsm_clear_key_cache(key_type* key)
         /* DNSKEY still exists in zone */
         key->dnskey = NULL;
     }
-    if (key->cds) {
+    if (key->cds[0]) {
         /* CDS still exists in zone */
-        key->cds = NULL;
+        key->cds[0] = NULL;
+    }
+    if (key->cds[1]) {
+        /* CDS still exists in zone */
+        key->cds[1] = NULL;
     }
     if (key->hsmkey) {
         hsm_key_free(key->hsmkey);

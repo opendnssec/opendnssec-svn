@@ -64,7 +64,7 @@ parse_sc_keys(void* sc, const char* cfgfile)
     char* locator = NULL;
     char* flags = NULL;
     char* algorithm = NULL;
-    char* cds_digest_type = NULL;
+    int cds_digest_types;
     int ksk, zsk, publish, i;
 
     if (!cfgfile || !sc) {
@@ -103,7 +103,7 @@ parse_sc_keys(void* sc, const char* cfgfile)
             locator = NULL;
             flags = NULL;
             algorithm = NULL;
-            cds_digest_type = NULL;
+            cds_digest_types = 0;
             ksk = 0;
             zsk = 0;
             publish = 0;
@@ -124,8 +124,7 @@ parse_sc_keys(void* sc, const char* cfgfile)
                     childNode = curNode->children;
                     while (childNode) {
                         if (xmlStrEqual(childNode->name, (const xmlChar *)"DigestType")) {
-                            cds_digest_type = (char *) xmlNodeGetContent(childNode);
-                            childNode = NULL;
+                            cds_digest_types += (0x01 << (atoi((char *) xmlNodeGetContent(childNode))-1));
                         }
                         childNode = childNode->next;
                     }
@@ -142,15 +141,15 @@ parse_sc_keys(void* sc, const char* cfgfile)
                     new_key->flags == (uint32_t) atoi(flags) &&
                     new_key->publish == publish &&
                     new_key->ksk == ksk &&
-                    new_key->zsk == zsk,
-                    new_key->cds_digest_type == (int) atoi(cds_digest_type)) {
+                    new_key->zsk == zsk &&
+                    new_key->cds_digest_types == cds_digest_types) {
                     /* duplicate */
                     ods_log_warning("[%s] unable to push duplicate key %s "
                         "to keylist, skipping", parser_str, locator);
                 } else {
                     new_key = keylist_push(kl, locator,
                         (uint8_t) atoi(algorithm), (uint32_t) atoi(flags),
-                        publish, ksk, zsk, (int) atoi(cds_digest_type));
+                        publish, ksk, zsk, cds_digest_types);
                 }
             } else {
                 ods_log_error("[%s] unable to push key to keylist: <Key> "
@@ -160,7 +159,6 @@ parse_sc_keys(void* sc, const char* cfgfile)
             /* free((void*)locator); */
             free((void*)algorithm);
             free((void*)flags);
-            free((void*)cds_digest_type);
         }
     }
     xmlXPathFreeObject(xpathObj);

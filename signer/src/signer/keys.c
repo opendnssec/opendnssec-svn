@@ -119,7 +119,7 @@ keylist_lookup_by_dnskey(keylist_type* kl, ldns_rr* dnskey)
 key_type*
 keylist_push(keylist_type* kl, const char* locator,
     uint8_t algorithm, uint32_t flags, int publish, int ksk, int zsk,
-    int digest_type)
+    int digest_types)
 {
     key_type* keys_old = NULL;
     signconf_type* sc = NULL;
@@ -147,8 +147,9 @@ keylist_push(keylist_type* kl, const char* locator,
     kl->keys[kl->count -1].publish = publish;
     kl->keys[kl->count -1].ksk = ksk;
     kl->keys[kl->count -1].zsk = zsk;
-    kl->keys[kl->count -1].cds_digest_type = digest_type;
-    kl->keys[kl->count -1].cds    = NULL;
+    kl->keys[kl->count -1].cds_digest_types = digest_types;
+    kl->keys[kl->count -1].cds[0] = NULL;
+    kl->keys[kl->count -1].cds[1] = NULL;
     kl->keys[kl->count -1].dnskey = NULL;
     kl->keys[kl->count -1].hsmkey = NULL;
     kl->keys[kl->count -1].params = NULL;
@@ -184,9 +185,9 @@ key_print(FILE* fd, key_type* key)
     if (key->publish) {
         fprintf(fd, "\t\t\t\t<Publish />\n");
     }
-    if (key->cds_digest_type) {
+    if (key->cds_digest_types) {
         fprintf(fd, "\t\t\t\t<CDS><DigestType>%d</DigestType></CDS>\n",
-            key->cds_digest_type);
+            key->cds_digest_types);
     }
     fprintf(fd, "\t\t\t</Key>\n");
     fprintf(fd, "\n");
@@ -207,7 +208,7 @@ key_log(key_type* key, const char* name)
     ods_log_debug("[%s] zone %s key: LOCATOR[%s] FLAGS[%u] ALGORITHM[%u] "
         "KSK[%i] ZSK[%i] CDS[%i] PUBLISH[%i]", key_str, name?name:"(null)",
         key->locator, key->flags, key->algorithm, key->ksk, key->zsk,
-        key->cds_digest_type, key->publish);
+        key->cds_digest_types, key->publish);
     return;
 }
 
@@ -259,7 +260,8 @@ key_delfunc(key_type* key)
         return;
     }
     /* ldns_rr_free(key->dnskey); */
-    /* ldns_rr_free(key->cds); */
+    /* ldns_rr_free(key->cds[0]); */
+    /* ldns_rr_free(key->cds[1]); */
     hsm_key_free(key->hsmkey);
     hsm_sign_params_free(key->params);
     free((void*) key->locator);
@@ -301,7 +303,7 @@ key_backup(FILE* fd, key_type* key, const char* version)
     fprintf(fd, ";;Key: locator %s algorithm %u flags %u publish %i ksk %i "
         "zsk %i cds %i\n", key->locator, (unsigned) key->algorithm,
         (unsigned) key->flags, key->publish, key->ksk, key->zsk,
-        key->cds_digest_type);
+        key->cds_digest_types);
     if (strcmp(version, ODS_SE_FILE_MAGIC_V3) == 0) {
         if (key->dnskey) {
             (void)util_rr_print(fd, key->dnskey);
