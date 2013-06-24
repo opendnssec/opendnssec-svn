@@ -234,6 +234,7 @@ zone_publish_dnskeys(zone_type* zone)
     ods_status status = ODS_STATUS_OK;
     rrset_type* rrset = NULL;
     rr_type* dnskey = NULL;
+    rr_type* cds = NULL;
 
     if (!zone || !zone->db || !zone->signconf || !zone->signconf->keys) {
         return ODS_STATUS_ASSERT_ERR;
@@ -299,6 +300,46 @@ zone_publish_dnskeys(zone_type* zone)
                 "error adding dnskey", zone_str, zone->name);
             break;
         }
+        if (zone->signconf->keys->keys[i].cds_digest_type) {
+            if (!zone->signconf->keys->keys[i].cds) {
+                /* get cds */
+                zone->signconf->keys->keys[i].cds = ldns_key_rr2ds(
+                    zone->signconf->keys->keys[i].dnskey,
+                    zone->signconf->keys->keys[i].cds_digest_type);
+                if (!zone->signconf->keys->keys[i].cds) {
+                    ods_log_error("[%s] unable to publish dnskeys for zone %s: "
+                        "error creating dnskey", zone_str, zone->name);
+                    status = ODS_STATUS_ERR;
+                    break;
+                }
+            }
+            ods_log_debug("[%s] publish %s CDS locator %s", zone_str,
+                zone->name, zone->signconf->keys->keys[i].locator);
+            ods_log_assert(zone->signconf->keys->keys[i].cds);
+            ldns_rr_set_type(zone->signconf->keys->keys[i].cds,
+                LDNS_RR_TYPE_CDS);
+            ldns_rr_set_ttl(zone->signconf->keys->keys[i].cds, ttl);
+            ldns_rr_set_class(zone->signconf->keys->keys[i].dnskey, zone->klass);
+            status = zone_add_rr(zone, zone->signconf->keys->keys[i].cds, 0);
+            if (status == ODS_STATUS_UNCHANGED) {
+                /* rr already exists, adjust pointer */
+                rrset = zone_lookup_rrset(zone, zone->apex, LDNS_RR_TYPE_CDS);
+                ods_log_assert(rrset);
+                cds = rrset_lookup_rr(rrset,
+                    zone->signconf->keys->keys[i].cds);
+                ods_log_assert(cds);
+                if (cds->rr != zone->signconf->keys->keys[i].cds) {
+                    ldns_rr_free(zone->signconf->keys->keys[i].cds);
+                }
+                zone->signconf->keys->keys[i].cds = cds->rr;
+                status = ODS_STATUS_OK;
+            } else if (status != ODS_STATUS_OK) {
+               ods_log_error("[%s] unable to publish dnskeys for zone %s: "
+                   "error adding cds", zone_str, zone->name);
+                break;
+            }
+
+        }
     }
     /* done */
     hsm_destroy_context(ctx);
@@ -316,6 +357,7 @@ zone_rollback_dnskeys(zone_type* zone)
     uint16_t i = 0;
     rrset_type* rrset = NULL;
     rr_type* dnskey = NULL;
+    rr_type* cds = NULL;
     if (!zone || !zone->signconf || !zone->signconf->keys) {
         return;
     }
@@ -328,6 +370,17 @@ zone_rollback_dnskeys(zone_type* zone)
             if (dnskey && !dnskey->exists &&
                 dnskey->rr == zone->signconf->keys->keys[i].dnskey) {
                 zone->signconf->keys->keys[i].dnskey = NULL;
+            }
+        }
+    }
+    /* unlink cds rrs */
+    for (i=0; i < zone->signconf->keys->count; i++) {
+        if (rrset && zone->signconf->keys->keys[i].cds) {
+            cds = rrset_lookup_rr(rrset,
+                zone->signconf->keys->keys[i].cds);
+            if (cds && !cds->exists &&
+                cds->rr == zone->signconf->keys->keys[i].cds) {
+                zone->signconf->keys->keys[i].cds = NULL;
             }
         }
     }

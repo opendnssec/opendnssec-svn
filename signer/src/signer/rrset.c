@@ -564,6 +564,10 @@ rrset_sigok(rrset_type* rrset, key_type* key)
     if (rrset->rrtype == LDNS_RR_TYPE_DNSKEY) {
         return 0;
     }
+    /* CDS RRset always needs to be signed with active key */
+    if (rrset->rrtype == LDNS_RR_TYPE_CDS) {
+        return 0;
+    }
     /* Let's look for RRSIGs from inactive ZSKs */
     for (i=0; i < rrset->rrsig_count; i++) {
         /* Same algorithm? */
@@ -723,14 +727,16 @@ rrset_sign(hsm_ctx_t* ctx, rrset_type* rrset, time_t signtime)
          &inception, &expiration);
     /* Walk keys */
     for (i=0; i < zone->signconf->keys->count; i++) {
-        /* ZSKs don't sign DNSKEY RRset */
+        /* ZSKs don't sign DNSKEY|CDS RRset */
         if (!zone->signconf->keys->keys[i].zsk &&
-            rrset->rrtype != LDNS_RR_TYPE_DNSKEY) {
+            rrset->rrtype != LDNS_RR_TYPE_DNSKEY &&
+            rrset->rrtype != LDNS_RR_TYPE_CDS) {
             continue;
         }
-        /* KSKs only sign DNSKEY RRset */
+        /* KSKs only sign DNSKEY|CDS RRset */
         if (!zone->signconf->keys->keys[i].ksk &&
-            rrset->rrtype == LDNS_RR_TYPE_DNSKEY) {
+            (rrset->rrtype == LDNS_RR_TYPE_DNSKEY ||
+            rrset->rrtype == LDNS_RR_TYPE_CDS)) {
             continue;
         }
         /* Additional rules for signatures */

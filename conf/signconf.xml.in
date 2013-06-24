@@ -36,6 +36,7 @@
 				<Locator>DFE7265B783F418685380AA784C2F31D</Locator>
 				<KSK/>
 				<Publish/>
+				<CDS><DigestType>1</DigestType></CDS>
 			</Key>
 
 			<Key>

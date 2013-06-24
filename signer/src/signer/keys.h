@@ -55,6 +55,7 @@
 typedef struct key_struct key_type;
 struct key_struct {
     ldns_rr* dnskey;
+    ldns_rr* cds;
     hsm_key_t* hsmkey;
     hsm_sign_params_t* params;
     const char* locator;
@@ -63,6 +64,7 @@ struct key_struct {
     int publish;
     int ksk;
     int zsk;
+    int cds_digest_type;
 };
 
 /**
@@ -111,11 +113,13 @@ key_type* keylist_lookup_by_dnskey(keylist_type* kl, ldns_rr* dnskey);
  * \param[in] publish if true, publish key as a DNSKEY
  * \param[in] ksk if true, sign DNSKEY RRset with this key
  * \param[in] zsk if true, sign all but DNSKEY RRset with this key
+ * \param[in] digest_type digest type for CDS RR
  * \return key_type* key
  *
  */
 key_type* keylist_push(keylist_type* kl, const char* locator,
-    uint8_t algorithm, uint32_t flags, int publish, int ksk, int zsk);
+    uint8_t algorithm, uint32_t flags, int publish, int ksk, int zsk,
+    int digest_type);
 
 /**
  * Print key list.

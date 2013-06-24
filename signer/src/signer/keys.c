@@ -118,7 +118,8 @@ keylist_lookup_by_dnskey(keylist_type* kl, ldns_rr* dnskey)
  */
 key_type*
 keylist_push(keylist_type* kl, const char* locator,
-    uint8_t algorithm, uint32_t flags, int publish, int ksk, int zsk)
+    uint8_t algorithm, uint32_t flags, int publish, int ksk, int zsk,
+    int digest_type)
 {
     key_type* keys_old = NULL;
     signconf_type* sc = NULL;
@@ -146,6 +147,8 @@ keylist_push(keylist_type* kl, const char* locator,
     kl->keys[kl->count -1].publish = publish;
     kl->keys[kl->count -1].ksk = ksk;
     kl->keys[kl->count -1].zsk = zsk;
+    kl->keys[kl->count -1].cds_digest_type = digest_type;
+    kl->keys[kl->count -1].cds    = NULL;
     kl->keys[kl->count -1].dnskey = NULL;
     kl->keys[kl->count -1].hsmkey = NULL;
     kl->keys[kl->count -1].params = NULL;
@@ -175,8 +178,15 @@ key_print(FILE* fd, key_type* key)
     if (key->zsk) {
         fprintf(fd, "\t\t\t\t<ZSK />\n");
     }
+    if (key->zsk) {
+        fprintf(fd, "\t\t\t\t<ZSK />\n");
+    }
     if (key->publish) {
         fprintf(fd, "\t\t\t\t<Publish />\n");
+    }
+    if (key->cds_digest_type) {
+        fprintf(fd, "\t\t\t\t<CDS><DigestType>%d</DigestType></CDS>\n",
+            key->cds_digest_type);
     }
     fprintf(fd, "\t\t\t</Key>\n");
     fprintf(fd, "\n");
@@ -195,8 +205,9 @@ key_log(key_type* key, const char* name)
         return;
     }
     ods_log_debug("[%s] zone %s key: LOCATOR[%s] FLAGS[%u] ALGORITHM[%u] "
-        "KSK[%i] ZSK[%i] PUBLISH[%i]", key_str, name?name:"(null)", key->locator,
-        key->flags, key->algorithm, key->ksk, key->zsk, key->publish);
+        "KSK[%i] ZSK[%i] CDS[%i] PUBLISH[%i]", key_str, name?name:"(null)",
+        key->locator, key->flags, key->algorithm, key->ksk, key->zsk,
+        key->cds_digest_type, key->publish);
     return;
 }
 
@@ -248,6 +259,7 @@ key_delfunc(key_type* key)
         return;
     }
     /* ldns_rr_free(key->dnskey); */
+    /* ldns_rr_free(key->cds); */
     hsm_key_free(key->hsmkey);
     hsm_sign_params_free(key->params);
     free((void*) key->locator);
@@ -287,9 +299,10 @@ key_backup(FILE* fd, key_type* key, const char* version)
         return;
     }
     fprintf(fd, ";;Key: locator %s algorithm %u flags %u publish %i ksk %i "
-        "zsk %i\n", key->locator, (unsigned) key->algorithm,
-        (unsigned) key->flags, key->publish, key->ksk, key->zsk);
-    if (strcmp(version, ODS_SE_FILE_MAGIC_V2) == 0) {
+        "zsk %i cds %i\n", key->locator, (unsigned) key->algorithm,
+        (unsigned) key->flags, key->publish, key->ksk, key->zsk,
+        key->cds_digest_type);
+    if (strcmp(version, ODS_SE_FILE_MAGIC_V3) == 0) {
         if (key->dnskey) {
             (void)util_rr_print(fd, key->dnskey);
         }
@@ -312,6 +325,7 @@ key_recover2(FILE* fd, keylist_type* kl)
     int publish = 0;
     int ksk = 0;
     int zsk = 0;
+    int cds = 0;
 
     ods_log_assert(fd);
 
@@ -333,8 +347,12 @@ key_recover2(FILE* fd, keylist_type* kl)
         }
         return NULL;
     }
+    if (!backup_read_check_str(fd, "cds") ||
+        !backup_read_int(fd, &cds)) {
+       ods_log_warning("[%s] CDS not in backup, default to 0", key_str);
+    }
     /* key ok */
-    return keylist_push(kl, locator, algorithm, flags, publish, ksk, zsk);
+    return keylist_push(kl, locator, algorithm, flags, publish, ksk, zsk, cds);
 }
 
 

@@ -55,6 +55,7 @@ util_is_dnssec_rr(ldns_rr* rr)
     }
     type = ldns_rr_get_type(rr);
     return (type == LDNS_RR_TYPE_RRSIG ||
+            type == LDNS_RR_TYPE_CDS ||
             type == LDNS_RR_TYPE_NSEC ||
             type == LDNS_RR_TYPE_NSEC3 ||
             type == LDNS_RR_TYPE_NSEC3PARAMS);

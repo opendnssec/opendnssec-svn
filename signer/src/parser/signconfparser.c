@@ -57,12 +57,14 @@ parse_sc_keys(void* sc, const char* cfgfile)
     xmlXPathContextPtr xpathCtx = NULL;
     xmlXPathObjectPtr xpathObj = NULL;
     xmlNode* curNode = NULL;
+    xmlNode* childNode = NULL;
     xmlChar* xexpr = NULL;
     key_type* new_key = NULL;
     keylist_type* kl = NULL;
     char* locator = NULL;
     char* flags = NULL;
     char* algorithm = NULL;
+    char* cds_digest_type = NULL;
     int ksk, zsk, publish, i;
 
     if (!cfgfile || !sc) {
@@ -101,6 +103,7 @@ parse_sc_keys(void* sc, const char* cfgfile)
             locator = NULL;
             flags = NULL;
             algorithm = NULL;
+            cds_digest_type = NULL;
             ksk = 0;
             zsk = 0;
             publish = 0;
@@ -117,6 +120,15 @@ parse_sc_keys(void* sc, const char* cfgfile)
                     ksk = 1;
                 } else if (xmlStrEqual(curNode->name, (const xmlChar *)"ZSK")) {
                     zsk = 1;
+                } else if (xmlStrEqual(curNode->name, (const xmlChar *)"CDS")) {
+                    childNode = curNode->children;
+                    while (childNode) {
+                        if (xmlStrEqual(childNode->name, (const xmlChar *)"DigestType")) {
+                            cds_digest_type = (char *) xmlNodeGetContent(childNode);
+                            childNode = NULL;
+                        }
+                        childNode = childNode->next;
+                    }
                 } else if (xmlStrEqual(curNode->name, (const xmlChar *)"Publish")) {
                     publish = 1;
                 }
@@ -130,14 +142,15 @@ parse_sc_keys(void* sc, const char* cfgfile)
                     new_key->flags == (uint32_t) atoi(flags) &&
                     new_key->publish == publish &&
                     new_key->ksk == ksk &&
-                    new_key->zsk == zsk) {
+                    new_key->zsk == zsk,
+                    new_key->cds_digest_type == (int) atoi(cds_digest_type)) {
                     /* duplicate */
                     ods_log_warning("[%s] unable to push duplicate key %s "
                         "to keylist, skipping", parser_str, locator);
                 } else {
                     new_key = keylist_push(kl, locator,
                         (uint8_t) atoi(algorithm), (uint32_t) atoi(flags),
-                        publish, ksk, zsk);
+                        publish, ksk, zsk, (int) atoi(cds_digest_type));
                 }
             } else {
                 ods_log_error("[%s] unable to push key to keylist: <Key> "
@@ -147,6 +160,7 @@ parse_sc_keys(void* sc, const char* cfgfile)
             /* free((void*)locator); */
             free((void*)algorithm);
             free((void*)flags);
+            free((void*)cds_digest_type);
         }
     }
     xmlXPathFreeObject(xpathObj);

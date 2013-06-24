@@ -94,7 +94,11 @@ start = element KASP {
 
 				# use RFC 5011 for key rollover?
 				# Not implemented yet
-				element RFC5011 { empty }?
+				element RFC5011 { empty }?,
+
+				# use CDS for key rollover?
+				# Not implemented yet
+				element CDS { empty }?
 			}*,
 
 			# Zone Signing Keys (ZSK) parameters
@@ -114,7 +118,11 @@ start = element KASP {
 				
 				# use RFC 5011 for key rollover?
 				# Not implemented yet
-				element RFC5011 { empty }?
+				element RFC5011 { empty }?,
+
+				# use CDS for key rollover?
+				# Not implemented yet
+				element CDS { empty }?
 			}*
 		},
 
