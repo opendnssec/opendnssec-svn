@@ -33,7 +33,8 @@
 
 #include "config.h"
 #include "daemon/engine.h"
-
+#include "shared/protobuf.h"
+#include "daemon/orm.h"
 
 /* Pull in the commands that have been implemented for the enforcer */
 #include "enforcer/autostart_cmd.h"
@@ -74,10 +75,13 @@
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <libxml/parser.h>
+
 
 #define AUTHOR_NAME "Matthijs Mekking, Yuri Schaeffer, René Post"
 #define COPYRIGHT_STR "Copyright (C) 2010-2011 NLnet Labs OpenDNSSEC"
 
+static const char* enforcerd_str = "engine";
 
 /**
  * Prints usage.
@@ -216,6 +220,38 @@ enforcer_commands[] = {
     NULL
 };
 
+void
+program_setup(int cmdline_verbosity)
+{
+    /* for now just log to stderr */
+    ods_log_init(NULL, 0, cmdline_verbosity);
+    ods_log_verbose("[%s] starting enforcer", enforcerd_str);
+
+    /* initialize */
+    xmlInitGlobals();
+    xmlInitParser();
+    xmlInitThreads();
+    
+    /* setup */
+    tzset(); /* for portability */
+
+    /* initialize protobuf and protobuf-orm */
+    ods_protobuf_initialize();
+    ods_orm_initialize();
+}
+
+void
+program_teardown()
+{
+    ods_orm_shutdown();
+    ods_protobuf_shutdown();
+
+    ods_log_close();
+
+    xmlCleanupParser();
+    xmlCleanupGlobals();
+    xmlCleanupThreads();
+}
 
 /**
  * Main. start engine and run it.
@@ -224,6 +260,10 @@ enforcer_commands[] = {
 int
 main(int argc, char* argv[])
 {
+    ods_status status;
+    engine_type *engine;
+    engineconfig_type* cfg;
+    int returncode;
     int c;
     int options_index = 0;
     int info = 0;
@@ -233,9 +273,6 @@ main(int argc, char* argv[])
     const char* cfgfile = ODS_SE_CFGFILE;
     static struct option long_options[] = {
         {"single-run", no_argument, 0, '1'},
-#if HAVE_READ_CONFIG_FROM_EXTERNAL_FILE
-        {"config", required_argument, 0, 'c'},
-#endif
         {"no-daemon", no_argument, 0, 'd'},
         {"help", no_argument, 0, 'h'},
         {"info", no_argument, 0, 'i'},
@@ -245,13 +282,7 @@ main(int argc, char* argv[])
     };
 
     /* parse the commandline */
-    while ((c=getopt_long(argc, argv, 
-#if HAVE_READ_CONFIG_FROM_EXTERNAL_FILE
-                          "1c:dhivV"
-#else
-                          "1dhivV"
-#endif
-                          ,
+    while ((c=getopt_long(argc, argv, "1dhivV",
         long_options, &options_index)) != -1) {
         switch (c) {
             case '1':
@@ -263,7 +294,6 @@ main(int argc, char* argv[])
             case 'h':
                 usage(stdout);
                 exit(0);
-                break;
             case 'i':
                 info = 1;
                 break;
@@ -273,11 +303,9 @@ main(int argc, char* argv[])
             case 'V':
                 version(stdout);
                 exit(0);
-                break;
             default:
                 usage(stderr);
                 exit(2);
-                break;
         }
     }
     argc -= optind;
@@ -289,34 +317,75 @@ main(int argc, char* argv[])
 
 #ifdef ENFORCER_TIMESHIFT
     if (getenv("ENFORCER_TIMESHIFT")) {
-        fprintf(stdout, "WARNING: timeshift %s detected, this is a fixed point in time.\n",
-            getenv("ENFORCER_TIMESHIFT"));
+        fprintf(stdout, "WARNING: timeshift %s detected, this is a"
+            " fixed point in time.\n", getenv("ENFORCER_TIMESHIFT"));
     } else {
         fprintf(stdout, "DEBUG: timeshift mode enabled, but not set.\n");
     }
 #endif /* ENFORCER_TIMESHIFT */
 
     /* main stuff */
-    fprintf(stdout, "OpenDNSSEC key and signing policy enforcer version %s\n", PACKAGE_VERSION);
+    fprintf(stdout, "OpenDNSSEC key and signing policy enforcer version %s\n", 
+        PACKAGE_VERSION);
     
-    {
-        engine_type *engine;
-        if ((engine = engine_start(cfgfile, cmdline_verbosity, daemonize, info))) {
-            engine_setup(engine,enforcer_commands,enforcer_help);
-            /* if setup fails we need a non-zero exit code */
-            if (engine->setup_error) {
-                fprintf(stdout, "Setup failed. Aborting.\n");
-                exit(3);
-            }
-            engine_runloop(engine,autostart,single_run);
-            if (engine->setup_error) {
-                fprintf(stdout, "Setup failed. Aborting.\n");
-                exit(4);
-            }
-            engine_stop(engine);
-        }
+    program_setup(cmdline_verbosity); /* setup basic logging, xml, PB */
+    engine = engine_alloc(); /* Let's create an engine only once */
+    if (!engine) {
+        ods_log_crit("Could not start engine");
+        program_teardown();
+        return 1;
     }
-
-    /* done */
-    return 0;
+    engine_init(engine, daemonize, enforcer_commands, enforcer_help);
+    
+    returncode = 0;
+    while (!engine->need_to_exit) {
+        /* Parse config file */
+        cfg = engine_config(engine->allocator, cfgfile, cmdline_verbosity);
+        /* does it make sense? */
+        if (engine_config_check(cfg) != ODS_STATUS_OK) {
+            /* it does not, do we have a previous config loaded? */
+            if (engine->config) {
+                ods_log_error("[%s] cfgfile %s has errors, continuing"
+                    " with old config", enforcerd_str, cfgfile);
+            } else {
+                ods_log_crit("[%s] cfgfile %s has errors", enforcerd_str, cfgfile);
+                returncode = 2;
+                engine_config_cleanup(cfg); /* antagonist of engine_config() */
+                break;
+            }
+        } else {
+            engine->config = cfg;
+        }
+        
+        /* Print config and exit */
+        if (info) {
+            engine_config_print(stdout, engine->config); /* for debugging */
+            engine_config_cleanup(engine->config);
+            break;
+        }
+        
+        /* do daemon housekeeping: pid, privdrop, fork, log */
+        if ((status = engine_setup(engine)) != ODS_STATUS_OK) {
+            ods_log_error("setup failed: %s", ods_status2str(status));
+            if (!daemonize)
+                fprintf(stderr, "setup failed: %s", ods_status2str(status));
+            returncode = 3;
+            engine->need_to_exit = 1;
+        } else {
+            if (engine_run(engine, autostart, single_run)) {
+                returncode = 4;
+                engine->need_to_exit = 1;
+            }
+            engine_teardown(engine); /* antagonist of engine_setup() */
+        }
+        engine_config_cleanup(engine->config); /* antagonist of engine_config() */
+        engine->config = NULL;
+        if (!engine->need_to_exit) 
+            ods_log_info("[%s] enforcer reloading", enforcerd_str);
+    }
+    engine_dealloc(engine); /* antagonist of engine_alloc() */
+    ods_log_info("[%s] enforcerd stopped with exitcode %d", 
+        enforcerd_str, returncode);
+    program_teardown(); /* antagonist of program_setup() */
+    return returncode;
 }
